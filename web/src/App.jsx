@@ -1,0 +1,135 @@
+import React, { useRef, useState } from 'react';
+import { useStore } from './ui/useStore.js';
+import { Icon, Sheet, Field } from './ui/bits.jsx';
+import Login from './ui/Login.jsx';
+import Journey from './ui/Journey.jsx';
+import Settings from './ui/Settings.jsx';
+import Poster from './ui/Poster.jsx';
+import { actions } from './store/store.js';
+import { queue } from './store/idb.js';
+
+export default function App() {
+  const state = useStore();
+  const [panel, setPanel] = useState(null); // 'settings' | 'poster' | 'add'
+  const [addNodeSignal, setAddNodeSignal] = useState(0);
+  const [pending, setPending] = useState(0);
+
+  React.useEffect(() => {
+    queue.size().then(setPending).catch(() => {});
+  }, [state.data, state.online]);
+
+  if (state.phase === 'boot') {
+    return (
+      <div className="auth">
+        <div className="stack">
+          <div className="skeleton" />
+          <div className="skeleton" style={{ height: 110 }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (state.phase === 'login') return <Login />;
+
+  return (
+    <div className="app">
+      {!state.online && <div className="net-flag">离线中</div>}
+      {state.online && pending > 0 && (
+        <div className="net-flag" style={{ background: 'rgba(47,128,237,.92)' }}>
+          {pending} 条待同步
+        </div>
+      )}
+
+      <Journey
+        addNodeSignal={addNodeSignal}
+        onAdd={() => setPanel('add')}
+        onOpenSettings={() => setPanel('settings')}
+      />
+
+      {panel === 'settings' && (
+        <Sheet title="设置" onClose={() => setPanel(null)}>
+          <Settings embedded onOpenPoster={() => setPanel('poster')} />
+        </Sheet>
+      )}
+
+      {panel === 'poster' && state.data?.photos?.length > 0 && (
+        <Poster photos={state.data.photos} trip={state.data.trip} onClose={() => setPanel(null)} />
+      )}
+
+      {panel === 'add' && (
+        <QuickAdd
+          nodes={state.data?.nodes || []}
+          onClose={() => setPanel(null)}
+          onAddNode={() => {
+            setPanel(null);
+            setAddNodeSignal((n) => n + 1);
+          }}
+        />
+      )}
+
+      {state.toast && <div className={`toast ${state.toast.kind}`}>{state.toast.message}</div>}
+    </div>
+  );
+}
+
+/** 右上角那个 + ：放照片最快，加一项次之。记账在时间线上对应那项里点。 */
+function QuickAdd({ nodes, onClose, onAddNode }) {
+  const fileRef = useRef(null);
+  const [nodeId, setNodeId] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function pick(ev) {
+    const files = [...(ev.target.files || [])];
+    ev.target.value = '';
+    if (!files.length) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      for (const f of files) fd.append('photos', f);
+      if (nodeId) fd.append('nodeId', nodeId);
+      await actions.uploadPhotos(fd);
+      onClose();
+    } catch {
+      /* store 弹过了 */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sheet title="加一笔" onClose={onClose}>
+      <div className="stack">
+        <div className="quickgrid">
+          <button className="quickcell" onClick={() => fileRef.current?.click()} disabled={busy}>
+            <Icon name="camera" size={19} />
+            <span>{busy ? '上传中' : '传照片'}</span>
+          </button>
+          <button className="quickcell" onClick={onAddNode}>
+            <Icon name="plus" size={19} />
+            <span>加一项</span>
+          </button>
+        </div>
+
+        <Field label="传给哪一项" hint="不选就进「随手记」">
+          <select className="select" value={nodeId} onChange={(e) => setNodeId(e.target.value)}>
+            <option value="">不指定</option>
+            {nodes.map((n) => (
+              <option key={n.id} value={n.id}>
+                {[n.date.slice(5), n.start_time, n.title].filter(Boolean).join(' · ')}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/gif"
+          multiple
+          onChange={pick}
+          style={{ display: 'none' }}
+        />
+      </div>
+    </Sheet>
+  );
+}

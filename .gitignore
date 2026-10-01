@@ -1,0 +1,22 @@
+# 依赖
+node_modules/
+
+# 构建产物：前端 dist 由 npm run build 生成，服务器上是 tar 推上去的
+web/dist/
+server/frontend/dist/
+
+# 运行时数据：数据库、密钥、上传的照片。
+# .pepper / .session-secret 是登录用的 pepper 和会话签名密钥，绝不能进版本库。
+# travel.db 里的 WAL 才是真实数据（本体可能只有 4KB），需要备份请用 sqlite3 .backup
+server/data/
+
+# 会话日志：当初那份 opencode 对话文件，已被 server/src/seed/yunnan.js 消化
+ses_*.json
+
+# 本地临时与工具产物
+*.log
+*.local
+.DS_Store
+Thumbs.db
+.env
+.env.local

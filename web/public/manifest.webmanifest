@@ -1,0 +1,25 @@
+{
+  "name": "旅行助手 · 现在该去哪",
+  "short_name": "旅行助手",
+  "description": "打开就知道现在该去哪、接下来做什么；随时调整行程、记账、生成旅行 vlog 图。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F6F8",
+  "theme_color": "#F5F6F8",
+  "categories": ["travel", "lifestyle", "productivity"],
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "今天", "short_name": "今天", "url": "/?tab=today" },
+    { "name": "记一笔", "short_name": "记账", "url": "/?tab=money" },
+    { "name": "生成 vlog 图", "short_name": "vlog", "url": "/?tab=photos" }
+  ]
+}

@@ -1,0 +1,390 @@
+import express from 'express';
+import { db, nowISO, uid } from '../db.js';
+import { requireAuth } from '../auth.js';
+import { broadcast } from '../events.js';
+
+const router = express.Router();
+router.use(requireAuth);
+
+// 类型不是写死的枚举：只要是安全的标识符就接受，展示信息去 vocab 表里查。
+function sanitizeKey(v) {
+const s = String(v ?? '').trim().slice(0, 40);
+return /^[\w一-龥-]+$/.test(s) ? s : null;
+}
+const STATUSES = new Set(['planned', 'done', 'skipped']);
+
+function timeToMinutes(t) {
+  if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return null;
+  const [h, m] = t.split(':').map(Number);
+  if (h > 23 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function minutesToTime(v) {
+  const wrapped = ((v % 1440) + 1440) % 1440;
+  const h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function nextSortOrder(tripId, date) {
+  // sort_order 是一条贯穿整趟行程的全局序列，新项落在当天这一段的末尾。
+  const sameDay = db.prepare('SELECT MAX(sort_order) AS m FROM nodes WHERE trip_id = ? AND date = ?').get(tripId, date);
+  if (sameDay?.m != null) return sameDay.m + 10;
+  const before = db.prepare('SELECT MAX(sort_order) AS m FROM nodes WHERE trip_id = ? AND date < ?').get(tripId, date);
+  return (before?.m ?? -10) + 10;
+}
+
+/** 一天的时长：只有开始时间就按默认一小时算，都没有就返回 null（表示还没排期） */
+const DEFAULT_SPAN = 60;
+
+function spanOf(row) {
+  const s = timeToMinutes(row.start_time);
+  if (s === null) return null;
+  const e = timeToMinutes(row.end_time);
+  if (e === null || e <= s) return DEFAULT_SPAN;
+  return e - s;
+}
+
+function addDays(iso, days) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** 节点被拖到行程范围外时，把行程的起止日期撑开，不然那天会变成没有第 N 天的孤儿日期 */
+function expandTripRange(tripId, date) {
+  const t = db.prepare('SELECT start_date, end_date FROM trips WHERE id = ?').get(tripId);
+  if (!t) return;
+  const start = date < t.start_date ? date : t.start_date;
+  const end = date > t.end_date ? date : t.end_date;
+  if (start === t.start_date && end === t.end_date) return;
+  db.prepare('UPDATE trips SET start_date = ?, end_date = ?, updated_at = ? WHERE id = ?').run(start, end, nowISO(), tripId);
+}
+
+function orderedRows(tripId) {
+  return db.prepare('SELECT * FROM nodes WHERE trip_id = ? ORDER BY sort_order, date, start_time').all(tripId);
+}
+
+/**
+ * 插入后重排时间：从 fromDate 开始，每天从当天原本最早的开始时间起步，
+ * 按当前顺序依次往后接。每一项都保持自己的时长，且永远不会比原计划更早。
+ * 哪天挤不进 24 小时就停在那儿，剩下的保持原样，并报个数回去。
+ */
+function recascade(tripId, fromDate) {
+  const rows = orderedRows(tripId);
+  const upd = db.prepare('UPDATE nodes SET start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND trip_id = ?');
+  const now = nowISO();
+  let changed = 0;
+  let overflow = 0;
+  let curDate = null;
+  let cursor = null;
+  let halted = false;
+
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      if (r.date < fromDate) continue;
+
+      if (r.date !== curDate) {
+        curDate = r.date;
+        cursor = anchorOf(rows.filter((x) => x.date === r.date));
+        halted = false;
+      }
+
+      const span = spanOf(r);
+      const own = timeToMinutes(r.start_time);
+      if (span === null || own === null) {
+        cursor = null; // 碰到没排期的，它后面的接不上，保持原样
+        continue;
+      }
+      if (cursor === null || halted) {
+        if (!halted) cursor = own + span;
+        continue;
+      }
+
+      const s = Math.max(cursor, own);
+      if (s >= 1440) {
+        overflow++;
+        halted = true;
+        continue;
+      }
+      const e = s + span;
+      const curEnd = timeToMinutes(r.end_time);
+      if (s !== own || curEnd !== e) {
+        upd.run(minutesToTime(s), minutesToTime(e), now, r.id, tripId);
+        changed++;
+      }
+      cursor = e;
+    }
+  });
+  tx();
+  return { changed, overflow };
+}
+
+/** 某天的起步时间：当天所有有时间的节点里最早的那个 */
+function anchorOf(dayRows) {
+  let best = null;
+  for (const r of dayRows) {
+    const s = timeToMinutes(r.start_time);
+    if (s !== null && (best === null || s < best)) best = s;
+  }
+  return best;
+}
+
+function getNode(id, tripId) {
+  return db.prepare('SELECT * FROM nodes WHERE id = ? AND trip_id = ?').get(id, tripId);
+}
+
+router.post('/', (req, res) => {
+  const tripId = req.auth.tid;
+  const b = req.body || {};
+  const date = String(b.date || '');
+  const title = String(b.title || '').trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad_date', message: '日期格式应为 YYYY-MM-DD' });
+  if (!title) return res.status(400).json({ error: 'bad_title', message: '请填写标题' });
+
+  const startTime = b.startTime && /^\d{1,2}:\d{2}$/.test(b.startTime) ? b.startTime : null;
+  const now = nowISO();
+  const node = {
+    id: uid(),
+    trip_id: tripId,
+    day_index: 0,
+    date,
+type: sanitizeKey(b.type) || 'other',
+    title: title.slice(0, 80),
+    start_time: startTime,
+    end_time: b.endTime && /^\d{1,2}:\d{2}$/.test(b.endTime) ? b.endTime : null,
+    location: b.location ? String(b.location).slice(0, 120) : null,
+    nav_keyword: b.navKeyword ? String(b.navKeyword).slice(0, 120) : null,
+    notes: b.notes ? String(b.notes).slice(0, 2000) : null,
+    checklist: Array.isArray(b.checklist) ? JSON.stringify(b.checklist.slice(0, 20)) : null,
+    transport_minutes: Number.isFinite(+b.transportMinutes) ? Math.max(0, Math.min(600, +b.transportMinutes)) : null,
+    sort_order: Number.isFinite(+b.sortOrder) ? +b.sortOrder : nextSortOrder(tripId, date),
+    status: 'planned',
+    actual_start: null,
+    actual_end: null,
+    created_at: now,
+    updated_at: now,
+  };
+
+  db.prepare(
+    `INSERT INTO nodes (id, trip_id, day_index, date, type, title, start_time, end_time, location, nav_keyword,
+                        notes, checklist, transport_minutes, sort_order, status, actual_start, actual_end,
+                        created_at, updated_at)
+     VALUES (@id, @trip_id, @day_index, @date, @type, @title, @start_time, @end_time, @location, @nav_keyword,
+             @notes, @checklist, @transport_minutes, @sort_order, @status, @actual_start, @actual_end,
+             @created_at, @updated_at)`
+  ).run(node);
+
+  broadcast(tripId, { type: 'nodes' });
+  res.status(201).json(getNode(node.id, tripId));
+});
+
+const EDITABLE = {
+  date: (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null),
+type: (v) => sanitizeKey(v),
+  title: (v) => (String(v).trim().slice(0, 80) || null),
+  startTime: (v) => (v === null || v === '' ? null : /^\d{1,2}:\d{2}$/.test(v) ? v : null),
+  endTime: (v) => (v === null || v === '' ? null : /^\d{1,2}:\d{2}$/.test(v) ? v : null),
+  location: (v) => (v ? String(v).slice(0, 120) : null),
+  navKeyword: (v) => (v ? String(v).slice(0, 120) : null),
+  notes: (v) => (v ? String(v).slice(0, 2000) : null),
+  transportMinutes: (v) => (Number.isFinite(+v) ? Math.max(0, Math.min(600, Math.round(+v))) : null),
+  status: (v) => (STATUSES.has(v) ? v : null),
+  sortOrder: (v) => (Number.isFinite(+v) ? Math.round(+v) : null),
+};
+
+const COLUMN = {
+  date: 'date',
+  type: 'type',
+  title: 'title',
+  startTime: 'start_time',
+  endTime: 'end_time',
+  location: 'location',
+  navKeyword: 'nav_keyword',
+  notes: 'notes',
+  transportMinutes: 'transport_minutes',
+  status: 'status',
+  sortOrder: 'sort_order',
+};
+
+router.patch('/:id', (req, res) => {
+  const tripId = req.auth.tid;
+  const node = getNode(req.params.id, tripId);
+  if (!node) return res.status(404).json({ error: 'not_found' });
+
+  const sets = [];
+  const params = { id: node.id, updated_at: nowISO() };
+
+  for (const [key, sanitize] of Object.entries(EDITABLE)) {
+    if (req.body?.[key] === undefined) continue;
+    const value = sanitize(req.body[key]);
+    if (value === null && req.body[key] !== null && req.body[key] !== '') continue;
+    sets.push(`${COLUMN[key]} = @${COLUMN[key]}`);
+    params[COLUMN[key]] = value;
+  }
+
+  if (Array.isArray(req.body?.checklist)) {
+    sets.push('checklist = @checklist');
+    params.checklist = JSON.stringify(req.body.checklist.slice(0, 20));
+  }
+
+  if (sets.length === 0) return res.json(node);
+
+  db.prepare(`UPDATE nodes SET ${sets.join(', ')}, updated_at = @updated_at WHERE id = @id`).run(params);
+  broadcast(tripId, { type: 'nodes' });
+  res.json(getNode(node.id, tripId));
+});
+
+router.delete('/:id', (req, res) => {
+  const tripId = req.auth.tid;
+  const node = getNode(req.params.id, tripId);
+  if (!node) return res.status(404).json({ error: 'not_found' });
+  db.prepare('DELETE FROM nodes WHERE id = ?').run(node.id);
+  broadcast(tripId, { type: 'nodes' });
+  res.json({ ok: true, id: node.id });
+});
+
+/** 拖拽排序：前端传当天节点的顺序 id 数组 */
+router.post('/reorder', (req, res) => {
+  const tripId = req.auth.tid;
+  const ids = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds : [];
+  if (ids.length === 0) return res.status(400).json({ error: 'bad_request' });
+
+  const upd = db.prepare('UPDATE nodes SET sort_order = ?, updated_at = ? WHERE id = ? AND trip_id = ?');
+  const tx = db.transaction(() => {
+    ids.forEach((id, i) => upd.run(i * 10, nowISO(), id, tripId));
+  });
+  tx();
+  broadcast(tripId, { type: 'nodes' });
+  res.json({ ok: true });
+});
+
+/**
+ * 拖拽落位：把 nodeId 插到 beforeNodeId 之前（beforeNodeId 为空则落到当天最后）。
+ * 不是交换，是插入 —— 插进去之后按它自己的时长把后面的整体往后推。
+ * 自己还没排期（没时间）的直接拦下来，让前端先去填时间段。
+ */
+router.post('/move', (req, res) => {
+  const tripId = req.auth.tid;
+  const node = getNode(String(req.body?.nodeId || ''), tripId);
+  if (!node) return res.status(404).json({ error: 'not_found' });
+
+  const toDate = String(req.body?.toDate || node.date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(toDate)) return res.status(400).json({ error: 'bad_date' });
+
+  if (spanOf(node) === null) {
+    return res.status(422).json({ error: 'need_time', message: '这一项还没有时间，先填上开始和结束时间再拖' });
+  }
+
+  const beforeId = req.body?.beforeNodeId ? String(req.body.beforeNodeId) : null;
+  const all = orderedRows(tripId);
+  const order0 = all.map((r) => r.id).join(',');
+  const rows = all.filter((r) => r.id !== node.id);
+
+  let at = beforeId ? rows.findIndex((r) => r.id === beforeId) : -1;
+  /*
+   * 「放回它自己前面那个空位」就是放回原位，不是落点丢了。
+   * 手指拖出去又拖回来、或者只是往上挪了一点点，都会正好命中这里 ——
+   * 以前一律报 400，在手机上就表现为「怎么都放不下去」。
+   */
+  if (at < 0 && beforeId === node.id) at = all.findIndex((r) => r.id === node.id);
+  if (at < 0) {
+    if (beforeId) return res.status(400).json({ error: 'bad_target', message: '落点已经不存在了' });
+    at = rows.length;
+  }
+  rows.splice(at, 0, { ...node, date: toDate });
+
+  const upd = db.prepare('UPDATE nodes SET sort_order = ?, date = ?, updated_at = ? WHERE id = ? AND trip_id = ?');
+  const now = nowISO();
+  const tx = db.transaction(() => {
+    rows.forEach((r, i) => upd.run(i * 10, r.date, now, r.id, tripId));
+  });
+  tx();
+
+  expandTripRange(tripId, toDate);
+  const result = recascade(tripId, toDate < node.date ? toDate : node.date);
+
+  broadcast(tripId, { type: 'nodes' });
+  // 顺序到底变没变，和时间有没有跟着挪是两回事 —— 放回原位时后者是 0，
+  // 但前端得知道「这一下等于没动」，不然用户以为又是没放进去
+  const moved = rows.map((r) => r.id).join(',') !== order0;
+
+  res.json({ ok: true, date: toDate, moved, ...result });
+});
+
+/** 整天顺延：把 fromDate 及之后的每一项整体挪 days 天，顺序不变 */
+router.post('/shift-days', (req, res) => {
+  const tripId = req.auth.tid;
+  const fromDate = String(req.body?.fromDate || '');
+  const days = Math.round(Number(req.body?.days));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !Number.isFinite(days) || days === 0) {
+    return res.status(400).json({ error: 'bad_request', message: '参数无效' });
+  }
+  const rows = db.prepare('SELECT id, date FROM nodes WHERE trip_id = ? AND date >= ?').all(tripId, fromDate);
+  if (rows.length === 0) return res.json({ ok: true, moved: 0 });
+
+  const upd = db.prepare('UPDATE nodes SET date = ?, updated_at = ? WHERE id = ? AND trip_id = ?');
+  const now = nowISO();
+  const tx = db.transaction(() => {
+    for (const r of rows) upd.run(addDays(r.date, days), now, r.id, tripId);
+  });
+  tx();
+
+  const last = rows.reduce((m, r) => (r.date > m ? r.date : m), rows[0].date);
+  expandTripRange(tripId, addDays(last, days));
+  expandTripRange(tripId, addDays(fromDate, days));
+
+  broadcast(tripId, { type: 'nodes' });
+  res.json({ ok: true, moved: rows.length, days });
+});
+/**
+ * 自动顺延：从指定节点开始，把当天（或从该节点往后跨天）所有带时间的节点整体平移 minutes 分钟。
+ * 打卡后发现晚了 90 分钟 → minutes = 90
+ */
+router.post('/shift', (req, res) => {
+  const tripId = req.auth.tid;
+  const minutes = Math.round(+req.body?.minutes);
+  if (!Number.isFinite(minutes) || minutes === 0) {
+    return res.status(400).json({ error: 'bad_request', message: 'minutes 无效' });
+  }
+  const fromId = req.body?.fromNodeId ? String(req.body.fromNodeId) : null;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.date || '') ? req.body.date : null;
+
+  let rows;
+  if (fromId) {
+    const anchor = getNode(fromId, tripId);
+    if (!anchor) return res.status(404).json({ error: 'not_found' });
+    rows = db
+      .prepare(
+        `SELECT * FROM nodes
+         WHERE trip_id = ? AND status = 'planned' AND start_time IS NOT NULL
+           AND (date > ? OR (date = ? AND sort_order >= ?))
+         ORDER BY date, sort_order`
+      )
+      .all(tripId, anchor.date, anchor.date, anchor.sort_order);
+  } else if (date) {
+    rows = db
+      .prepare(`SELECT * FROM nodes WHERE trip_id = ? AND date = ? AND status = 'planned' AND start_time IS NOT NULL ORDER BY sort_order`)
+      .all(tripId, date);
+  } else {
+    return res.status(400).json({ error: 'bad_request', message: '需要 fromNodeId 或 date' });
+  }
+
+  const upd = db.prepare('UPDATE nodes SET start_time = ?, end_time = ?, updated_at = ? WHERE id = ?');
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      const s = timeToMinutes(r.start_time);
+      if (s === null) continue;
+      const e = timeToMinutes(r.end_time);
+      upd.run(minutesToTime(s + minutes), e === null ? null : minutesToTime(e + minutes), nowISO(), r.id);
+    }
+  });
+  tx();
+
+  broadcast(tripId, { type: 'nodes' });
+  res.json({ ok: true, shifted: rows.length, minutes });
+});
+
+export default router;
