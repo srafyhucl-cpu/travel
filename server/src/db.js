@@ -169,6 +169,10 @@ dropColumn('trips', 'overview');
 ensureColumn('budgets', 'vocab_key', 'TEXT');
 ensureColumn('vocab', 'created_at', "TEXT NOT NULL DEFAULT ''");
 
+// 「首页模块」标记：打了这个标的那条会搬进顶部常驻块（前置准备），时间线上不再重复。
+// 同一趟只留一个，写入时服务端会把别处的标记收掉。
+ensureColumn('nodes', 'role', 'TEXT');
+
 /*
 * 默认词汇表。这里是「出厂设置」，用户可以在 App 里随时增删改，
 * 所以行程类型和消费类别不是写死在代码里的枚举。

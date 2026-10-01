@@ -2,6 +2,7 @@ import express from 'express';
 import { db, nowISO, uid } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { broadcast } from '../events.js';
+import { parseChecklist, sanitizeChecklist } from '../checklist.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -25,6 +26,18 @@ function minutesToTime(v) {
   const h = Math.floor(wrapped / 60);
   const m = wrapped % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/**
+ * 「作为模块置顶显示」全局就一个位置：新的顶上来了，原来那条自动落回时间线。
+ *
+ * 前端只把第一条模块节点放进顶部那块卡，时间线上显示的是其余的 —— 同时挂两个，
+ * 后一个既不在卡里也不在行程里，看着像凭空没了。离线队列重放旧请求也可能把两个
+ * 标记一起送上来，服务端收一道最稳。
+ */
+function clearOtherModules(tripId, keepId) {
+  db.prepare("UPDATE nodes SET role = NULL, updated_at = ? WHERE trip_id = ? AND id != ? AND role = 'module'")
+    .run(nowISO(), tripId, keepId);
 }
 
 function nextSortOrder(tripId, date) {
@@ -132,7 +145,11 @@ function anchorOf(dayRows) {
 }
 
 function getNode(id, tripId) {
-  return db.prepare('SELECT * FROM nodes WHERE id = ? AND trip_id = ?').get(id, tripId);
+  const row = db.prepare('SELECT * FROM nodes WHERE id = ? AND trip_id = ?').get(id, tripId);
+  if (!row) return row;
+  // checklist 出去一律是对象数组（老数据里的纯字符串在 parseChecklist 里补齐），
+  // 不然同一个字段一会儿是数组一会儿是对象，前端每处都得先猜一遍。
+  return { ...row, checklist: parseChecklist(row.checklist) };
 }
 
 router.post('/', (req, res) => {
@@ -158,7 +175,8 @@ type: sanitizeKey(b.type) || 'other',
     location: b.location ? String(b.location).slice(0, 120) : null,
     nav_keyword: b.navKeyword ? String(b.navKeyword).slice(0, 120) : null,
     notes: b.notes ? String(b.notes).slice(0, 2000) : null,
-    checklist: Array.isArray(b.checklist) ? JSON.stringify(b.checklist.slice(0, 20)) : null,
+    checklist: Array.isArray(b.checklist) ? sanitizeChecklist(b.checklist) : null,
+    role: b.role === 'module' ? 'module' : null,
     transport_minutes: Number.isFinite(+b.transportMinutes) ? Math.max(0, Math.min(600, +b.transportMinutes)) : null,
     sort_order: Number.isFinite(+b.sortOrder) ? +b.sortOrder : nextSortOrder(tripId, date),
     status: 'planned',
@@ -170,12 +188,13 @@ type: sanitizeKey(b.type) || 'other',
 
   db.prepare(
     `INSERT INTO nodes (id, trip_id, day_index, date, type, title, start_time, end_time, location, nav_keyword,
-                        notes, checklist, transport_minutes, sort_order, status, actual_start, actual_end,
+                        notes, checklist, role, transport_minutes, sort_order, status, actual_start, actual_end,
                         created_at, updated_at)
      VALUES (@id, @trip_id, @day_index, @date, @type, @title, @start_time, @end_time, @location, @nav_keyword,
              @notes, @checklist, @transport_minutes, @sort_order, @status, @actual_start, @actual_end,
-             @created_at, @updated_at)`
+             @role, @created_at, @updated_at)`
   ).run(node);
+  if (node.role === 'module') clearOtherModules(tripId, node.id);
 
   broadcast(tripId, { type: 'nodes' });
   res.status(201).json(getNode(node.id, tripId));
@@ -190,6 +209,7 @@ type: (v) => sanitizeKey(v),
   location: (v) => (v ? String(v).slice(0, 120) : null),
   navKeyword: (v) => (v ? String(v).slice(0, 120) : null),
   notes: (v) => (v ? String(v).slice(0, 2000) : null),
+  role: (v) => (v === 'module' ? 'module' : null),
   transportMinutes: (v) => (Number.isFinite(+v) ? Math.max(0, Math.min(600, Math.round(+v))) : null),
   status: (v) => (STATUSES.has(v) ? v : null),
   sortOrder: (v) => (Number.isFinite(+v) ? Math.round(+v) : null),
@@ -204,6 +224,7 @@ const COLUMN = {
   location: 'location',
   navKeyword: 'nav_keyword',
   notes: 'notes',
+  role: 'role',
   transportMinutes: 'transport_minutes',
   status: 'status',
   sortOrder: 'sort_order',
@@ -227,12 +248,13 @@ router.patch('/:id', (req, res) => {
 
   if (Array.isArray(req.body?.checklist)) {
     sets.push('checklist = @checklist');
-    params.checklist = JSON.stringify(req.body.checklist.slice(0, 20));
+    params.checklist = sanitizeChecklist(req.body.checklist);
   }
 
   if (sets.length === 0) return res.json(node);
 
   db.prepare(`UPDATE nodes SET ${sets.join(', ')}, updated_at = @updated_at WHERE id = @id`).run(params);
+  if (params.role === 'module') clearOtherModules(tripId, node.id);
   broadcast(tripId, { type: 'nodes' });
   res.json(getNode(node.id, tripId));
 });
@@ -244,6 +266,28 @@ router.delete('/:id', (req, res) => {
   db.prepare('DELETE FROM nodes WHERE id = ?').run(node.id);
   broadcast(tripId, { type: 'nodes' });
   res.json({ ok: true, id: node.id });
+});
+
+/*
+ * 勾一条待办。请求体是 {done: true/false}，不是「翻一下」：
+ * 写操作会进离线队列、断网重连后重放，幂等的「设值」重放几次结果都一样，
+ * toggle 会被重放反噬（勾完又自己弹回来）。
+ */
+router.post('/:id/checklist/:itemId', (req, res) => {
+  const tripId = req.auth.tid;
+  const node = getNode(req.params.id, tripId);
+  if (!node) return res.status(404).json({ error: 'not_found' });
+  const items = parseChecklist(node.checklist);
+  const item = items.find((i) => i.id === req.params.itemId);
+  if (!item) return res.status(404).json({ error: 'no_item', message: '这条待办已经不在了' });
+  const done = req.body?.done === true;
+  item.done = done;
+  item.done_at = done ? item.done_at || nowISO() : null;
+  db.prepare('UPDATE nodes SET checklist = ?, updated_at = ? WHERE id = ?').run(
+    JSON.stringify(items), nowISO(), node.id
+  );
+  broadcast(tripId, { type: 'nodes' });
+  res.json({ checklist: items });
 });
 
 /** 拖拽排序：前端传当天节点的顺序 id 数组 */

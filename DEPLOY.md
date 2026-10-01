@@ -72,6 +72,7 @@ npm run check:fields     # 记账弹层输入框有没有被挤爆
 npm run check:drag       # 长按拖拽排序
 npm run check:shortcuts  # PWA 主屏长按的三个快捷方式
 npm run check:order      # 时间倒流检查（只读，默认直接打生产）
+npm run check:prep       # 前置模块卡：位置 / 勾选同步 / 全完成折叠 / 编辑器开关
 ```
 
 退出码：0 = 全通，1 = 有失败或报错，2 = 脚本自己炸了。环境变量：`BASE` 改目标地址、

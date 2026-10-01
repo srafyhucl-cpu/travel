@@ -7,8 +7,11 @@ import {
   formatDate, relativeDay, typeMeta, categoryMeta, humanizeDuration, formatMoney, addDays,
 } from '../core/format.js';
 import { openAmap } from '../core/nav.js';
+import CheckItem from './CheckItem.jsx';
+import Deck from './Deck.jsx';
+import { normalizeItems, newItem } from '../core/checklist.js';
 import { computeBudget } from '../core/budget.js';
-import { Icon, Glyph, Sheet, Field, Input, Bar } from './bits.jsx';
+import { Icon, Glyph, Sheet, Field, Input, Switch } from './bits.jsx';
 import { useDragSort } from './useDragSort.js';
 
 /**
@@ -19,13 +22,21 @@ import { useDragSort } from './useDragSort.js';
  * 不用跳去别的页面再想办法对上关系。
  */
 
+/*
+ * 顶部那块只放得下一条「前置」。正常库里也就一条（服务端收着），但老数据、
+ * 离线队列重放都可能留下两条：所以只把真正上墙的那条从时间线上拿掉，多出来的
+ * 那条老实留在行程里 —— 两条都藏起来等于凭空丢一条。
+ */
+function deckModule(nodes) {
+  return nodes.find((n) => n.role === 'module') || null;
+}
+
 export default function Journey({ addNodeSignal, expenseSignal, onAdd, onOpenSettings }) {
   const state = useStore();
   const data = state.data;
 
   const [editing, setEditing] = useState(null); // {kind:'node'|'expense'|'budget', ...}
   const [viewer, setViewer] = useState(null);
-  const [showBudget, setShowBudget] = useState(false);
   const [flash, setFlash] = useState(null); // 拖完之后的回执，飘在时间线顶上
 
   /* 长按拖动换位置。落位之后服务端会按新顺序把后面的时间整体顺延。 */
@@ -82,10 +93,19 @@ export default function Journey({ addNodeSignal, expenseSignal, onAdd, onOpenSet
       expensesByNode.get(e.node_id).push(e);
     }
 
-    // 日期 -> 当天的节点。空白日也保留，否则「第几天」会错位。
+    /*
+     * 日期 -> 当天的节点。空白日也保留，否则「第几天」会错位。
+     * 打了「首页模块」标记的节点（前置准备）不在这里重复出现：顶部已经
+     * 单独亮着一张卡，两边都显示反而像漏了同步。它要是占了某天全部内容，
+     * 那天连日期头一起去掉——总不能留一个「9月30日」孤零零挂在那儿。
+     */
+    const shown = deckModule(data.nodes);
     const days = [];
     for (const d of clock.allDates) {
-      days.push({ date: d, nodes: clock.decoratedByDate.get(d) || [] });
+      const raw = clock.decoratedByDate.get(d) || [];
+      const nodes = raw.filter((n) => n.id !== shown?.id);
+      if (raw.length > 0 && nodes.length === 0) continue;
+      days.push({ date: d, nodes });
     }
 
     const loosePhotos = data.photos.filter((p) => !p.node_id);
@@ -135,32 +155,44 @@ setEditing({ kind: 'expense' });
   const totalNodes = data.nodes.length;
   const doneNodes = data.nodes.filter((n) => n.status === 'done').length;
 
+  // 打了「首页模块」标记的节点（目前是「前置准备」）：只进顶部那块常驻的 Deck，
+  // 时间线上不再显示（见下面的 days 过滤）。
+  const modules = deckModule(data.nodes);
   return (
     <>
-      <header className="topbar sticky">
-        <div className="grow">
-          <h1 className="truncate">{trip.name}</h1>
-          <div className="sub truncate">
-            {trip.destination} · {doneNodes}/{totalNodes} 已完成
-            <span className={`dot-live${state.live ? ' on' : ''}`} />
-            {!state.online && ' · 离线'}
+      {/*
+       * 顶栏和下面那块「现在 / 前置 / 钱」合成一个常驻的 HUD，一起 sticky。
+       * 出发前最该盯的两件事（现在在干嘛、还有什么没办）不该滚出屏幕。
+       */}
+      <div className="hud">
+        <header className="topbar">
+          <div className="grow">
+            <h1 className="truncate">{trip.name}</h1>
+            <div className="sub truncate">
+              {trip.destination} · {doneNodes}/{totalNodes} 已完成
+              <span className={`dot-live${state.live ? ' on' : ''}`} />
+              {!state.online && ' · 离线'}
+            </div>
           </div>
-        </div>
-        <button className="icon-btn accent" onClick={onAdd} aria-label="加一笔">
-          <Icon name="plus" size={18} />
-        </button>
-        <button className="icon-btn" onClick={onOpenSettings} aria-label="设置">
-          <Icon name="sliders" size={17} />
-        </button>
-      </header>
+          <button className="icon-btn accent" onClick={onAdd} aria-label="加一笔">
+            <Icon name="plus" size={18} />
+          </button>
+          <button className="icon-btn" onClick={onOpenSettings} aria-label="设置">
+            <Icon name="sliders" size={17} />
+          </button>
+        </header>
+
+        <Deck
+          clock={clock}
+          vocab={vocab}
+          budget={budget}
+          modules={modules ? [modules] : []}
+          onEditModule={(m) => setEditing({ kind: 'node', node: m })}
+          onEditBudget={() => setEditing({ kind: 'budget' })}
+        />
+      </div>
 
       <div className="page">
-        <NowStrip clock={clock} vocab={vocab} />
-
-        <MoneyStrip budget={budget} open={showBudget} onToggle={() => setShowBudget((v) => !v)} onEdit={() => setEditing({ kind: 'budget' })} />
-
-        {showBudget && <BudgetDetail budget={budget} vocab={vocab} onEdit={() => setEditing({ kind: 'budget' })} />}
-
         <div className="timeline">
           {flash && <div className="flashbar">{flash}</div>}
           {days.map((d) => (
@@ -262,103 +294,6 @@ setEditing({ kind: 'expense' });
 
       {viewer && <PhotoViewer photo={viewer} photos={data.photos} onClose={() => setViewer(null)} onEdit={setViewer} />}
     </>
-  );
-}
-
-/* ------------------------------ 现在的处境 ------------------------------ */
-
-function NowStrip({ clock, vocab }) {
-  const { headline, subline, tone, currentNode, dayNumber, totalDays, phase } = clock;
-
-  return (
-    <div className={`nowstrip tone-${tone}`}>
-      <div className="ns-label">
-        {phase === 'active' ? '现在' : phase === 'upcoming' ? '还没出发' : '已结束'}
-        <span className="ns-day">
-          第 {dayNumber}/{totalDays} 天
-        </span>
-      </div>
-      <div className="ns-head truncate">{headline}</div>
-      {subline && <div className="ns-sub truncate">{subline}</div>}
-      {currentNode?.navKeyword && (
-        <button className="chip-btn" onClick={() => openAmap(currentNode.navKeyword, '')}>
-          <Icon name="pin" size={12} /> 导航
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------ 钱 ------------------------------ */
-
-function MoneyStrip({ budget, open, onToggle, onEdit }) {
-  return (
-    <div className="moneystrip">
-      <button className="ms-top" onClick={onToggle} aria-expanded={open}>
-        <span className="ms-fig">
-          <span className="tiny dim">已花</span>
-          <b className={budget.over ? 'danger' : ''}>{formatMoney(budget.actualTotal)}</b>
-        </span>
-        <span className="grow">
-          <Bar value={budget.actualTotal} max={budget.plannedTotal} />
-          <span className="tiny dim">
-            预算 {formatMoney(budget.plannedTotal)} ·{' '}
-            {budget.remaining >= 0 ? `还剩 ${formatMoney(budget.remaining)}` : `超支 ${formatMoney(-budget.remaining)}`}
-          </span>
-        </span>
-        <Icon name="chevron" size={14} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
-      </button>
-    </div>
-  );
-}
-
-function BudgetDetail({ budget, vocab, onEdit }) {
-  if (!budget.byCategory.length) {
-    return (
-      <div className="card-flat">
-        <div className="small dim">还没设预算。</div>
-        <button className="btn primary btn-sm" style={{ marginTop: 10 }} onClick={onEdit}>
-          填一下
-        </button>
-      </div>
-    );
-  }
-  return (
-    <div className="card-flat">
-      {budget.byCategory.map((c) => {
-        const meta = categoryMeta(vocab, c.vocabKey || c.category);
-        const spent = c.actual > 0;
-        return (
-          <div key={c.category} className={`brow${spent ? '' : ' is-zero'}`}>
-            <span className="brow-ic" style={{ background: meta.soft, color: meta.color }}>
-              <Glyph icon={meta.icon} size={13} />
-            </span>
-            <div className="grow">
-              <div className="row-between">
-                {/* vocabKey === category 说明这行是「没进任何预算行」的孤儿消费，
-                    budget.js 只能用原始 key 当名字 —— 得查回词汇表的中文标签，
-                    否则用户会看到一行光秃秃的 food。 */}
-                <span className={`small ${spent ? 'strong' : 'dim'}`}>
-                  {c.vocabKey === c.category ? meta.label : c.category}
-                </span>
-                <span className="small mono-num dim">
-                  {c.planned > 0 ? `${formatMoney(c.actual)}/${formatMoney(c.planned)}` : formatMoney(c.actual)}
-                </span>
-              </div>
-              {/* 一分钱没花的类别不画进度条：六七行里五行是空灰条，纯噪音 */}
-              {spent && (
-                <div style={{ marginTop: 4 }}>
-                  <Bar value={c.actual} max={c.planned} />
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-      <button className="chip-btn" style={{ marginTop: 10 }} onClick={onEdit}>
-        改预算
-      </button>
-    </div>
   );
 }
 
@@ -507,7 +442,11 @@ function NodeCard({ node, prev, clock, vocab, photos, expenses, dragging, onEdit
           {node.checklist?.length > 0 && (
             <div className="tl-checks">
               {node.checklist.map((c, i) => (
-                <CheckItem key={i} nodeId={node.id} text={c} index={i} started={!!node.isStarted} />
+                <CheckItem
+                  key={c.id}
+                  item={c}
+                  onToggle={(d) => actions.setChecklistItem(node.id, c.id, d)}
+                />
               ))}
             </div>
           )}
@@ -606,21 +545,6 @@ function NodeCard({ node, prev, clock, vocab, photos, expenses, dragging, onEdit
   );
 }
 
-function CheckItem({ nodeId, text, index, started }) {
-  const [on, setOn] = useState(started && index === 0);
-  return (
-    <button
-      className={`tl-check${on ? ' on' : ''}`}
-      onClick={() => {
-        setOn((v) => !v);
-        if (!on && index === 0) actions.checkin(nodeId, 'departed').catch(() => setOn(false));
-      }}
-    >
-      <span className="box">{on && <Icon name="check" size={10} />}</span>
-      <span className="truncate">{text}</span>
-    </button>
-  );
-}
 
 function Shot({ photo, onClick }) {
   const [url, setUrl] = useState(null);
@@ -751,7 +675,7 @@ let ckPendingFocus = null;
 
 function ChecklistInput({ items, onChange }) {
   const refs = useRef([]);
-  const list = items.length ? items : [''];
+  const list = items.length ? items : [newItem()];
 
   /*
    * 光标要落在刚插进来的那一行上，所以得等它真的进了 DOM。两个细节都不是随便写的：
@@ -781,7 +705,7 @@ function ChecklistInput({ items, onChange }) {
    */
   const addAt = (i) => {
     const next = [...list];
-    next.splice(i + 1, 0, '');
+    next.splice(i + 1, 0, newItem());
     focusAt(i + 1);
     onChange(next);
   };
@@ -790,7 +714,7 @@ function ChecklistInput({ items, onChange }) {
     // 最后一条删空了就把光标放回原地，而不是只留一个不能打字的空壳
     if (list.length === 1) {
       focusAt(0);
-      onChange(['']);
+      onChange([newItem()]);
       return;
     }
     focusAt(Math.max(0, i - 1));
@@ -799,24 +723,24 @@ function ChecklistInput({ items, onChange }) {
 
   return (
     <div className="cklist">
-      {list.map((text, i) => (
-        <div className="cklist-row" key={i}>
+      {list.map((it, i) => (
+        <div className="cklist-row" key={it.id}>
           <span className="cklist-dot" />
           <input
             ref={(el) => { refs.current[i] = el; }}
             className="input cklist-input"
-            value={text}
+            value={it.text}
             placeholder={i === 0 ? '例如：充电宝放随身（不能托运）' : ''}
             onChange={(e) => {
               const next = [...list];
-              next[i] = e.target.value;
+              next[i] = { ...it, text: e.target.value };
               onChange(next);
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
                 addAt(i);
-              } else if (e.key === 'Backspace' && !text && list.length > 1) {
+              } else if (e.key === 'Backspace' && !it.text && list.length > 1) {
                 // 空行上按退格就是「删掉这一行」，比框里没字却只能移动光标顺手
                 e.preventDefault();
                 removeAt(i);
@@ -854,7 +778,8 @@ function NodeEditor({ draft, vocab, dates, onClose, onSave, onDelete }) {
     location: n.location || '',
     navKeyword: n.nav_keyword || '',
     transportMinutes: n.transport_minutes ?? '',
-checklist: n.checklist || [],
+    checklist: normalizeItems(n.checklist),
+    role: n.role || null,
   });
   const [showNav, setShowNav] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -886,7 +811,13 @@ checklist: n.checklist || [],
               location: form.location.trim() || null,
               navKeyword: form.navKeyword.trim() || form.location.trim() || null,
               transportMinutes: form.transportMinutes === '' ? null : Number(form.transportMinutes),
-checklist: form.checklist.map((s) => s.trim()).filter(Boolean),
+              // 存的是对象数组：编辑只动文字，勾没勾带着走（id 也是），
+              // 不然每保存一次，模块里勾掉的就都白勾了。
+              checklist: form.checklist
+                .map((it) => ({ ...it, text: it.text.trim() }))
+                .filter((it) => it.text)
+                .map((it) => ({ id: it.id, text: it.text, done: it.done, done_at: it.done ? it.done_at : null })),
+              role: form.role === 'module' ? 'module' : null,
             })
           }
         >
@@ -928,6 +859,14 @@ checklist: form.checklist.map((s) => s.trim()).filter(Boolean),
               </button>
             ))}
           </div>
+        </Field>
+
+        <Field label="首页模块" hint="在「现在」卡下面单独显示一份，时间线上照常保留">
+          <Switch
+            on={form.role === 'module'}
+            onChange={(v) => setForm((f) => ({ ...f, role: v ? 'module' : null }))}
+            label="作为模块置顶显示"
+          />
         </Field>
 
         <div className="grid-2">

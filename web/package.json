@@ -13,7 +13,8 @@
     "check:fields": "node scripts/check-fields.cjs",
     "check:shortcuts": "node scripts/check-shortcuts.cjs",
     "check:order": "node scripts/check-order.cjs",
-    "check:imports": "node scripts/check-imports.cjs"
+    "check:imports": "node scripts/check-imports.cjs",
+    "check:prep": "node scripts/check-prep.cjs"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -5,6 +5,7 @@
  */
 import { api, setSession, clearSession, getToken, getTripId, flushQueue, onAuthFailure } from './api.js';
 import { cache } from './idb.js';
+import { normalizeSnapshot } from '../core/checklist.js';
 
 const listeners = new Set();
 
@@ -66,7 +67,7 @@ export async function boot() {
 
   const tripId = getTripId();
   const cached = tripId ? await cache.loadSnapshot(tripId) : null;
-  if (cached) set({ phase: 'ready', data: cached });
+  if (cached) set({ phase: 'ready', data: normalizeSnapshot(cached) });
 
   await refresh({ quiet: true });
   connectLive();
@@ -113,7 +114,7 @@ export async function refresh({ quiet = false } = {}) {
   if (!getToken()) return;
   if (!quiet) set({ syncing: true });
   try {
-    const data = await api.snapshot();
+    const data = normalizeSnapshot(await api.snapshot());
     set({ data, phase: 'ready', syncing: false, error: null });
     if (data?.trip?.id) await cache.saveSnapshot(data.trip.id, data);
   } catch (e) {
@@ -224,6 +225,7 @@ export const actions = {
   checkin: (nodeId, action) => run(() => api.checkin(nodeId, action)),
   undoCheckin: (id) => run(() => api.deleteCheckin(id)),
 
+  setChecklistItem: (nodeId, itemId, done) => run(() => api.setChecklistItem(nodeId, itemId, done)),
   addExpense: (payload) => run(() => api.addExpense(payload)),
   patchExpense: (id, payload) => run(() => api.patchExpense(id, payload)),
   deleteExpense: (id) => run(() => api.deleteExpense(id)),

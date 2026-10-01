@@ -111,6 +111,7 @@ export const api = {
   /* ---- 行程节点 ---- */
   createNode: (payload) => post('/api/nodes', payload),
   patchNode: (id, payload) => patch(`/api/nodes/${id}`, payload),
+  setChecklistItem: (nodeId, itemId, done) => post(`/api/nodes/${nodeId}/checklist/${itemId}`, { done }),
   deleteNode: (id) => del(`/api/nodes/${id}`),
   reorder: (orderedIds) => post('/api/nodes/reorder', { orderedIds }),
   shift: (payload) => post('/api/nodes/shift', payload),

@@ -250,112 +250,289 @@ padding: 0;
 cursor: pointer;
 }
 
-/* ------------------------------ 现在的处境 ------------------------------ */
+/* ------------------------------ 顶部常驻块 ------------------------------ */
 
-.nowstrip {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-sm);
-  padding: 9px 12px;
-  margin-bottom: 8px;
-}
-
-.nowstrip.tone-warn {
-  border-left-color: var(--warn);
-}
-.nowstrip.tone-done {
-  border-left-color: var(--ok);
-}
-.nowstrip.tone-upcoming {
-  border-left-color: var(--ink-3);
+/*
+ * 顶栏 + 「现在 / 前置 / 钱」这一整块合成 HUD，一起 sticky。
+ * 不去算「顶栏到底多高」再给下面那块定 top —— 两者包在同一个 sticky 容器里，
+ * 浏览器自己排：加安全区、换字号都不用回来改数值，滚起来也不会错位。
+ */
+.hud {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(244, 245, 247, 0.92);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  padding-bottom: 8px;
 }
 
-.ns-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent);
-  letter-spacing: 0.02em;
+/* 顶栏自己不再 sticky（外层已经是了），半透明底也交给 hud 统一一层 */
+.hud .topbar {
+  position: static;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 0;
 }
 
-.nowstrip.tone-warn .ns-label {
-  color: var(--warn);
-}
-.nowstrip.tone-done .ns-label {
-  color: var(--ok);
-}
-.nowstrip.tone-upcoming .ns-label {
-  color: var(--ink-3);
-}
-
-.ns-day {
-  color: var(--ink-3);
-  font-weight: 500;
-}
-
-.ns-head {
-  font-size: 14.5px;
-  font-weight: 600;
-  margin-top: 2px;
-}
-
-.ns-sub {
-  font-size: 12px;
-  color: var(--ink-2);
-  margin-top: 1px;
-}
-
-.nowstrip .chip-btn {
-  margin-top: 7px;
-}
-
-/* ------------------------------ 钱 ------------------------------ */
-
-.moneystrip {
+.deck {
+  margin: 0 14px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  margin-bottom: 14px;
   overflow: hidden;
 }
 
-.ms-top {
+/* ------------------------------ 现在 ------------------------------ */
+
+.dk-now {
   display: flex;
-  align-items: center;
-  gap: 11px;
-  width: 100%;
-  padding: 9px 12px;
-  text-align: left;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 11px 7px;
 }
 
-.ms-fig {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
+.dk-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  margin-top: 5px;
   flex-shrink: 0;
 }
 
-.ms-fig b {
-  font-size: 16px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+.dk-l1 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
 }
 
-.ms-fig b.danger {
+.dk-label {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--ink-3);
+}
+
+.dk-title {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.dk-l2 {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 1px;
+}
+
+.dk-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+
+.dk-act {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 0;
+  background: rgba(17, 24, 39, 0.05);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.dk-act:active {
+  transform: scale(0.94);
+}
+
+/* 语气：进行中=主色（外圈一圈柔光表示「正在这儿」）、落后=黄、完成=绿 */
+.dk-now.tone-active .dk-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.dk-now.tone-active .dk-label {
+  color: var(--accent);
+}
+.dk-now.tone-warn .dk-dot {
+  background: var(--warn);
+}
+.dk-now.tone-warn .dk-label {
+  color: var(--warn);
+}
+.dk-now.tone-done .dk-dot {
+  background: var(--ok);
+}
+.dk-now.tone-done .dk-label {
+  color: var(--ok);
+}
+
+/* ------------------------------ 前置 / 钱 ------------------------------ */
+
+.dk-segs {
+  display: flex;
+  border-top: 1px solid var(--line);
+}
+
+.dk-seg {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dk-seg + .dk-seg {
+  border-left: 1px solid var(--line);
+}
+
+.dk-seg .bar {
+  height: 4px;
+}
+
+.ds-l1 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+.ds-ic {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.ds-ic.plain {
+  background: rgba(17, 24, 39, 0.06);
+  color: var(--ink-2);
+}
+
+.ds-label {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+/* 数字靠右：两格对齐，「3/7」和「¥1,280」落在同一个位置，扫一眼就能比 */
+.ds-num {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ds-num.danger {
   color: var(--danger);
 }
 
-.ms-top .bar {
-  margin-top: 0;
-  height: 6px;
+.ds-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.ms-top .tiny {
-  margin-top: 3px;
-  display: block;
+.ds-bar .bar {
+  flex: 1;
+}
+
+.ds-bar .tiny {
+  flex-shrink: 0;
+}
+
+.prep-seg.ok .ds-num {
+  color: var(--ok);
+}
+
+.prep-seg.ok .bar i {
+  background: var(--ok);
+}
+
+.dk-caret {
+  color: var(--ink-3);
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.dk-caret.open {
+  transform: rotate(90deg);
+}
+
+/* ------------------------------ 展开的面板 ------------------------------ */
+
+.dk-panel {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  /*
+   * 整块是 sticky 的，面板不封顶就会长过屏幕：一屏里先钉着顶栏和半张卡，
+   * 底下那截还永远够不着。封顶 + 明细自己滚，下面的行程永远还剩得下、点得到。
+   */
+  max-height: min(42vh, 340px);
+  animation: dk-in 0.15s ease;
+}
+
+@keyframes dk-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 面板里唯一会滚的那层。overscroll-behavior: contain 管住连锁：面板已经滚到底
+了还要往上划时，不跟着滑底下的行程（看着像在拖一张卡） */
+.dk-panel-body {
+min-height: 0;
+overflow-y: auto;
+overscroll-behavior: contain;
+padding: 0 11px;
+}
+
+.dk-panel-head,
+.dk-panel-row,
+.dk-panel-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dk-panel-head {
+  margin-bottom: 4px;
+  padding: 8px 11px 4px;
+  flex-shrink: 0;
+}
+
+.dk-panel-foot {
+/* 一根发丝线把「逐类明细」和「还剩多少 / 改预算」分开，明细滚动时线也不动 */
+border-top: 1px solid var(--line);
+  padding: 8px 11px 10px;
+  flex-shrink: 0;
+}
+
+/* 「还没设预算」那一行自己带上下留白（面板本身的 padding 已经收进各层了） */
+.dk-panel-row {
+  padding: 10px 0;
+}
+
+.dk-panel .brow:first-child {
+  padding-top: 6px;
 }
 
 .brow {

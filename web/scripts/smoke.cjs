@@ -26,13 +26,13 @@ const h = require('./_harness.cjs');
   await t.shot('首页');
 
   // 2 预算明细展开
-  await page.locator('.ms-top').click();
+  // 2 预算明细展开（现在合并在顶部常驻块里，点「已花」那格展开）
+  await page.locator('.money-seg').click();
   await h.sleep(700);
-  const detail = await page.locator('.sheet, .card-flat').count();
+  const detail = await page.locator('.dk-panel').count();
   t.check('预算明细能展开', detail > 0);
-  await page.locator('.ms-top').scrollIntoViewIfNeeded();
   await t.shot('预算明细');
-  await page.locator('.ms-top').click();
+  await page.locator('.money-seg').click();
   await h.sleep(400);
 
   // 3 记账弹层（从卡片进）

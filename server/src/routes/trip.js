@@ -69,7 +69,7 @@ router.get('/snapshot', (req, res) => {
 
   const nodes = rawNodes.map((n) => ({
     ...n,
-    checklist: parseJSON(n.checklist, []),
+    checklist: parseChecklist(n.checklist),
   }));
 
   const budgets = db.prepare('SELECT * FROM budgets WHERE trip_id = ? ORDER BY sort_order').all(tripId);
@@ -154,3 +154,4 @@ router.patch('/members/:id', (req, res) => {
 
 export default router;
 import { vocabFor } from '../vocab.js';
+import { parseChecklist } from '../checklist.js';
