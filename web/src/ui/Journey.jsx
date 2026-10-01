@@ -1,14 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './useStore.js';
 import { actions, toast } from '../store/store.js';
 import { photoUrl, forgetPhotoUrl } from '../store/api.js';
 import { computeNow, nodeState, decorate } from '../core/timeline.js';
 import {
-  formatDate, relativeDay, typeMeta, categoryMeta, humanizeDuration, formatMoney,
+  formatDate, relativeDay, typeMeta, categoryMeta, humanizeDuration, formatMoney, addDays,
 } from '../core/format.js';
 import { openAmap } from '../core/nav.js';
 import { computeBudget } from '../core/budget.js';
-import { Icon, Glyph, Sheet, Field, Input, Textarea, Bar } from './bits.jsx';
+import { Icon, Glyph, Sheet, Field, Input, Bar } from './bits.jsx';
 import { useDragSort } from './useDragSort.js';
 
 /**
@@ -94,13 +94,20 @@ export default function Journey({ addNodeSignal, expenseSignal, onAdd, onOpenSet
     return { budget, clock, days, photosByNode, expensesByNode, loosePhotos, looseExpenses };
   }, [data, now]);
 
-  // 顶部那个 + 里点了「加一项」——新的一项默认落在今天，没在行程内就落在第一天
+  /*
+   * 顶部那个 + 里点了「加一项」——新的一项落在哪儿：
+   *今天就在行程里就填今天；已经过去了或者还没到，就接在最后一项后面。
+   * 以前不管哪种情况都往回找第一天，加第 5 项时日期会突然跳回出发那天。
+   */
   useEffect(() => {
-    if (!addNodeSignal || !view) return;
-    const target =
-      (view.clock.allDates.includes(view.clock.today) ? view.clock.today : null) ||
-      view.clock.allDates[0] ||
-      data?.trip?.start_date;
+    if (!addNodeSignal || !view || !data) return;
+    let target = null;
+    if (view.clock.allDates.includes(view.clock.today)) {
+      target = view.clock.today;
+    } else {
+      const last = data.nodes.reduce((acc, n) => (!acc || n.date > acc ? n.date : acc), null);
+      target = last ? addDays(last, 1) : data.trip?.start_date;
+    }
     if (target) setEditing({ kind: 'node', date: target });
   }, [addNodeSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -451,11 +458,6 @@ aria-label={`给 ${formatDate(date)} 加一项`}
 }
 
 function NodeCard({ node, prev, clock, vocab, photos, expenses, dragging, onEdit, onAddExpense, onEditExpense, onViewPhoto, ...hold }) {
-  const [notesOpen, setNotesOpen] = useState(false);
-  // 提示里常有整段空行，折叠时先抹平，不然两行就被空行吃掉了，只剩一个孤零零的省略号
-  const notePreview = useMemo(() => (node.notes || '').replace(/\n{2,}/g, '\n').trim(), [node.notes]);
-  // 提示长了才需要展开开关
-  const notesLong = notePreview.length > 44;
   const meta = typeMeta(vocab, node.type);
   // 标题里已经带了地点的，meta 里就不用再报一遍 —— 省一行，也少一处重复
   const locInTitle = !!node.location && node.title.includes(node.location);
@@ -465,6 +467,15 @@ function NodeCard({ node, prev, clock, vocab, photos, expenses, dragging, onEdit
    * 顶部在没有进行中节点时说的是「下一个」，所以这里也得把 nextNode 算进来。
    */
   const isNow = st === 'current' || (st === 'upcoming' && clock.nextNode?.id === node.id);
+  /*
+   * 圆点用类型色而不是统一灰：航班、住宿、餐饮在时间轴上一眼能分出段落，
+   * 而不是一片同样的小圆圈。
+   * 优先级：「现在该做的那项」> 做完 > 类型。前两个是状态，类型只是背景信息，
+   * 状态变了就该让位。
+   * （这几个颜色得在 JS 里算：inline style 优先级比 .is-now 高，放 CSS 里会被它盖住，
+   *   .is-now 就永远不亮了。）
+   */
+  const dotColor = isNow ? 'var(--accent)' : st === 'done' ? 'var(--ok)' : meta.color;
   const spent = expenses.reduce((s, e) => s + (+e.amount || 0), 0);
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -495,10 +506,11 @@ function NodeCard({ node, prev, clock, vocab, photos, expenses, dragging, onEdit
       <div className="tl-line">
         <span
           className={`tl-dot s-${st}`}
-          style={st === 'current' ? { borderColor: meta.color, background: meta.color } : st === 'done' ? { borderColor: 'var(--ok)', background: 'var(--ok)' } : null}
+          style={{ borderColor: dotColor, background: dotColor }}
         />
 
-<div className={`tl-card s-${st}`}>
+        {/* 左侧那道彩色竖条是卡片类型的主标识。做完的整张退成灰色，不跟现在项抢 */}
+        <div className={`tl-card s-${st}`} style={{ '--tc': st === 'done' ? 'var(--line-strong)' : meta.color }}>
           <div className="tl-head" onClick={onEdit} role="button">
             <span className="tl-ic" style={{ background: meta.soft, color: meta.color }}>
               <Glyph icon={meta.icon} size={12} />
@@ -513,35 +525,6 @@ function NodeCard({ node, prev, clock, vocab, photos, expenses, dragging, onEdit
             </div>
             {spent > 0 && <span className="tl-spend mono-num">{formatMoney(spent)}</span>}
           </div>
-
-          {/*
-           * 展开开关做成贴在提示右下角的小圆钮，不另占一行 —— 原来那个「展开」
-           * 16 张卡加起来白占 133px，而且蓝色加粗比提示本身还跳。整块文字也能点，
-           * 手机上按哪儿都算。
-           */}
-          {node.notes && (
-            <div className={`tl-notes-wrap${notesLong ? ' has-more' : ''}`}>
-              <div
-                className={`tl-notes${notesOpen ? ' open' : ''}`}
-                onClick={notesLong ? () => setNotesOpen((v) => !v) : undefined}
-              >
-                {notesOpen ? node.notes : notePreview}
-              </div>
-              {notesLong && (
-                <button
-                  className="tl-more"
-                  onClick={() => setNotesOpen((v) => !v)}
-                  aria-label={notesOpen ? '收起提示' : '展开提示'}
-                >
-                  <Icon
-                    name="chevron"
-                    size={13}
-                    style={{ transform: notesOpen ? 'rotate(-90deg)' : 'rotate(90deg)' }}
-                  />
-                </button>
-              )}
-            </div>
-          )}
 
           {node.checklist?.length > 0 && (
             <div className="tl-checks">
@@ -779,6 +762,108 @@ function PhotoViewer({ photo, photos, onClose, onEdit }) {
 
 /* ------------------------------ 编辑器 ------------------------------ */
 
+/**
+ * 代办输入：一条一行，写完回车当场开下一行并把光标送进去。
+ * 原来是一个大 textarea 、一行一条 —— 写到第三条就得停下来看哪行是哪行，
+ * 删一条得整行选中再删，容易连着上一行一起清掉。
+ * 列表空着的时候也留一行空输入框：不用先点「再加一条」才能开始打字。
+ */
+/* 待聚焦的代办行号。必须待在这个组件外面，原因见下面 useLayoutEffect 那段注释。 */
+let ckPendingFocus = null;
+
+function ChecklistInput({ items, onChange }) {
+  const refs = useRef([]);
+  const list = items.length ? items : [''];
+
+  /*
+   * 光标要落在刚插进来的那一行上，所以得等它真的进了 DOM。两个细节都不是随便写的：
+   * 一、useLayoutEffect 而不是 useEffect —— 前者在提交期同步跑，跑在 ref 挂上之后、
+   *   浏览器绘制之前；后者是异步的，等它跑起来屏幕上已经闪过一帧。一开始用
+   *   requestAnimationFrame 等下一帧，焦点直接丢了，光标停在 body 上，接着打的字
+   *   全进了黑洞。
+   * 二、待聚焦的行号存在组件外面。这个组件一度被误写进了 NodeEditor 的函数体里，
+   *   于是每次渲染都产生新的函数身份，React 判定「类型变了」把整棵子树重挂载，
+   *   useRef 活不过那次重挂。定义已经搬回模块级，但变量放在外面不依赖这个前提——
+   *   以后谁再不小心嵌套进来，也不会静默失效。
+   */
+  useLayoutEffect(() => {
+    if (ckPendingFocus == null) return;
+    const i = ckPendingFocus;
+    ckPendingFocus = null;
+    refs.current[i]?.focus();
+  });
+  const focusAt = (i) => {
+    ckPendingFocus = i;
+  };
+
+  /*
+   * 顺序要紧：先记下要聚焦哪一行，再触发重渲染。反过来的话 onChange 会在同步
+   * flush 里先把上面的 layoutEffect 跑完（那时还没记下目标），等 focusAt 记完，
+   * 又没有下一次渲染了 —— 焦点就永远送不出去。
+   */
+  const addAt = (i) => {
+    const next = [...list];
+    next.splice(i + 1, 0, '');
+    focusAt(i + 1);
+    onChange(next);
+  };
+
+  const removeAt = (i) => {
+    // 最后一条删空了就把光标放回原地，而不是只留一个不能打字的空壳
+    if (list.length === 1) {
+      focusAt(0);
+      onChange(['']);
+      return;
+    }
+    focusAt(Math.max(0, i - 1));
+    onChange(list.filter((_, k) => k !== i));
+  };
+
+  return (
+    <div className="cklist">
+      {list.map((text, i) => (
+        <div className="cklist-row" key={i}>
+          <span className="cklist-dot" />
+          <input
+            ref={(el) => { refs.current[i] = el; }}
+            className="input cklist-input"
+            value={text}
+            placeholder={i === 0 ? '例如：充电宝放随身（不能托运）' : ''}
+            onChange={(e) => {
+              const next = [...list];
+              next[i] = e.target.value;
+              onChange(next);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addAt(i);
+              } else if (e.key === 'Backspace' && !text && list.length > 1) {
+                // 空行上按退格就是「删掉这一行」，比框里没字却只能移动光标顺手
+                e.preventDefault();
+                removeAt(i);
+              }
+            }}
+          />
+          {list.length > 1 && (
+            <button
+              type="button"
+              className="cklist-del"
+              onClick={() => removeAt(i)}
+              aria-label={`删掉第 ${i + 1} 条`}
+            >
+              <Icon name="close" size={12} />
+            </button>
+          )}
+        </div>
+      ))}
+      <button type="button" className="cklist-add" onClick={() => addAt(list.length - 1)}>
+        <Icon name="plus" size={12} /> 再加一条
+      </button>
+    </div>
+  );
+}
+
 function NodeEditor({ draft, vocab, dates, onClose, onSave, onDelete }) {
   const isNew = !draft.node;
   const n = draft.node || {};
@@ -791,96 +876,25 @@ function NodeEditor({ draft, vocab, dates, onClose, onSave, onDelete }) {
     location: n.location || '',
     navKeyword: n.nav_keyword || '',
     transportMinutes: n.transport_minutes ?? '',
-    notes: n.notes || '',
-    checklist: (n.checklist || []).join('\n'),
+checklist: n.checklist || [],
   });
   const [showNav, setShowNav] = useState(false);
-  const [writeOpen, setWriteOpen] = useState(false);
-  /*
-   * 提示框的两件事：还差几行（标在标签行上，不压正文）、写的时候能摊多开。
-   * notesFocus 一开就把上限从 9 行提到 15 行 —— 键盘弹起来以后可视区只剩半屏，
-   * 这时候 121px 的框只剩可视区的五分之一，写一句要盲写一句。
-   */
-  const [notesMore, setNotesMore] = useState(0);
-  const [notesFocus, setNotesFocus] = useState(false);
-  const onNotesOverflow = useCallback((n) => setNotesMore(n), []);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   /*
-   * iOS 键盘弹起时缩的是 visualViewport，布局视口纹丝不动 —— 于是 position:fixed
-   * 撑满全屏的面板会整块被键盘盖住，写到后面几行就看不见光标了。
-   * 把 visualViewport 的实时高度和偏移写进 CSS 变量，面板照着缩。
-   * （Sheet 用的是 max-height:90dvh + 滚动焦点元素绕开同一个问题，这里是
-   *   flex 撑满、内部没东西可滚，只能直接改高度。）
+   * 必填就是标题和日期。按钮置灰了却不说为什么，得让人知道是哪一格没填，
+   * 而不是以为手机卡了。
    */
-  useEffect(() => {
-    if (!writeOpen) return undefined;
-    const vv = window.visualViewport;
-    if (!vv) return undefined;
-    const root = document.documentElement;
-    const sync = () => {
-      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
-      root.style.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`);
-    };
-    sync();
-    vv.addEventListener('resize', sync);
-    vv.addEventListener('scroll', sync);
-    return () => {
-      vv.removeEventListener('resize', sync);
-      vv.removeEventListener('scroll', sync);
-      root.style.removeProperty('--vvh');
-      root.style.removeProperty('--vvt');
-    };
-  }, [writeOpen]);
-
-  /*
-   * 长文在底部弹层里写是件难受事：文本框跟着内容长高，很快比屏幕还高，
-   * 下面的字段全被顶出去。这个模式让它占满整屏，写完点「完成」退回弹层。
-   * 两边共用同一个 form.notes，改哪边另一边立刻同步。
-   */
-  /*
-   * writeOpen 时整个弹层被 writefull 换掉了，Sheet 自己挂的那个 Escape 监听
-   * 根本不在，键盘就再也关不掉它。补一道。
-   */
-  useEffect(() => {
-    if (!writeOpen) return undefined;
-    const onKey = (e) => {
-      if (e.key === 'Escape') setWriteOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [writeOpen]);
-
-  if (writeOpen) {
-    return (
-      <div className="writefull">
-        <div className="writefull-bar">
-{/* 标题可能很长，顶栏就那么大一块，得给它 truncate 余地 */}
-<span className="writefull-title truncate">{form.title.trim() || '提示'}</span>
-{/* 弹层里报字数，全屏也得报 —— 写长文时反而更想知道写了多少 */}
-<span className="writefull-right">
-{form.notes.trim() && <span className="writefull-count">{form.notes.trim().length} 字</span>}
-<button type="button" className="btn primary btn-sm" onClick={() => setWriteOpen(false)}>
-完成
-</button>
-</span>
-        </div>
-        <textarea
-          className="writefull-area"
-          value={form.notes}
-          onChange={set('notes')}
-          placeholder="几点到、先去哪、要带什么、要留意什么…"
-          autoFocus
-        />
-      </div>
-    );
-  }
-
+  const missing = [];
+  if (!form.title.trim()) missing.push('标题');
+  if (!form.date) missing.push('日期');
   return (
     <Sheet
       title={isNew ? '新增行程' : '编辑行程'}
       onClose={onClose}
       footer={
+        <>
+          {missing.length > 0 && <div className="req-missing tiny">还差：{missing.join('、')}</div>}
         <button
           className="btn primary block"
           disabled={!form.title.trim() || !form.date}
@@ -894,17 +908,17 @@ function NodeEditor({ draft, vocab, dates, onClose, onSave, onDelete }) {
               location: form.location.trim() || null,
               navKeyword: form.navKeyword.trim() || form.location.trim() || null,
               transportMinutes: form.transportMinutes === '' ? null : Number(form.transportMinutes),
-              notes: form.notes.trim() || null,
-              checklist: form.checklist.split('\n').map((s) => s.trim()).filter(Boolean),
+checklist: form.checklist.map((s) => s.trim()).filter(Boolean),
             })
           }
         >
           {isNew ? '添加' : '保存'}
         </button>
+        </>
       }
     >
       <div className="stack">
-        <Field label="标题">
+        <Field label="标题" required>
           <Input
             value={form.title}
             onChange={set('title')}
@@ -914,48 +928,11 @@ function NodeEditor({ draft, vocab, dates, onClose, onSave, onDelete }) {
           />
         </Field>
 
-        <Field
-          label="提示"
-          action={
-            <>
-            <button type="button" className="field-act" onClick={() => setWriteOpen(true)}>
-              <Icon name="edit" size={12} />
-              展开写
-            </button>
-            {form.notes.trim() && (
-              <span className="field-act-note">
-                {form.notes.trim().length} 字
-                {/* 框里装不下时写明还差几行。以前这句压在右下角，盖住的正是最后半行字。 */}
-                {notesMore > 0 && <span className="field-act-more">· 还有 {notesMore} 行</span>}
-              </span>
-            )}
-            </>
-          }
-        >
-          {/*
-           * 提示是这一栏里唯一的长文，真实内容动辄十几行（实测航班那一项 18 行）。
-           * 「输入不方便」大半出在这儿：框矮的时候写一句要盲一句。
-           *
-           * 两档高度：没在写的时候 9 行，弹层里一眼能看到这段提示有多长；
-           * 点进去写就涨到 15 行 —— 那时候键盘已经吃掉半屏，正好把腾出来的高度
-           * 让给正在写的那段话，不用再为了看清自己写了什么去切全屏。
-           */}
-          <Textarea
-            autoGrow
-            rows={4}
-            maxRows={notesFocus ? 15 : 9}
-            value={form.notes}
-            onChange={set('notes')}
-            onFocus={() => setNotesFocus(true)}
-            onBlur={() => setNotesFocus(false)}
-            onOverflow={onNotesOverflow}
-            placeholder="例如：14:00 到古城东门，先去木府门口存包"
+<Field label="代办" hint="回车加下一条，右边的 ✕ 删掉这一条">
+          <ChecklistInput
+            items={form.checklist}
+            onChange={(checklist) => setForm((f) => ({ ...f, checklist }))}
           />
-        </Field>
-
-        <Field label="待办" hint="一行一条，回车换行">
-          {/* 待办一般 2–4 条，压到 5 行封顶；再多就用「展开写」那套全屏写。 */}
-          <Textarea autoGrow rows={2} maxRows={5} value={form.checklist} onChange={set('checklist')} placeholder={'确认 late check-in\n充电宝放随身'} />
         </Field>
 
         <Field label="类型">
@@ -976,7 +953,7 @@ function NodeEditor({ draft, vocab, dates, onClose, onSave, onDelete }) {
         </Field>
 
         <div className="grid-2">
-          <Field label="日期">
+          <Field label="日期" required>
             <Input type="date" value={form.date} onChange={set('date')} />
           </Field>
           <Field label="开始">

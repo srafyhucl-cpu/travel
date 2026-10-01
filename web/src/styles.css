@@ -597,7 +597,15 @@ color: #fff;
   border-radius: var(--radius-sm);
   padding: 7px 10px 6px;
   /* 两层：先接触感再浮起感。单层阴影卡片发平，看着像贴纸 */
-  box-shadow: 0 1px 1px rgba(16, 24, 40, 0.04), 0 2px 8px rgba(16, 24, 40, 0.032);
+  /*
+   * 开头那道 inset 阴影是类型色竖条，全项目最强的一个信号。
+   * 不用 border-left：它会把内容整体往右挤一格，16 张卡的标题就不在一条线上了。
+   * inset 画在边框内侧，不动任何布局。
+   */
+  box-shadow:
+    inset 3px 0 0 var(--tc, transparent),
+    0 1px 1px rgba(16, 24, 40, 0.04),
+    0 2px 8px rgba(16, 24, 40, 0.032);
 }
 
 .tl-card.s-done {
@@ -682,56 +690,6 @@ font-size: 11px;
   align-self: flex-start;
   margin-top: 1px;
   flex-shrink: 0;
-}
-
-/*
- * 提示块外面套一层，是为了把「展开」开关做成绝对定位贴在角上。
- * 原来那个蓝色「展开」独占一行，16 张卡加起来 133px，而且比提示本身还跳。
- */
-.tl-notes-wrap {
-  position: relative;
-  margin-top: 5px;
-}
-
-.tl-notes-wrap.has-more .tl-notes {
-  /* 给右上角那个圆钮让出位置，别压在字上 */
-  padding-right: 24px;
-  cursor: pointer;
-}
-
-.tl-notes {
-  font-size: 12.5px;
-  color: var(--ink-2);
-  line-height: 1.55;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  white-space: pre-wrap;
-}
-
-.tl-notes.open {
-  -webkit-line-clamp: unset;
-  display: block;
-}
-
-/* 展开开关：贴在提示右上角，不占布局高度，展开时也不会跳走 */
-.tl-more {
-  position: absolute;
-  right: 0;
-  top: -1px;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(17, 24, 39, 0.05);
-  color: var(--ink-3);
-  transition: background 0.15s;
-}
-
-.tl-more:active {
-  background: rgba(17, 24, 39, 0.1);
 }
 
 .tl-checks {
@@ -921,8 +879,7 @@ font-size: 11px;
 
 /* 该做的那张卡，圆点也跟着亮一下，扫一眼就知道该从哪儿开始 */
 .tl-item.is-now .tl-dot {
-  border-color: var(--accent);
-  background: var(--accent);
+  /* 圆点颜色在 JS 里算好了（inline style 会盖掉 border/background），光晕才是 CSS 该管的 */
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
@@ -1105,15 +1062,6 @@ font-size: 11px;
   cursor: pointer;
 }
 
-/* 字数：写之前就知道自己写了多少，不用数也不用切全屏去量 */
-.field-act-note {
-  font-size: 11px;
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-  /* 和「展开写」之间留点缝，两坨小字别粘成一团 */
-  margin-right: 2px;
-}
-
 .field-act.on {
   color: var(--accent);
   font-weight: 600;
@@ -1122,10 +1070,33 @@ font-size: 11px;
   font-size: 12px;
   font-weight: 600;
   color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/*
+ * 必填标记。以前标题和日期实际是必填的（保存键置灰），但界面上一点提示都没有，
+ * 按了没反应只能猜。一枚小红标比一段说明省地方，也不占一整行。
+ */
+.req-star {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: #d64545;
+  background: rgba(214, 69, 69, 0.09);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+/* 置灰的保存键上方说清楚还差什么，而不是让人以为手机卡了 */
+.req-missing {
+  text-align: center;
+  color: var(--ink-3);
+  margin-bottom: 6px;
 }
 
 .input,
-.textarea,
 .select {
   width: 100%;
   border: 1px solid var(--line-strong);
@@ -1137,7 +1108,6 @@ font-size: 11px;
 }
 
 .input:focus,
-.textarea:focus,
 .select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -1150,36 +1120,84 @@ font-size: 11px;
   background: rgba(17, 24, 39, 0.02);
   border-style: dashed;
 }
-.textarea {
-  min-height: 88px;
-  resize: vertical;
-  line-height: 1.55;
+
+/* ------------------------------ 代办输入 ------------------------------ */
+/*
+ * 一条一行，每行自带一个 ✕。以前是一个大 textarea、一行一条：写的时候不知道
+ * 哪行是哪行，删一条得整行选中，一不小心连着上一行一起清掉。
+ * 行与行之间只留一道缝，不各自带框 —— 一堆小方框看着像表单，实际只需要一个列表。
+ */
+.cklist {
+  display: flex;
+  flex-direction: column;
 }
 
-/* 跟着内容长高：写提示时能看见自己写了什么，不用盲打 */
-.textarea.auto {
-  resize: none;
-  overflow: hidden;
-  min-height: 0;
+.cklist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* 顶到行数上限以后：放开滚动，底部压一层渐隐。
-   半行被切在框边上看着像渲染坏了，有个渐变就变成「下面还有」的提示了。 */
-.textarea.auto.clipped {
-  overflow-y: auto;
-  background-image: linear-gradient(to top, #fff 45%, rgba(255, 255, 255, 0));
-  background-repeat: no-repeat;
-  background-position: bottom center;
-  /* 30px 只够化开小半个字，行高 25px 一行切在框边上还是硬邦邦的。 */
-  background-size: 100% 44px;
+/* 小方点代替序号：代办最多四五条，编号反而逼着人去数第几行 */
+.cklist-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  flex-shrink: 0;
 }
 
-/* 「· 还有 N 行」跟在字数后面。框里装不下这件事得写明白 —— 以前它做成一枚角标
-   * 压在框里右下角，盖住的正是最后半行字，看着像渲染坏了。挪到标签行上，正文一个
-   * 像素都不挡。 */
-.field-act-more {
+.cklist-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 7px 0;
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.cklist-input:focus {
+  /* 只点亮下边线：整格变色会在打字时糊一下，抖得厉害 */
+  border-bottom-color: var(--accent);
+  box-shadow: none;
+}
+
+.cklist-del {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--ink-3);
-  opacity: 0.8;
+  cursor: pointer;
+}
+
+.cklist-del:active {
+  background: rgba(214, 69, 69, 0.1);
+  color: #d64545;
+}
+
+.cklist-add {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 4px 8px 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.cklist-add:active {
+  background: rgba(17, 24, 39, 0.05);
 }
 /* 用 minmax(0,·) 而不是 1fr：1fr 的最小尺寸是 auto，长的 <option> 文本会把列撑爆，
 另一列就被挤扁 —— 表现为「挂在」那个下拉只剩 131px、字被箭头盖住。 */
@@ -1321,70 +1339,6 @@ background: rgba(17, 24, 39, 0.05);
 
 /* ------------------------------ 弹层 ------------------------------ */
 
-/* 提示框的全屏写作模式：z-index 要压过 .sheet-backdrop(60) */
-.writefull {
-  position: fixed;
-  /* 不用 inset:0 —— 键盘弹起时布局视口不变，整块会被盖在键盘下面。
-     --vvh / --vvt 由 NodeEditor 监听 visualViewport 写入，键盘一弹就跟着缩。 */
-  left: 0;
-  right: 0;
-  top: var(--vvt, 0px);
-  height: var(--vvh, 100dvh);
-  z-index: 75;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-}
-
-.writefull-bar {
-display: flex;
-align-items: center;
-justify-content: space-between;
-gap: 10px;
-padding: max(10px, env(safe-area-inset-top)) 14px 10px;
-border-bottom: 1px solid var(--line);
-flex-shrink: 0;
-}
-
-.writefull-title {
-/* 标题要占满剩下的空间，把字数和「完成」顶到右边；
-没有 flex 的话三块会被 space-between 均匀散开。 */
-flex: 1;
-min-width: 0;
-font-size: 15px;
-font-weight: 600;
-overflow: hidden;
-text-overflow: ellipsis;
-white-space: nowrap;
-}
-
-.writefull-right {
-display: flex;
-align-items: center;
-gap: 10px;
-flex-shrink: 0;
-}
-
-.writefull-count {
-font-size: 12px;
-font-variant-numeric: tabular-nums;
-color: var(--ink-3);
-}
-
-
-.writefull-area {
-flex: 1;
-width: 100%;
-border: 0;
-outline: none;
-resize: none;
-padding: 14px;
-/* 不能小于 16px：iOS 聚焦会自动放大整页 */
-font-size: 16px;
-line-height: 1.65;
-font-family: inherit;
-color: var(--ink);
-}
 .sheet-backdrop {
   position: fixed;
   inset: 0;

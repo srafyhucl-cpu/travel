@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { glyph, hasGlyph } from './glyphs.js';
 
 /* ------------------------------ 图标 ------------------------------ */
@@ -129,60 +129,27 @@ useEffect(() => {
 
 /* ------------------------------ 表单件 ------------------------------ */
 
-export function Field({ label, children, hint, action }) {
-  return (
-    <div className="field">
-      {label && (
-        <div className="field-head">
-          <label>{label}</label>
-          {action}
-        </div>
-      )}
-      {children}
-      {hint && <div className="tiny dim">{hint}</div>}
-    </div>
-  );
+export function Field({ label, children, hint, action, required }) {
+return (
+<div className={`field${required ? ' req' : ''}`}>
+{label && (
+<div className="field-head">
+<label>
+{label}
+{required && <span className="req-star" aria-hidden="true">必填</span>}
+</label>
+{action}
+</div>
+)}
+{children}
+{hint && <div className="tiny dim">{hint}</div>}
+</div>
+);
 }
+
 
 export function Input(props) {
   return <input className="input" {...props} />;
-}
-
-/**
-* 多行文字框。autoGrow 时随内容长高 —— 写提示的时候得能看见自己写了什么，
-* 不能只给一个固定高度让人盲打。
-*/
-export function Textarea({ autoGrow = false, maxRows = 6, onOverflow, ...props }) {
-const ref = useRef(null);
-
-useLayoutEffect(() => {
-  const el = ref.current;
-  if (!el || !autoGrow) return;
-  el.style.height = 'auto';
-  const lh = parseFloat(getComputedStyle(el).lineHeight) || 22;
-  const cap = lh * maxRows + 22;
-  const full = el.scrollHeight;
-  el.style.height = `${Math.min(full, cap)}px`;
-  /*
-   * .auto 默认 overflow:hidden —— 内容一旦超过上限，多出来那几行既看不见
-   * 也滚不到，等于在这个编辑框里凭空丢了内容。记一个 clipped：让它能滚，
-   * 框内再压一层渐隐。
-   *
-   * 还差几行不再压在框里。原先在右下角挂一枚「下面还有 N 行」角标，可它
-   * 盖住的正是最后半行字 —— 提示框一共就那么几行，被它吃掉一行等于白写。
-   * 现在只把行数报给外面，由字段标题那行去显示：字数、还差几行、展开写，
-   * 全在标签行上，正文一个像素都不挡。
-   */
-  const over = full > cap + 1;
-  el.classList.toggle('clipped', over);
-  onOverflow?.(over ? Math.ceil((full - cap) / lh) : 0);
-}, [autoGrow, maxRows, props.value, onOverflow]);
-
-const ta = (
-  <textarea ref={ref} rows={props.rows || 3} className={`textarea${autoGrow ? ' auto' : ''}`} {...props} />
-);
-// 不再包一层 .ta-wrap：角标搬去了标签行，这里回到一个干净的 textarea
-return ta;
 }
 
 /** 两种用法：传 options 数组，或直接传 <option> 子节点 */
