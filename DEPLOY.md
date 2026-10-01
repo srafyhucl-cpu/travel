@@ -60,25 +60,31 @@ cd /opt/apps/travel/frontend/dist && for f in assets/*; do b=$(basename "$f"); \
 
 ## 本地回归测试
 
-改完前端先自己跑一遍再推。都在 `D:\Temp\pw2`，需要 Playwright（已装好）：
+改完前端先自己跑一遍再推。全都在 `web/scripts/`，`cd web` 之后跑：
 
 ```powershell
-cd D:\Project\travel\web; npm run build     # 多数测试要对着构建产物跑
+npm run build            # 大多数测试要对着构建产物跑，先得 build
 
-cd D:\Project\travel\web; npm run verify:drag   # 拖拽排序（长按手势）
-cd D:\Temp\pw2; node regress.cjs                 # 逐屏截图 + 控制台报错
-cd D:\Temp\pw2; node order-check.cjs            # 只读查时间倒流
-cd D:\Temp\pw2; node field-measure.cjs          # 量弹层输入框有没有被挤爆
-cd D:\Temp\pw2; node shortcuts.cjs              # PWA 三个快捷方式
+npm run check:imports    # 具名 import 能不能对上（最快，先跑这个）
+npm run smoke            # 每个界面走一遍，收集控制台报错
+npm run check:editor     # 卡片类型色 / 代办逐条输入 / 必填标注 / 日期自动
+npm run check:fields     # 记账弹层输入框有没有被挤爆
+npm run check:drag       # 长按拖拽排序
+npm run check:shortcuts  # PWA 主屏长按的三个快捷方式
+npm run check:order      # 时间倒流检查（只读，默认直接打生产）
 ```
 
-`verify:drag` 是仓库里唯一一个（`web/scripts/verify-drag.cjs`，已进版本库）。它复制一份
-`server/data` 到临时目录、另起一个端口的后端，测完删掉，**不会动真库**。拖拽必然改数据顺序，
-而落点取的是「离卡片中心最近的空位」，没法精确拖回原来那一位，所以只能跑副本。
-退出码 0 = 全通，1 = 有段落失败，2 = 脚本自己炸了。环境变量：`FROM` / `DOWN` 换拖拽位置，
-`PASS` 换口令，`SHOT` 给路径就存一张拖拽中的截图。
+退出码：0 = 全通，1 = 有失败或报错，2 = 脚本自己炸了。环境变量：`BASE` 改目标地址、
+`PASS` 换口令、`SHOTS` 指定截图目录、`FROM` / `DOWN` 换拖拽位置。
 
-浏览器装在 `D:\Tools\playwright-browsers`（由用户级环境变量 `PLAYWRIGHT_BROWSERS_PATH` 指定，
+除 `check:order` 外都会**自己复制一份 `server/data` 到临时目录、另起一个端口的后端、
+测完连数据一起删**，真库一个字节都不会动 —— 因为有一半会改数据（敲表单、拖拽），而
+落点、表单这类操作没法靠「改完再改回去」复原。共用流程写在 `web/scripts/_harness.cjs`。
+
+`check:order` 是纯只读 API 检查，默认直接打生产：当初 10-02「丽江古城」排在「玉龙雪山」
+后面那条时间倒流就是它查出来的。它不改任何数据，放心跑。
+
+浏览器装在 `D:\Tools\playwright-browsers`（用户级环境变量 `PLAYWRIGHT_BROWSERS_PATH` 指定，
 全机器共用，**不要**再往临时目录里下一份 —— 曾经重复下过 705 MB）。
 
 ## 口令

@@ -7,7 +7,13 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "verify:drag": "node scripts/verify-drag.cjs"
+    "smoke": "node scripts/smoke.cjs",
+    "check:drag": "node scripts/verify-drag.cjs",
+    "check:editor": "node scripts/check-editor.cjs",
+    "check:fields": "node scripts/check-fields.cjs",
+    "check:shortcuts": "node scripts/check-shortcuts.cjs",
+    "check:order": "node scripts/check-order.cjs",
+    "check:imports": "node scripts/check-imports.cjs"
   },
   "dependencies": {
     "react": "^18.3.1",
