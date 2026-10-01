@@ -11,7 +11,7 @@
  *   - 照片流 /api/photos/:id/file 体积大，走浏览器 HTTP 缓存即可。
  */
 
-const VERSION = 'travel-v3';
+const VERSION = 'travel-v4';
 const SHELL = `${VERSION}-shell`;
 const RUNTIME = `${VERSION}-runtime`;
 

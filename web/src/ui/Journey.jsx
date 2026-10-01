@@ -19,7 +19,7 @@ import { useDragSort } from './useDragSort.js';
  * 不用跳去别的页面再想办法对上关系。
  */
 
-export default function Journey({ addNodeSignal, onAdd, onOpenSettings }) {
+export default function Journey({ addNodeSignal, expenseSignal, onAdd, onOpenSettings }) {
   const state = useStore();
   const data = state.data;
 
@@ -103,6 +103,13 @@ export default function Journey({ addNodeSignal, onAdd, onOpenSettings }) {
       data?.trip?.start_date;
     if (target) setEditing({ kind: 'node', date: target });
   }, [addNodeSignal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+// 主屏快捷方式「记一笔」：直接开记账面板。expenses.node_id 可空，
+// 所以不挂任何一项也能记（进去后在「挂在」里选或者留空）。
+useEffect(() => {
+if (!expenseSignal) return;
+setEditing({ kind: 'expense' });
+}, [expenseSignal]);
 
   if (!data || !view) {
     return (
