@@ -58,6 +58,29 @@ cd /opt/apps/travel/frontend/dist && for f in assets/*; do b=$(basename "$f"); \
 数据库结构有变动时，schema 在 `server/src/db.js` 的 `SCHEMA` 里，字段追加写在 `ensureColumn()`，
 重启时自动迁移，老数据不用管。
 
+## 本地回归测试
+
+改完前端先自己跑一遍再推。都在 `D:\Temp\pw2`，需要 Playwright（已装好）：
+
+```powershell
+cd D:\Project\travel\web; npm run build     # 多数测试要对着构建产物跑
+
+cd D:\Project\travel\web; npm run verify:drag   # 拖拽排序（长按手势）
+cd D:\Temp\pw2; node regress.cjs                 # 逐屏截图 + 控制台报错
+cd D:\Temp\pw2; node order-check.cjs            # 只读查时间倒流
+cd D:\Temp\pw2; node field-measure.cjs          # 量弹层输入框有没有被挤爆
+cd D:\Temp\pw2; node shortcuts.cjs              # PWA 三个快捷方式
+```
+
+`verify:drag` 是仓库里唯一一个（`web/scripts/verify-drag.cjs`，已进版本库）。它复制一份
+`server/data` 到临时目录、另起一个端口的后端，测完删掉，**不会动真库**。拖拽必然改数据顺序，
+而落点取的是「离卡片中心最近的空位」，没法精确拖回原来那一位，所以只能跑副本。
+退出码 0 = 全通，1 = 有段落失败，2 = 脚本自己炸了。环境变量：`FROM` / `DOWN` 换拖拽位置，
+`PASS` 换口令，`SHOT` 给路径就存一张拖拽中的截图。
+
+浏览器装在 `D:\Tools\playwright-browsers`（由用户级环境变量 `PLAYWRIGHT_BROWSERS_PATH` 指定，
+全机器共用，**不要**再往临时目录里下一份 —— 曾经重复下过 705 MB）。
+
 ## 口令
 
 - 登录口令就是这趟旅行的钥匙，**只有你自己知道，别外传**。
