@@ -250,19 +250,6 @@ padding: 0;
 cursor: pointer;
 }
 
-.overview-toggle {
-  width: 100%;
-  text-align: left;
-  padding: 6px 2px;
-  margin: 18px 0 4px;
-}
-
-.ov-hint {
-  font-weight: 400;
-  color: var(--ink-3);
-  font-size: 11.5px;
-}
-
 /* ------------------------------ 现在的处境 ------------------------------ */
 
 .nowstrip {

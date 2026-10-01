@@ -25,7 +25,6 @@ CREATE TABLE IF NOT EXISTS trips (
   start_date  TEXT NOT NULL,
   end_date    TEXT NOT NULL,
   theme       TEXT,
-overview    TEXT,
   is_template INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL
@@ -154,7 +153,18 @@ db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 }
 
-ensureColumn('trips', 'overview', 'TEXT');
+// 反向操作：字段确认没人用了，就从老库里删掉。需要 SQLite 3.35+（本机 3.49）。
+function dropColumn(table, column) {
+const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+if (cols.some((c) => c.name === column)) {
+db.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`);
+}
+}
+
+// 「关键提示」整块退休：装的是当初 AI 替用户揣摩的总结，不是用户自己写的。
+// 以后新建的库不会再有这个字段，老库启动时补删。
+dropColumn('trips', 'overview');
+
 // 预算行的自由名称（如「机票·去程」）要映射到消费类别 key，才能对得上账
 ensureColumn('budgets', 'vocab_key', 'TEXT');
 ensureColumn('vocab', 'created_at', "TEXT NOT NULL DEFAULT ''");

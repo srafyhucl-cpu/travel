@@ -6,7 +6,7 @@
  */
 import { db, nowISO, uid } from '../db.js';
 import { hashPassphrase } from '../auth.js';
-import { TRIP, NODES, BUDGETS, EXPENSES, OVERVIEW } from './yunnan.js';
+import { TRIP, NODES, BUDGETS, EXPENSES } from './yunnan.js';
 
 const PASSPHRASE = (process.argv[2] || process.env.SEED_PASSPHRASE || 'yunnan2026').trim();
 const OWNER = (process.argv[3] || process.env.SEED_OWNER || '我').trim();
@@ -36,9 +36,9 @@ for (const n of NODES) {
 
 const seed = db.transaction(() => {
   db.prepare(
-    `INSERT INTO trips (id, name, destination, start_date, end_date, theme, overview, is_template, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(tripId, TRIP.name, TRIP.destination, TRIP.startDate, TRIP.endDate, TRIP.theme, OVERVIEW, now, now);
+    `INSERT INTO trips (id, name, destination, start_date, end_date, theme, is_template, created_at, updated_at)
+     VALUES(?,?,?,?,?,?,0,?,?)`
+  ).run(tripId, TRIP.name, TRIP.destination, TRIP.startDate, TRIP.endDate, TRIP.theme, now, now);
 
   db.prepare('INSERT INTO trip_keys (id, trip_id, key_hash, label, created_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?)')
     .run(uid(), tripId, hash, OWNER, now, now);

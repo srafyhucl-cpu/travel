@@ -200,8 +200,6 @@ setEditing({ kind: 'expense' });
           </>
         )}
 
-        {trip.overview && <Overview text={trip.overview} />}
-
         <div style={{ height: 40 }} />
       </div>
 
@@ -361,26 +359,6 @@ function BudgetDetail({ budget, vocab, onEdit }) {
         改预算
       </button>
     </div>
-  );
-}
-
-/** 行程备注。往往很长，默认收起，只留一个标题占一行。 */
-function Overview({ text }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button className="section-title overview-toggle" onClick={() => setOpen((v) => !v)}>
-        <span>关键提示</span>
-        <span className="ov-hint">{open ? '收起' : `${text.length} 字`}</span>
-      </button>
-      {open && (
-        <div className="card-flat">
-          <div className="small muted" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
-            {text}
-          </div>
-        </div>
-      )}
-    </>
   );
 }
 
