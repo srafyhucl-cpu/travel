@@ -140,7 +140,7 @@ export default function Deck({ clock, vocab, budget, modules, onEditModule, onEd
             {module.checklist?.length > 0 ? (
               <div className="tl-checks">
                 {module.checklist.map((it) => (
-                  <CheckItem key={it.id} item={it} onToggle={(d) => actions.setChecklistItem(module.id, it.id, d)} />
+<CheckItem key={it.id} item={it} onToggle={(d) => actions.setChecklistItem(module.id, it.id, d, it.text)} />
                 ))}
               </div>
             ) : (

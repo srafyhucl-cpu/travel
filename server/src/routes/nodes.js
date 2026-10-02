@@ -278,9 +278,23 @@ router.post('/:id/checklist/:itemId', (req, res) => {
   const node = getNode(req.params.id, tripId);
   if (!node) return res.status(404).json({ error: 'not_found' });
   const items = parseChecklist(node.checklist);
-  const item = items.find((i) => i.id === req.params.itemId);
-  if (!item) return res.status(404).json({ error: 'no_item', message: '这条待办已经不在了' });
-  const done = req.body?.done === true;
+const done = req.body?.done === true;
+
+/*
+* 先按 id 找，找不到再按文案找。
+*
+* 库里没升级过的待办就是一列纯字符串，parseChecklist 每次读都现摇一个 id（uid 是
+* 随机 UUID），上一轮发给客户端的 id 这一轮已经对不上了 —— 老数据上勾任何一条都
+* 会撞 404「这条待办已经不在了」。文案兜底：勾完这一行整个被改写成带 id 的新
+* 格式，客户端拿到响应里的 id，之后就都按 id 走了。同文案重复时先挑「状态正好相反」
+* 的那条，不会去动已经勾好的。
+*/
+let item = items.find((i) => i.id === req.params.itemId);
+if (!item && typeof req.body?.text === 'string' && req.body.text) {
+item = items.find((i) => i.text === req.body.text && i.done !== done)
+|| items.find((i) => i.text === req.body.text);
+}
+if (!item) return res.status(404).json({ error: 'no_item', message: '这条待办已经不在了' });
   item.done = done;
   item.done_at = done ? item.done_at || nowISO() : null;
   db.prepare('UPDATE nodes SET checklist = ?, updated_at = ? WHERE id = ?').run(

@@ -225,7 +225,7 @@ export const actions = {
   checkin: (nodeId, action) => run(() => api.checkin(nodeId, action)),
   undoCheckin: (id) => run(() => api.deleteCheckin(id)),
 
-  setChecklistItem: (nodeId, itemId, done) => run(() => api.setChecklistItem(nodeId, itemId, done)),
+setChecklistItem: (nodeId, itemId, done, text) => run(() => api.setChecklistItem(nodeId, itemId, done, text)),
   addExpense: (payload) => run(() => api.addExpense(payload)),
   patchExpense: (id, payload) => run(() => api.patchExpense(id, payload)),
   deleteExpense: (id) => run(() => api.deleteExpense(id)),

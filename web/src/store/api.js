@@ -111,7 +111,9 @@ export const api = {
   /* ---- 行程节点 ---- */
   createNode: (payload) => post('/api/nodes', payload),
   patchNode: (id, payload) => patch(`/api/nodes/${id}`, payload),
-  setChecklistItem: (nodeId, itemId, done) => post(`/api/nodes/${nodeId}/checklist/${itemId}`, { done }),
+/* 文案一起带上：库里没升级过的待办是纯字符串，服务端那边 id 每次读都重新生成，
+对不上时靠文案找（见 routes/nodes.js）。 */
+setChecklistItem: (nodeId, itemId, done, text) => post(`/api/nodes/${nodeId}/checklist/${itemId}`, { done, text }),
   deleteNode: (id) => del(`/api/nodes/${id}`),
   reorder: (orderedIds) => post('/api/nodes/reorder', { orderedIds }),
   shift: (payload) => post('/api/nodes/shift', payload),

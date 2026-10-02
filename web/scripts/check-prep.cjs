@@ -13,6 +13,14 @@
  * 退出码：0 = 全通，1 = 有。
  */
 const h = require('./_harness.cjs');
+const path = require('path');
+
+/*
+* 直接开副本的库。库里没升级过的待办是一列纯字符串，走 API 写进去会被服务端立
+* 刻改写成新格式，那样就测不到「服务端每次读都重摇 id」这个坑了 —— 而生产上的待
+* 办恰恰全是纯字符串。所以这里要绕过 API 亲手造老数据。
+*/
+const rawDb = () => new (require(path.join(h.SERVER_DIR, 'node_modules', 'better-sqlite3')))(path.join(h.TEMP_DATA, 'travel.db'));
 
 (async () => {
   const t = await h.begin();
@@ -155,6 +163,38 @@ const h = require('./_harness.cjs');
   t.check('普通节点打开时开关是关的', (await page.locator('.sheet .switch.on').count()) === 0);
   await page.locator('.sheet .icon-btn[aria-label=关闭]').click();
   await h.sleep(400);
+
+// ---- 7.5 老数据（纯字符串待办）也得能勾 ----
+// 生产上一直存的是 ["购买去程机票", "预定机场附近民宿"] 这种；服务端解析时给每条
+// 现播一个 id，所以上一轮发出去的 id 下一轮就对不上了。以前这里勾任何一条都撞
+// 404「这条待办已经不在了」。直接改副本的库还原这个状态（走 API 写会被规范化）。
+const legacy = await page.evaluate(async () => {
+const token = localStorage.getItem('travel.token');
+const auth = { Authorization: `Bearer ${token}` };
+const snap = await (await fetch('/api/trip/snapshot', { headers: auth })).json();
+return snap.nodes.find((n) => n.role === 'module').id;
+});
+const db1 = rawDb();
+db1.prepare('UPDATE nodes SET checklist = ? WHERE id = ?')
+.run(JSON.stringify(['购买去程机票', '预定机场附近民宿']), legacy);
+db1.close();
+await page.reload({ waitUntil: 'networkidle' });
+await h.sleep(1300);
+await page.locator('.prep-seg').click();
+await h.sleep(400);
+t.check('老数据的两条待办都在', (await page.locator('.dk-panel .tl-check').count()) === 2);
+await page.locator('.dk-panel .tl-check').first().click();
+await h.sleep(1000);
+t.check('老数据也能勾上', (await page.locator('.dk-panel .tl-check.on').count()) === 1);
+t.check('没有报「已经不在了」', (await page.locator('.toast.error').filter({ hasText: '已经不在了' }).count()) === 0);
+await page.reload({ waitUntil: 'networkidle' });
+await h.sleep(1300);
+t.check('刷新后勾选还在', (await page.locator('.prep-seg .ds-num').textContent()).trim() === '1/2');
+const db2 = rawDb();
+const stored = JSON.parse(db2.prepare('SELECT checklist FROM nodes WHERE id = ?').get(legacy).checklist);
+db2.close();
+t.check('勾完自动改写成带 id 的新格式', stored.length === 2 && stored.every((x) => x && typeof x === 'object' && x.id && 'done' in x));
+await t.shot('老数据待办');
 
   // ---- 8. 面板封顶：清单/类别再多也不能把常驻块顶出屏幕 ----
   // 服务端一条待办最多收 20 条，正好用来试「长到必须滚」的情况

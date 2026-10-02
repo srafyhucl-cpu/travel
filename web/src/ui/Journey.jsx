@@ -445,7 +445,7 @@ function NodeCard({ node, prev, clock, vocab, photos, expenses, dragging, onEdit
                 <CheckItem
                   key={c.id}
                   item={c}
-                  onToggle={(d) => actions.setChecklistItem(node.id, c.id, d)}
+onToggle={(d) => actions.setChecklistItem(node.id, c.id, d, c.text)}
                 />
               ))}
             </div>
