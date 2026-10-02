@@ -1,5 +1,8 @@
 /**
  * 冒烟：把每个能进的界面都走一遍，收集控制台报错。
+*
+* 开场先验「打开就落在现在这格」：这是 App 打开后的第一眼，也是最近刚加的行为，
+* 跟真实使用最相关的一条。
  *
  * 「有报错」不等于「坏了」——所以这里对每一屏都留截图，出问题时能对着看。
  * 截图目录由 SHOTS 环境变量决定，默认 <仓库盘>\Temp\travel-shots。
@@ -19,6 +22,58 @@ const h = require('./_harness.cjs');
   const t = await h.begin();
   const { page } = t;
   await t.login();
+
+/*
+* 0 打开就落在「现在这格」。
+*
+* 这条天生依赖「今天」：行程过了、或者还没开始，焦点就不在今天，页面上也就没
+* 有「现在这格」可跳。所以先把行程日期拉到今天前后，再搬一条节点到今天 —— 今天
+* 必定有一格待办，.tl-item.is-now 也就必定存在，跟日历无关。
+*/
+const setup = await page.evaluate(async () => {
+const token = localStorage.getItem('travel.token');
+const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+const day = (delta) => { const x = new Date(); x.setDate(x.getDate() + delta); return iso(x); };
+// 挂载在 /api/trip 上的路由自己又叫 /trip，所以完整路径是 /api/trip/trip
+const tripRes = await fetch('/api/trip/trip', {
+method: 'PATCH',
+headers: auth,
+body: JSON.stringify({ startDate: day(-2), endDate: day(2) }),
+});
+const snap = await (await fetch('/api/trip/snapshot', { headers: auth })).json();
+const n = snap.nodes.find((x) => x.role !== 'module' && x.status !== 'done');
+const r = await fetch(`/api/nodes/${n.id}`, {
+method: 'PATCH',
+headers: auth,
+body: JSON.stringify({ date: day(0), status: 'planned' }),
+});
+// 顺手清掉离线快照：重新加载时它会先拿旧快照渲染，那样这一下就落在旧数据上
+await new Promise((res) => {
+const del = indexedDB.deleteDatabase('travel-companion');
+del.onsuccess = del.onerror = del.onblocked = () => res();
+});
+return { ok: tripRes.ok && r.ok, title: n.title, today: day(0) };
+});
+t.check('已布置出「今天」', setup.ok, `节点「${setup.title}」搬到 ${setup.today}`);
+await page.reload({ waitUntil: 'networkidle' });
+await h.sleep(1400);
+
+const landing = await page.evaluate(() => {
+const now = document.querySelector('.tl-item.is-now');
+if (!now) return { found: false };
+const r = now.getBoundingClientRect();
+return {
+found: true,
+top: Math.round(r.top),
+hudH: document.querySelector('.hud')?.offsetHeight || 0,
+y: Math.round(window.scrollY),
+};
+});
+t.check('页面上有「现在这格」', landing.found);
+t.check('确实往下滚了', landing.y > 0, `scrollY=${landing.y}`);
+t.check('现在这格贴在常驻块下面', landing.found && landing.top >= landing.hudH - 2 && landing.top <= landing.hudH + 48, `top=${landing.top} hud=${landing.hudH}`);
+await t.shot('打开落在现在这格');
 
   // 1 首页
   const cards = await page.locator('.tl-item').count();

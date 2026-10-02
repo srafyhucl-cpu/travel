@@ -114,6 +114,33 @@ export default function Journey({ addNodeSignal, expenseSignal, onAdd, onOpenSet
     return { budget, clock, days, photosByNode, expensesByNode, loosePhotos, looseExpenses };
   }, [data, now]);
 
+/*
+* 打开就落在「现在这格」。
+*
+* 以前每次打开都停在最上面，第一眼全是已经过去的事 —— 行程走到两三天以后，得
+* 自己先划半屏才看得到现在该干什么。锚点用 .tl-item.is-now：时间线上「现在
+* 该做的那项」，跟顶部那张卡是同一个口径，两边焦点不会打架。落点贴着常驻块下沿
+* 留 10px 缝，不让它滑到顶栏后面去。没有这一格（行程还没完但今天都做完了、或
+* 已结束）就不动，留在顶部。
+*
+* 只在数据第一次就位时跳一次。SSE 每来一轮就重跑的话，用户正看着别处会被
+* 反复拽回去。浏览器自己记住的滚动位置（页面中间刷新）也让它别插手。
+*/
+const jumped = useRef(false);
+useEffect(() => {
+if (!view || jumped.current) return undefined;
+jumped.current = true;
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+const raf = requestAnimationFrame(() => {
+const target = document.querySelector('.tl-item.is-now');
+if (!target) return;
+const hudH = document.querySelector('.hud')?.offsetHeight || 0;
+const top = target.getBoundingClientRect().top + window.scrollY - hudH - 10;
+window.scrollTo({ top: Math.max(0, Math.round(top)), behavior: 'auto' });
+});
+return () => cancelAnimationFrame(raf);
+}, [view]);
+
   /*
    * 顶部那个 + 里点了「加一项」——新的一项落在哪儿：
    *今天就在行程里就填今天；已经过去了或者还没到，就接在最后一项后面。
