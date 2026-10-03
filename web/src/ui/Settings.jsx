@@ -3,9 +3,9 @@ import { useStore } from './useStore.js';
 import { icsUrl, templateUrl } from '../store/api.js';
 import { actions, toast } from '../store/store.js';
 import { Icon, Glyph, Sheet, Field, Input, Empty } from './bits.jsx';
+import { DateField } from './pickers.jsx';
 import { PICKABLE } from './glyphs.js';
-import { formatDate, daysBetween } from '../core/format.js';
-
+import { formatDate, daysBetween, todayStr } from '../core/format.js';
 const MEMBER_COLORS = ['#2F80ED', '#E2574C', '#27AE60', '#F2994A', '#9B51E0', '#00897B', '#111827'];
 
 /*
@@ -225,7 +225,8 @@ function TripEditor({ trip, onClose }) {
     startDate: trip.start_date || '',
     endDate: trip.end_date || '',
   });
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  // DateField 回传字符串，其余原生框回传事件，两种都收。
+  const set = (k) => (x) => setForm((f) => ({ ...f, [k]: x?.target ? x.target.value : x }));
 
   return (
     <Sheet title="编辑旅行信息" onClose={onClose}>
@@ -238,10 +239,10 @@ function TripEditor({ trip, onClose }) {
         </Field>
         <div className="grid-2">
           <Field label="出发日">
-            <Input type="date" value={form.startDate} onChange={set('startDate')} />
+            <DateField value={form.startDate} onChange={set('startDate')} min={todayStr()} />
           </Field>
           <Field label="回来日">
-            <Input type="date" value={form.endDate} onChange={set('endDate')} />
+            <DateField value={form.endDate} onChange={set('endDate')} min={form.startDate || todayStr()} />
           </Field>
         </div>
         <button

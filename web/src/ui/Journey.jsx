@@ -12,6 +12,7 @@ import Deck from './Deck.jsx';
 import { normalizeItems, newItem } from '../core/checklist.js';
 import { computeBudget } from '../core/budget.js';
 import { Icon, Glyph, Sheet, Field, Input, Switch } from './bits.jsx';
+import { DateField, TimeField, DateTimeField, NodePickField } from './pickers.jsx';
 import { useDragSort } from './useDragSort.js';
 
 /**
@@ -809,7 +810,9 @@ function NodeEditor({ draft, vocab, dates, onClose, onSave, onDelete }) {
     role: n.role || null,
   });
   const [showNav, setShowNav] = useState(false);
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  // 自有控件回传字符串、原生 input 回传事件，这里两种都收：
+  // 判一下有没有 target，没有的话这个参数本身就是值。
+  const set = (k) => (x) => setForm((f) => ({ ...f, [k]: x?.target ? x.target.value : x }));
 
   /*
    * 必填就是标题和日期。按钮置灰了却不说为什么，得让人知道是哪一格没填，
@@ -898,16 +901,16 @@ function NodeEditor({ draft, vocab, dates, onClose, onSave, onDelete }) {
 
         <div className="grid-2">
           <Field label="日期" required>
-            <Input type="date" value={form.date} onChange={set('date')} />
+            <DateField value={form.date} onChange={set('date')} />
           </Field>
           <Field label="开始">
-            <Input type="time" value={form.startTime} onChange={set('startTime')} />
+            <TimeField value={form.startTime} onChange={set('startTime')} />
           </Field>
         </div>
 
         <div className="grid-2">
           <Field label="结束">
-            <Input type="time" value={form.endTime} onChange={set('endTime')} />
+            <TimeField value={form.endTime} onChange={set('endTime')} />
           </Field>
           <Field label="车程（分钟）">
             <Input type="number" inputMode="numeric" value={form.transportMinutes} onChange={set('transportMinutes')} placeholder="40" />
@@ -963,7 +966,8 @@ function ExpenseEditor({ draft, vocab, members, nodes, onClose, onSave, onDelete
     occurredAt: (e?.occurred_at || new Date().toISOString()).slice(0, 16),
     nodeId: e?.node_id || draft.node?.id || '',
   });
-  const set = (k) => (ev) => setForm((f) => ({ ...f, [k]: ev.target.value }));
+  // 同上：DateTimeField / NodePickField 回传字符串，其余原生框回传事件。
+  const set = (k) => (x) => setForm((f) => ({ ...f, [k]: x?.target ? x.target.value : x }));
 
   return (
     <Sheet title={isNew ? '记一笔' : '改这笔'} onClose={onClose}>
@@ -1022,17 +1026,10 @@ function ExpenseEditor({ draft, vocab, members, nodes, onClose, onSave, onDelete
          */}
         <div className="stack">
           <Field label="时间">
-            <Input type="datetime-local" value={form.occurredAt} onChange={set('occurredAt')} />
+            <DateTimeField value={form.occurredAt} onChange={set('occurredAt')} />
           </Field>
           <Field label="挂在">
-            <select className="select" value={form.nodeId} onChange={set('nodeId')}>
-              <option value="">不指定</option>
-              {nodes.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {[n.date.slice(5), n.start_time, n.title].filter(Boolean).join(' · ')}
-                </option>
-              ))}
-            </select>
+            <NodePickField nodes={nodes} value={form.nodeId} onChange={set('nodeId')} emptyLabel="不指定" />
           </Field>
         </div>
 

@@ -1927,3 +1927,296 @@ body.is-dragging {
   font-size: 12.5px;
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.18);
 }
+
+/* ------------------------------ 自有日期/时间/挂载控件 ------------------------------ */
+/*
+ * 以前这里是 <input type="date">、<input type="time">、<input type="datetime-local">
+ * 和 <select>。它们展开出来都是系统的面板 —— 安卓 Chrome 一整屏黑滚轮，
+ * iOS 灰圆盘，桌面上一个方框加下划线，跟旁边所有控件都不像；<select> 更是
+ * 一整屏反色菜单，想找一项只能靠滚。
+ * 下面这些是替身：框线、圆角、字重全跟 .input 一样，所以换完之后两行并排的
+ * 日期/时间看不出接缝（见 .picker-trigger）。
+ */
+
+/* 触发按钮：跟 .input 同框线，唯一区别是右端多一枚 chevron 表明可展开 */
+.picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 38px; /* .input 是 8+8 padding + 一行 22 ≈ 38 */
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 16px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.picker-trigger.empty .picker-trigger-main {
+  color: var(--ink-3);
+}
+
+/* 主值 + 右端副值（「周四 · 3 天后」/「晚上 7:30」）。副值只是辅助，
+   flex 挤不下时先让它消失，主值一定要留全。 */
+.picker-trigger-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.picker-trigger-sub {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.picker-trigger-chev {
+  flex: none;
+  transform: rotate(90deg);
+  color: var(--ink-3);
+}
+
+/* ------------------------------ 月历 ------------------------------ */
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cal-title {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.cal-nav {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.cal-nav:active {
+  background: rgba(17, 24, 39, 0.06);
+}
+
+/* 「下个月」用同一个 back 图标，翻个面朝右 */
+.cal-nav.flip {
+  transform: scaleX(-1);
+}
+
+.cal-week,
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.cal-week {
+  margin-bottom: 4px;
+}
+
+.cal-week span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+/* 格子接近正方形：宽由 7 列均分，高锁死 38px ——
+   高度跟着宽度走的话，iPhone SE 上格子会矮到 30px 出头，很难点准。 */
+.cal-cell {
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.cal-cell.out {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.cal-cell.today {
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.cal-cell.sel {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+
+.cal-cell.no {
+  color: var(--ink-3);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cal-foot {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.cal-foot::-webkit-scrollbar {
+  display: none;
+}
+
+.cal-foot .pill {
+  flex: none;
+  padding: 6px 10px;
+}
+
+.cal-foot .pill:disabled {
+  opacity: 0.4;
+}
+
+/* ------------------------------ 时间胶囊 ------------------------------ */
+/* 30 分钟一档。一行放不下就横滑 —— 比换成两列小格更好找：眼睛是横着扫的。 */
+.picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.picker-chips .pill {
+  padding: 7px 11px;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.picker-chips .pill.on {
+  background: #fff;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.picker-manual {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.picker-manual .input {
+  flex: 1;
+}
+
+.picker-manual .btn {
+  flex: none;
+  padding-inline: 16px;
+}
+
+/* ------------------------------ 日期 + 时间并排 ------------------------------ */
+/* 两列各占一半，月历那列稍宽一点（7 列格子挤在 ~46% 里才不至于难点）。
+   480px 以上（平板/桌面）再各拉回一点，中间的缝不无限长。 */
+.dt-panel {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.dt-time-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 8px;
+}
+
+@media (max-width: 360px) {
+  .dt-panel {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+/* ------------------------------ 行程挂载列表 ------------------------------ */
+.pick-list {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.pick-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 9px 2px 5px;
+  background: var(--bg);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pick-row:active {
+  background: rgba(17, 24, 39, 0.05);
+}
+
+.pick-row.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pick-row-time {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pick-row.on .pick-row-time {
+  color: var(--accent);
+}
+
+.pick-row-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.pick-row-ok {
+  flex: none;
+  color: var(--accent);
+}

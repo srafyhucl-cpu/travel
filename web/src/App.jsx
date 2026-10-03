@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from './ui/useStore.js';
 import { Icon, Sheet, Field } from './ui/bits.jsx';
+import { NodePickField } from './ui/pickers.jsx';
 import Login from './ui/Login.jsx';
 import Journey from './ui/Journey.jsx';
 import Settings from './ui/Settings.jsx';
@@ -141,14 +142,7 @@ function QuickAdd({ nodes, onClose, onAddNode }) {
         </div>
 
         <Field label="传给哪一项" hint="不选就进「随手记」">
-          <select className="select" value={nodeId} onChange={(e) => setNodeId(e.target.value)}>
-            <option value="">不指定</option>
-            {nodes.map((n) => (
-              <option key={n.id} value={n.id}>
-                {[n.date.slice(5), n.start_time, n.title].filter(Boolean).join(' · ')}
-              </option>
-            ))}
-          </select>
+          <NodePickField nodes={nodes} value={nodeId} onChange={setNodeId} emptyLabel="不指定" />
         </Field>
 
         <input

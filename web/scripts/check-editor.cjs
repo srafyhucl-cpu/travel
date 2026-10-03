@@ -7,6 +7,12 @@
  * React 判定类型变了把整棵子树重挂载，useRef 活不过那次重挂，回车加行成功
  * 但光标永远送不出去。盯「回车后焦点在新行 + 新行能打字」这两条就够。
  *
+ * 第 8 节是补原生控件那一版的回归：日期、时间、挂载原来是系统控件（date /
+ * time / datetime-local / select），展开出来是系统自己的面板，跟这个 App 的样子
+ * 完全两样。现在换成自有的月历、时间胶囊、可搜索行程列表，所以这里走真实
+ * 点击：面板能打开、选完关上、按钮上出现那个值、手输 7:35 也认、列表能搜。
+ * 最后一条断言盯「一个原生控件都没剩下」——以后谁再塞一个回来会红。
+ *
  * 会改表单，但跑在一次性副本上（见 _harness），真库不受影响。
  *
  * 跑法：node web/scripts/check-editor.cjs
@@ -86,12 +92,14 @@ const h = require('./_harness.cjs');
   await h.sleep(700);
   await page.getByText('加一项', { exact: true }).click();
   await h.sleep(1000);
-  const dateVal = await page.locator('.sheet input[type=date]').inputValue().catch(() => '');
-  const today = await page.evaluate(() => {
+  // 日期现在是自有的月历（以前是原生 input[type=date]），默认值由打开新项时
+  // 同一段代码写进 form.date，所以这里只能从触发按钮上读回来。
+  const mdLabel = await page.evaluate(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
   });
-  t.check('日期已自动填好', dateVal === today, `填了 ${dateVal || '(空)'}，今天 ${today}`);
+  const dateText = (await page.locator('.sheet .picker-trigger').first().innerText()).replace(/\n/g, ' ');
+  t.check('日期已自动填好', dateText.includes(mdLabel), `按钮上写着「${dateText}」，今天 ${mdLabel}`);
   await t.shot('日期自动');
 
   // ---- 7. 保存：真的存得下来 ----
@@ -116,5 +124,68 @@ const h = require('./_harness.cjs');
   t.check('新节点字段各归各位', !!saved && saved.status === 'planned' && typeof saved.sort === 'number', JSON.stringify(saved));
   await t.shot('新建保存后');
 
+
+  // ---- 8. 日期/时间/挂载：自有的三个控件 ----
+  // 这三个原来是系统控件（date / time / datetime-local / select），展开出来是
+  // 系统的面板，跟这个 App 一点不像。换成了自己画的月历、时间胶囊和可搜索的
+  // 行程列表，所以这里走真实交互：打开面板 → 选一个值 → 面板关上 → 触发按钮
+  // 上出现那个值。
+  // 上一节保存完弹层就关了，这里重新打开编辑器。
+  await page.locator('.tl-head').first().click();
+  await page.waitForSelector('.sheet', { timeout: 10000 });
+  await h.sleep(600);
+  // 先在时间上点一下：面板里应该有胶囊，手输 7:35 也要认。
+  await page.locator('.sheet .picker-trigger').nth(1).click();
+  await page.waitForSelector('.sheet .picker-chips .pill', { timeout: 8000 });
+  t.check('时间面板有胶囊', (await page.locator('.sheet .picker-chips .pill').count()) > 10);
+  await page.locator('.sheet .picker-manual .input').fill('7:35');
+  await page.locator('.sheet .picker-manual .btn').click();
+  await h.sleep(600);
+  const timeText = (await page.locator('.sheet .picker-trigger').nth(1).innerText()).replace(/\n/g, ' ');
+  t.check('手输 7:35 能定下来', timeText.includes('7:35'), `按钮上写着「${timeText}」`);
+  await t.shot('时间胶囊');
+
+  // 日期面板：今天那格应该带 today 圈，点它面板关上、按钮显示今天。
+  await page.locator('.sheet .picker-trigger').first().click();
+  await page.waitForSelector('.sheet .cal-grid .cal-cell.today', { timeout: 8000 });
+  t.check('月历里今天有标记', (await page.locator('.sheet .cal-cell.today').count()) === 1);
+  t.check('月历 42 格', (await page.locator('.sheet .cal-cell').count()) === 42);
+  await page.locator('.sheet .cal-cell.today').click();
+  await h.sleep(600);
+  t.check('点今天面板关掉了', (await page.locator('.sheet .cal-grid').count()) === 0);
+  await t.shot('月历');
+
+  // 挂载列表在「记一笔」弹层里。先把还开着的编辑器关掉 —— 它的遮罩会挡住
+  // 时间线上那枚「记一笔」，点不到。
+  await page.keyboard.press('Escape');
+  await h.sleep(500);
+  t.check('Escape 关掉了编辑器', (await page.locator('.sheet').count()) === 0);
+
+  // 挂载列表：要能搜。搜一个只可能来自行程标题的字，命中行里得有它。
+  await page.locator('.tl-item').first().locator('[aria-label="记一笔"]').click();
+  await page.waitForSelector('.sheet .picker-trigger', { timeout: 8000 });
+  await h.sleep(600);
+  // 「挂在」默认已经选了当前这张卡，所以触发按钮上有值；列表要点开才渲染。
+  // 手机上搜索框如果自动聚焦会立刻弹键盘，把列表顶到看不见的地方 ——
+  // 等弹层稳一会儿再数行，顺便确认焦点没落在搜索框上。
+  await page.locator('.sheet').getByLabel('选行程项').click();
+  await page.waitForSelector('.sheet .pick-row', { timeout: 8000 });
+  await h.sleep(900);
+  t.check('搜索框不抢焦点（免得自动弹键盘）', await page.evaluate(() => document.activeElement?.classList.contains('input')) === false);
+  const pickRows0 = await page.locator('.sheet .pick-row').count();
+  t.check('挂载列表列出了行程', pickRows0 > 3, `${pickRows0} 行`);
+  // 拿第一行的标题当搜索词 —— 搜它自己，至少自己那行得留下。
+  const firstTitle = await page.locator('.sheet .pick-row .pick-row-title').first().innerText();
+await page.locator('.sheet .input[placeholder*="搜标题"]').fill(firstTitle.slice(0, 3));
+  await h.sleep(500);
+  const rows1 = await page.locator('.sheet .pick-row').count();
+  t.check('挂载能搜', rows1 >= 1 && rows1 <= pickRows0, `${pickRows0} → ${rows1}`);
+  await t.shot('挂载搜索');
+  await page.locator('.sheet .pick-row').first().click();
+  await h.sleep(600);
+  t.check('选完面板关上', (await page.locator('.sheet .pick-list').count()) === 0);
+  // 记一笔弹层里除了这几个，其它框都还在（别把原生控件漏掉了）。
+  const nativeLeft = await page.locator('.sheet input[type=date], .sheet input[type=time], .sheet input[type=datetime-local], .sheet select').count();
+  t.check('没有残留的原生日期/时间/下拉', nativeLeft === 0, `还剩 ${nativeLeft} 个`);
   process.exit(await t.end());
 })().catch(async (e) => { console.error('脚本自己炸了:', e.message); process.exit(2); });
