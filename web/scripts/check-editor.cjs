@@ -1,8 +1,8 @@
 /**
- * 编辑器回归：卡片类型色、代办逐条输入、必填标注、日期自动。
+ * 编辑器回归：卡片类型色、代办逐条输入、必填标注、日期自动、新建保存。
  *
  * 这几条是一起改的（见 git log「卡片按类型区分、去掉提示、代办改成逐条输入、
- * 日期自动与必填标注」），所以放一个脚本里一起验。中间挖过一个隐蔽的 bug：
+ * 日期自动与必填标注、新建保存」），所以放一个脚本里一起验。中间挖过一个隐蔽的 bug：
  * 代办组件被写在 NodeEditor 的函数体内部，每次渲染都是新的函数身份，
  * React 判定类型变了把整棵子树重挂载，useRef 活不过那次重挂，回车加行成功
  * 但光标永远送不出去。盯「回车后焦点在新行 + 新行能打字」这两条就够。
@@ -93,6 +93,28 @@ const h = require('./_harness.cjs');
   });
   t.check('日期已自动填好', dateVal === today, `填了 ${dateVal || '(空)'}，今天 ${today}`);
   await t.shot('日期自动');
+
+  // ---- 7. 保存：真的存得下来 ----
+  // 上一节打开「加一项」看完日期就收了手，从来没点过保存 —— 所以新增接口的 INSERT
+  // 把列名和值错开一位这种错，整套回归一次也没碰到过。
+  await page.locator('.sheet input').first().fill('回归新建的一项');
+  await h.sleep(300);
+  await page.locator('.sheet .btn.primary').click();
+  await h.sleep(1600);
+  t.check('保存后弹层关掉了', (await page.locator('.sheet').count()) === 0);
+  t.check('新的一项出现在时间线上', (await page.locator('.tl-card').filter({ hasText: '回归新建的一项' }).count()) === 1);
+  t.check('保存没有报错', (await page.locator('.toast.error').count()) === 0);
+
+  // 直接查快照：列和值错位的时候，节点要么根本存不进来，要么 status 串成别的列
+  const saved = await page.evaluate(async () => {
+    const token = localStorage.getItem('travel.token');
+    const resp = await fetch('/api/trip/snapshot', { headers: { Authorization: 'Bearer ' + token } });
+    const snap = await resp.json();
+    const n = (snap.nodes || []).find((x) => x.title === '回归新建的一项');
+    return n ? { status: n.status, sort: n.sort_order, role: n.role ?? null } : null;
+  });
+  t.check('新节点字段各归各位', !!saved && saved.status === 'planned' && typeof saved.sort === 'number', JSON.stringify(saved));
+  await t.shot('新建保存后');
 
   process.exit(await t.end());
 })().catch(async (e) => { console.error('脚本自己炸了:', e.message); process.exit(2); });

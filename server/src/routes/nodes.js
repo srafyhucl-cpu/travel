@@ -191,8 +191,8 @@ type: sanitizeKey(b.type) || 'other',
                         notes, checklist, role, transport_minutes, sort_order, status, actual_start, actual_end,
                         created_at, updated_at)
      VALUES (@id, @trip_id, @day_index, @date, @type, @title, @start_time, @end_time, @location, @nav_keyword,
-             @notes, @checklist, @transport_minutes, @sort_order, @status, @actual_start, @actual_end,
-             @role, @created_at, @updated_at)`
+             @notes, @checklist, @role, @transport_minutes, @sort_order, @status, @actual_start, @actual_end,
+             @created_at, @updated_at)`
   ).run(node);
   if (node.role === 'module') clearOtherModules(tripId, node.id);
 
