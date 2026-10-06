@@ -12,7 +12,11 @@
  * 退出码：0 = 没有倒流，1 = 有。
  */
 const BASE = process.env.BASE || 'https://travel.hclstudio.cn';
-const PASS = process.env.PASS || 'yunnan2026';
+const PASS = process.env.PASS;
+if (!PASS) {
+  console.error('缺少 PASS 环境变量：先设置这趟旅行的口令再跑，例如  PASS=你的口令 npm run check:order');
+  process.exit(2);
+}
 
 const toMin = (t) => (t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : null);
 

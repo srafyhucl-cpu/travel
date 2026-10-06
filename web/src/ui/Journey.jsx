@@ -1,6 +1,6 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './useStore.js';
-import { actions, toast } from '../store/store.js';
+import { actions } from '../store/store.js';
 import { photoUrl, forgetPhotoUrl } from '../store/api.js';
 import { computeNow, nodeState, decorate } from '../core/timeline.js';
 import {
@@ -9,10 +9,11 @@ import {
 import { openAmap } from '../core/nav.js';
 import CheckItem from './CheckItem.jsx';
 import Deck from './Deck.jsx';
-import { normalizeItems, newItem } from '../core/checklist.js';
 import { computeBudget } from '../core/budget.js';
-import { Icon, Glyph, Sheet, Field, Input, Switch } from './bits.jsx';
-import { DateField, TimeField, DateTimeField, NodePickField } from './pickers.jsx';
+import { Icon, Glyph } from './bits.jsx';
+import NodeEditor from './NodeEditor.jsx';
+import ExpenseEditor from './ExpenseEditor.jsx';
+import BudgetEditor from './BudgetEditor.jsx';
 import { useDragSort } from './useDragSort.js';
 
 /**
@@ -77,7 +78,7 @@ export default function Journey({ addNodeSignal, expenseSignal, onAdd, onOpenSet
 
   const view = useMemo(() => {
     if (!data) return null;
-    const budget = computeBudget({ budgets: data.budgets, expenses: data.expenses, members: data.members });
+    const budget = computeBudget({ budgets: data.budgets, expenses: data.expenses });
     const clock = computeNow({ trip: data.trip, nodes: data.nodes, checkins: data.checkins }, now);
 
     const decorated = decorate(data.nodes, data.checkins);
@@ -177,7 +178,7 @@ setEditing({ kind: 'expense' });
     );
   }
 
-  const { trip, vocab, members } = data;
+  const { trip, vocab, members, me } = data;
   const { budget, clock, days, photosByNode, expensesByNode, loosePhotos, looseExpenses } = view;
 
   const totalNodes = data.nodes.length;
@@ -214,6 +215,8 @@ setEditing({ kind: 'expense' });
           clock={clock}
           vocab={vocab}
           budget={budget}
+          members={members}
+          me={me}
           modules={modules ? [modules] : []}
           onEditModule={(m) => setEditing({ kind: 'node', node: m })}
           onEditBudget={() => setEditing({ kind: 'budget' })}
@@ -292,6 +295,7 @@ setEditing({ kind: 'expense' });
           draft={editing}
           vocab={vocab}
           members={members}
+          me={me}
           nodes={data.nodes}
           onClose={() => setEditing(null)}
           onSave={async (payload) => {
@@ -315,7 +319,6 @@ setEditing({ kind: 'expense' });
       {editing?.kind === 'budget' && (
         <BudgetEditor
           budgets={data.budgets}
-          vocab={vocab}
           onClose={() => setEditing(null)}
         />
       )}
@@ -687,500 +690,5 @@ function PhotoViewer({ photo, photos, onClose, onEdit }) {
         </button>
       </div>
     </div>
-  );
-}
-
-/* ------------------------------ 编辑器 ------------------------------ */
-
-/**
- * 代办输入：一条一行，写完回车当场开下一行并把光标送进去。
- * 原来是一个大 textarea 、一行一条 —— 写到第三条就得停下来看哪行是哪行，
- * 删一条得整行选中再删，容易连着上一行一起清掉。
- * 列表空着的时候也留一行空输入框：不用先点「再加一条」才能开始打字。
- */
-/* 待聚焦的代办行号。必须待在这个组件外面，原因见下面 useLayoutEffect 那段注释。 */
-let ckPendingFocus = null;
-
-function ChecklistInput({ items, onChange }) {
-  const refs = useRef([]);
-  const list = items.length ? items : [newItem()];
-
-  /*
-   * 光标要落在刚插进来的那一行上，所以得等它真的进了 DOM。两个细节都不是随便写的：
-   * 一、useLayoutEffect 而不是 useEffect —— 前者在提交期同步跑，跑在 ref 挂上之后、
-   *   浏览器绘制之前；后者是异步的，等它跑起来屏幕上已经闪过一帧。一开始用
-   *   requestAnimationFrame 等下一帧，焦点直接丢了，光标停在 body 上，接着打的字
-   *   全进了黑洞。
-   * 二、待聚焦的行号存在组件外面。这个组件一度被误写进了 NodeEditor 的函数体里，
-   *   于是每次渲染都产生新的函数身份，React 判定「类型变了」把整棵子树重挂载，
-   *   useRef 活不过那次重挂。定义已经搬回模块级，但变量放在外面不依赖这个前提——
-   *   以后谁再不小心嵌套进来，也不会静默失效。
-   */
-  useLayoutEffect(() => {
-    if (ckPendingFocus == null) return;
-    const i = ckPendingFocus;
-    ckPendingFocus = null;
-    refs.current[i]?.focus();
-  });
-  const focusAt = (i) => {
-    ckPendingFocus = i;
-  };
-
-  /*
-   * 顺序要紧：先记下要聚焦哪一行，再触发重渲染。反过来的话 onChange 会在同步
-   * flush 里先把上面的 layoutEffect 跑完（那时还没记下目标），等 focusAt 记完，
-   * 又没有下一次渲染了 —— 焦点就永远送不出去。
-   */
-  const addAt = (i) => {
-    const next = [...list];
-    next.splice(i + 1, 0, newItem());
-    focusAt(i + 1);
-    onChange(next);
-  };
-
-  const removeAt = (i) => {
-    // 最后一条删空了就把光标放回原地，而不是只留一个不能打字的空壳
-    if (list.length === 1) {
-      focusAt(0);
-      onChange([newItem()]);
-      return;
-    }
-    focusAt(Math.max(0, i - 1));
-    onChange(list.filter((_, k) => k !== i));
-  };
-
-  return (
-    <div className="cklist">
-      {list.map((it, i) => (
-        <div className="cklist-row" key={it.id}>
-          <span className="cklist-dot" />
-          <input
-            ref={(el) => { refs.current[i] = el; }}
-            className="input cklist-input"
-            value={it.text}
-            placeholder={i === 0 ? '例如：充电宝放随身（不能托运）' : ''}
-            onChange={(e) => {
-              const next = [...list];
-              next[i] = { ...it, text: e.target.value };
-              onChange(next);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                addAt(i);
-              } else if (e.key === 'Backspace' && !it.text && list.length > 1) {
-                // 空行上按退格就是「删掉这一行」，比框里没字却只能移动光标顺手
-                e.preventDefault();
-                removeAt(i);
-              }
-            }}
-          />
-          {list.length > 1 && (
-            <button
-              type="button"
-              className="cklist-del"
-              onClick={() => removeAt(i)}
-              aria-label={`删掉第 ${i + 1} 条`}
-            >
-              <Icon name="close" size={12} />
-            </button>
-          )}
-        </div>
-      ))}
-      <button type="button" className="cklist-add" onClick={() => addAt(list.length - 1)}>
-        <Icon name="plus" size={12} /> 再加一条
-      </button>
-    </div>
-  );
-}
-
-function NodeEditor({ draft, vocab, dates, onClose, onSave, onDelete }) {
-  const isNew = !draft.node;
-  const n = draft.node || {};
-  const [form, setForm] = useState({
-    title: n.title || '',
-    type: n.type || 'spot',
-    date: n.date || draft.date || dates[0],
-    startTime: n.start_time || '',
-    endTime: n.end_time || '',
-    location: n.location || '',
-    navKeyword: n.nav_keyword || '',
-    transportMinutes: n.transport_minutes ?? '',
-    checklist: normalizeItems(n.checklist),
-    role: n.role || null,
-  });
-  const [showNav, setShowNav] = useState(false);
-  // 自有控件回传字符串、原生 input 回传事件，这里两种都收：
-  // 判一下有没有 target，没有的话这个参数本身就是值。
-  const set = (k) => (x) => setForm((f) => ({ ...f, [k]: x?.target ? x.target.value : x }));
-
-  /*
-   * 必填就是标题和日期。按钮置灰了却不说为什么，得让人知道是哪一格没填，
-   * 而不是以为手机卡了。
-   */
-  const missing = [];
-  if (!form.title.trim()) missing.push('标题');
-  if (!form.date) missing.push('日期');
-  return (
-    <Sheet
-      title={isNew ? '新增行程' : '编辑行程'}
-      onClose={onClose}
-      footer={
-        <>
-          {missing.length > 0 && <div className="req-missing tiny">还差：{missing.join('、')}</div>}
-        <button
-          className="btn primary block"
-          disabled={!form.title.trim() || !form.date}
-          onClick={() =>
-            onSave({
-              title: form.title.trim(),
-              type: form.type,
-              date: form.date,
-              startTime: form.startTime || null,
-              endTime: form.endTime || null,
-              location: form.location.trim() || null,
-              navKeyword: form.navKeyword.trim() || form.location.trim() || null,
-              transportMinutes: form.transportMinutes === '' ? null : Number(form.transportMinutes),
-              // 存的是对象数组：编辑只动文字，勾没勾带着走（id 也是），
-              // 不然每保存一次，模块里勾掉的就都白勾了。
-              checklist: form.checklist
-                .map((it) => ({ ...it, text: it.text.trim() }))
-                .filter((it) => it.text)
-                .map((it) => ({ id: it.id, text: it.text, done: it.done, done_at: it.done ? it.done_at : null })),
-              role: form.role === 'module' ? 'module' : null,
-            })
-          }
-        >
-          {isNew ? '添加' : '保存'}
-        </button>
-        </>
-      }
-    >
-      <div className="stack">
-        <Field label="标题" required>
-          <Input
-            value={form.title}
-            onChange={set('title')}
-            placeholder="例如：云杉坪索道"
-            maxLength={80}
-            autoFocus={isNew}
-          />
-        </Field>
-
-<Field label="代办" hint="回车加下一条，右边的 ✕ 删掉这一条">
-          <ChecklistInput
-            items={form.checklist}
-            onChange={(checklist) => setForm((f) => ({ ...f, checklist }))}
-          />
-        </Field>
-
-        <Field label="类型">
-          <div className="pill-row scroll">
-            {(vocab?.nodeTypes || []).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                className={`pill icon-pill${form.type === t.key ? ' on' : ''}`}
-                style={form.type === t.key ? { color: t.color, borderColor: t.color } : null}
-                onClick={() => setForm((f) => ({ ...f, type: t.key }))}
-              >
-                <Glyph icon={t.icon} size={13} />
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </Field>
-
-        <Field label="首页模块" hint="在「现在」卡下面单独显示一份，时间线上照常保留">
-          <Switch
-            on={form.role === 'module'}
-            onChange={(v) => setForm((f) => ({ ...f, role: v ? 'module' : null }))}
-            label="作为模块置顶显示"
-          />
-        </Field>
-
-        <div className="grid-2">
-          <Field label="日期" required>
-            <DateField value={form.date} onChange={set('date')} />
-          </Field>
-          <Field label="开始">
-            <TimeField value={form.startTime} onChange={set('startTime')} />
-          </Field>
-        </div>
-
-        <div className="grid-2">
-          <Field label="结束">
-            <TimeField value={form.endTime} onChange={set('endTime')} />
-          </Field>
-          <Field label="车程（分钟）">
-            <Input type="number" inputMode="numeric" value={form.transportMinutes} onChange={set('transportMinutes')} placeholder="40" />
-          </Field>
-        </div>
-
-        <Field
-          label="地点"
-          action={
-            <button type="button" className={`field-act${showNav ? ' on' : ''}`} onClick={() => setShowNav((v) => !v)}>
-              {showNav ? '收起' : '导航词'}
-            </button>
-          }
-        >
-          <Input value={form.location} onChange={set('location')} placeholder="例如：玉龙雪山景区" />
-          {/*
-           * 导航词是少数人才填的低频字段。以前它跟地点一样占一个带标签的整块，
-           * 白白多占 ~57px，把地点本身顶到折叠线以下。现在收进地点框里当第二行，
-           * 需要时点右上角展开，不占默认位置。
-           */}
-          {showNav && (
-            <Input
-              className="input input-sub"
-              value={form.navKeyword}
-              onChange={set('navKeyword')}
-              placeholder="导航关键词，留空就用地点"
-            />
-          )}
-        </Field>
-
-        {/*
-         * 删除是低频且不可逆的操作，不该跟常驻的「保存」抢注意力 —— 以前两枚都是全宽
-         * 实心大按钮，视线不知道该落哪儿。改成一行淡红文字：认得出、点得着，但不抢。
-         */}
-        {onDelete && (
-          <button className="btn-text-danger" onClick={onDelete}>
-            删除这一项
-          </button>
-        )}
-      </div>
-    </Sheet>
-  );
-}
-
-function ExpenseEditor({ draft, vocab, members, nodes, onClose, onSave, onDelete }) {
-  const e = draft.expense;
-  const isNew = !e;
-  const [form, setForm] = useState({
-    amount: e?.amount ?? '',
-    category: e?.category || 'food',
-    payer: e?.payer || members[0]?.name || '我',
-    note: e?.note || '',
-    occurredAt: (e?.occurred_at || new Date().toISOString()).slice(0, 16),
-    nodeId: e?.node_id || draft.node?.id || '',
-  });
-  // 同上：DateTimeField / NodePickField 回传字符串，其余原生框回传事件。
-  const set = (k) => (x) => setForm((f) => ({ ...f, [k]: x?.target ? x.target.value : x }));
-
-  return (
-    <Sheet title={isNew ? '记一笔' : '改这笔'} onClose={onClose}>
-      <div className="stack">
-        <Field label="金额">
-          <Input
-            type="number"
-            inputMode="decimal"
-            value={form.amount}
-            onChange={set('amount')}
-            placeholder="0"
-            style={{ fontSize: 24, fontWeight: 700, height: 52 }}
-          />
-        </Field>
-
-        <Field label="类别">
-          <div className="pill-row">
-            {(vocab?.categories || []).map((c) => (
-              <button
-                key={c.key}
-                type="button"
-                className={`pill icon-pill${form.category === c.key ? ' on' : ''}`}
-                style={form.category === c.key ? { color: c.color, borderColor: c.color } : null}
-                onClick={() => setForm((f) => ({ ...f, category: c.key }))}
-              >
-                <Glyph icon={c.icon} size={13} />
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </Field>
-
-        {members.length > 1 && (
-          <Field label="谁付的">
-            <div className="pill-row">
-              {members.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  className={`pill${form.payer === m.name ? ' on' : ''}`}
-                  onClick={() => setForm((f) => ({ ...f, payer: m.name }))}
-                >
-                  {m.name}
-                </button>
-              ))}
-            </div>
-          </Field>
-        )}
-
-        {/*
-         * 原来这两只是并排的 grid-2，各分 185px。datetime-local 光是
-         * 「2026/10/01 18:45」加那个日历图标就要 197px，于是时间被压在
-         * 图标底下，看不清到底几点（实测 185 < 197）。挂在那个下拉也只有
-         * 185px，节点标题基本只露个开头。两个都摊开占满整行才读得出来 ——
-         * 行间距跟 grid-2 一样是 10px，占地面没多花。
-         */}
-        <div className="stack">
-          <Field label="时间">
-            <DateTimeField value={form.occurredAt} onChange={set('occurredAt')} />
-          </Field>
-          <Field label="挂在">
-            <NodePickField nodes={nodes} value={form.nodeId} onChange={set('nodeId')} emptyLabel="不指定" />
-          </Field>
-        </div>
-
-        <Field label="备注">
-          <Input value={form.note} onChange={set('note')} placeholder="买了什么" maxLength={200} />
-        </Field>
-
-        <button
-          className="btn primary"
-          disabled={!(+form.amount > 0)}
-          onClick={() =>
-            onSave({
-              amount: +form.amount,
-              category: form.category,
-              payer: form.payer,
-              note: form.note.trim() || null,
-              occurredAt: new Date(form.occurredAt).toISOString(),
-              nodeId: form.nodeId || null,
-            })
-          }
-        >
-          {isNew ? '记下' : '保存'}
-        </button>
-
-        {onDelete && (
-          <button className="btn danger" onClick={onDelete}>
-            删掉
-          </button>
-        )}
-      </div>
-    </Sheet>
-  );
-}
-
-function BudgetEditor({ budgets, vocab, onClose }) {
-  const [rows, setRows] = useState(() => budgets.map((b) => ({ ...b })));
-  const [adding, setAdding] = useState(null);
-
-  const cats = vocab?.categories || [];
-
-  async function save(b) {
-    const amount = +b.planned_amount;
-    if (!(amount >= 0)) return;
-    if (b.id) await actions.patchBudget(b.id, { category: b.category, vocabKey: b.vocab_key, plannedAmount: amount });
-    else await actions.addBudget({ category: b.category, vocabKey: b.vocab_key, plannedAmount: amount });
-    setAdding(null);
-  }
-
-  return (
-    <Sheet title="预算" onClose={onClose}>
-      <div className="stack">
-        <p className="tiny dim" style={{ margin: 0 }}>
-          每行选一个消费类别，花的钱会自动对上去。留 0 就是不设上限。
-        </p>
-
-        {rows.map((b, i) => (
-          <div key={b.id || i} className="brow-edit">
-            <select
-              className="select"
-              value={b.vocab_key || ''}
-              onChange={(ev) => {
-                const c = cats.find((x) => x.key === ev.target.value);
-                setRows((rs) => rs.map((r, j) => (j === i ? { ...r, vocab_key: ev.target.value, category: c?.label || b.category } : r)));
-              }}
-            >
-              <option value="">不关联类别</option>
-              {cats.map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-            <Input
-              className="input"
-              type="number"
-              inputMode="decimal"
-              value={b.planned_amount}
-              onChange={(ev) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, planned_amount: ev.target.value } : r)))}
-              onBlur={() => save(b)}
-              placeholder="0"
-            />
-            <button
-              className="chip-btn icon-only"
-              aria-label="删除"
-              onClick={async () => {
-                if (!b.id) {
-                  setRows((rs) => rs.filter((_, j) => j !== i));
-                  return;
-                }
-                if (!confirm(`删掉「${b.category}」的预算？`)) return;
-                await actions.deleteBudget(b.id);
-                setRows((rs) => rs.filter((_, j) => j !== i));
-              }}
-            >
-              <Icon name="trash" size={13} />
-            </button>
-          </div>
-        ))}
-
-        {adding ? (
-          <div className="brow-edit">
-            <select
-              className="select"
-              value={adding.vocab_key || ''}
-              onChange={(ev) => {
-                const c = cats.find((x) => x.key === ev.target.value);
-                setAdding({ ...adding, vocab_key: ev.target.value, category: c?.label || '' });
-              }}
-            >
-              <option value="">选类别</option>
-              {cats.map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-            <Input
-              className="input"
-              type="number"
-              inputMode="decimal"
-              value={adding.planned_amount}
-              onChange={(ev) => setAdding({ ...adding, planned_amount: ev.target.value })}
-              placeholder="金额"
-            />
-            <button
-              className="chip-btn icon-only"
-              aria-label="确认"
-              onClick={() => {
-                if (!adding.category) {
-                  toast('先选个类别', 'warn');
-                  return;
-                }
-                setRows((rs) => [...rs, adding]);
-                setAdding(null);
-              }}
-            >
-              <Icon name="check" size={13} />
-            </button>
-          </div>
-        ) : (
-          <button className="btn btn-sm" onClick={() => setAdding({ category: '', vocab_key: '', planned_amount: '' })}>
-            <Icon name="plus" size={13} /> 加一行
-          </button>
-        )}
-
-        {adding && (
-          <button className="btn primary" onClick={() => save({ ...adding, id: null })}>
-            保存这一行
-          </button>
-        )}
-      </div>
-    </Sheet>
   );
 }

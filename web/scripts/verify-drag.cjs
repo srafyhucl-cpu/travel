@@ -24,7 +24,7 @@
  *
  * 环境变量：
  *   FROM=2 DOWN=4    从第几张（0 起）往下挪几格，默认 1 / 3
- *   PASS=xxxx        口令，默认 yunnan2026
+ *   PASS=xxxx        口令，必填（复制真库跑，用的就是这趟旅行的口令）
  *   TEST_PORT=7032   一次性后端的口令端口
  *   SHOT=D:\x\drag   给就存一张拖拽中的截图
  *
@@ -45,7 +45,11 @@ const DRIVE = path.parse(ROOT).root.replace(/[\\/]$/, '');
 const TEMP_DATA = process.env.DRAG_TEST_DATA || path.join(DRIVE, 'Temp', 'travel-testdata');
 
 const PORT = Number(process.env.TEST_PORT || 7032);
-const PASS = process.env.PASS || 'yunnan2026';
+const PASS = process.env.PASS;
+if (!PASS) {
+  console.error('缺少 PASS 环境变量：先设置这趟旅行的口令再跑，例如  PASS=你的口令 node scripts/verify-drag.cjs');
+  process.exit(2);
+}
 const FROM = Number(process.env.FROM || 1);
 const DOWN = Number(process.env.DOWN || 3);
 

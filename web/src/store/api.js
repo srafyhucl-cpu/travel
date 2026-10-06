@@ -5,9 +5,11 @@ import { cache, queue } from './idb.js';
 
 const TOKEN_KEY = 'travel.token';
 const TRIP_KEY = 'travel.tripId';
+const NAME_KEY = 'travel.memberName';
 
 let token = localStorage.getItem(TOKEN_KEY) || null;
 let tripId = localStorage.getItem(TRIP_KEY) || null;
+let memberName = localStorage.getItem(NAME_KEY) || null;
 let authFailed = null;
 
 export function getToken() {
@@ -16,15 +18,29 @@ export function getToken() {
 export function getTripId() {
   return tripId;
 }
+/** 上次登录用的名字：登录页预填，免得又建出一个「我」 */
+export function getMemberName() {
+  return memberName;
+}
+/** 快照认回「我」之后把名字对齐（改名、或上次登录用的是旧名） */
+export function rememberMemberName(name) {
+  if (!name || name === memberName) return;
+  memberName = name;
+  localStorage.setItem(NAME_KEY, name);
+}
 export function onAuthFailure(cb) {
   authFailed = cb;
 }
 
-export function setSession({ token: t, trip }) {
+export function setSession({ token: t, trip, member }) {
   token = t;
   tripId = trip?.id ?? tripId;
   localStorage.setItem(TOKEN_KEY, t);
   if (trip?.id) localStorage.setItem(TRIP_KEY, trip.id);
+  if (member?.name) {
+    memberName = member.name;
+    localStorage.setItem(NAME_KEY, memberName);
+  }
   cache.saveMeta('session', { token: t, tripId, at: Date.now() });
 }
 
@@ -104,6 +120,7 @@ export const api = {
   /* ---- 登录 ---- */
   login: (passphrase, name) => post('/api/auth/login', { passphrase, name }),
   createTrip: (payload) => post('/api/auth/trips', payload),
+  changePassphrase: (payload) => post('/api/auth/passphrase', payload),
 
   /* ---- 数据 ---- */
   snapshot: () => get('/api/trip/snapshot'),
@@ -202,6 +219,7 @@ export function templateUrl() {
 export async function flushQueue() {
   const items = await queue.list();
   let done = 0;
+  let dropped = 0;
   for (const item of items) {
     try {
       if (item.isForm && item.formBody) {
@@ -212,9 +230,19 @@ export async function flushQueue() {
       await queue.remove(item.seq);
       done++;
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) break;
-      break; // 第一个失败就先停，避免顺序错乱
+      if (e instanceof ApiError && e.status === 401) break; // 登录失效：重新登录后再补
+      /*
+       * 服务端明确拒绝的条目（节点已删、落点失效、checklist 对不上…）重放一万次
+       * 也是同样的结果，留着只会把后面所有离线操作永远堵死。丢掉并计数，
+       * 让用户知道有东西没能补上。
+       */
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+        await queue.remove(item.seq);
+        dropped++;
+        continue;
+      }
+      break; // 网络或 5xx：保留，下次联网再试
     }
   }
-  return done;
+  return { done, dropped };
 }

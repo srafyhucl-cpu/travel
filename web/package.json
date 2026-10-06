@@ -14,7 +14,9 @@
     "check:shortcuts": "node scripts/check-shortcuts.cjs",
     "check:order": "node scripts/check-order.cjs",
     "check:imports": "node scripts/check-imports.cjs",
-    "check:prep": "node scripts/check-prep.cjs"
+    "check:prep": "node scripts/check-prep.cjs",
+    "check:vlog": "node scripts/check-vlog.cjs",
+    "check:money": "node scripts/check-money.cjs"
   },
   "dependencies": {
     "react": "^18.3.1",

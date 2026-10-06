@@ -535,6 +535,32 @@ border-top: 1px solid var(--line);
   padding-top: 6px;
 }
 
+/* 「各自花的」和上面的实际类别明细分开一段 */
+.dk-split {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.dk-split-title {
+  padding: 2px 0;
+}
+
+/* 两个人并排；三个以上自动换行，不把面板顶长 */
+.dk-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
+.dk-payer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  min-width: 0;
+}
+
 .brow {
   display: flex;
   align-items: center;
@@ -547,14 +573,6 @@ border-top: 1px solid var(--line);
   border-bottom: none;
 }
 
-/* 一分钱没花的类别：收成单行，图标也淡下去，不和真有支出的抢注意力 */
-.brow.is-zero {
-padding: 4px 0;
-}
-
-.brow.is-zero .brow-ic {
-opacity: 0.5;
-}
 .brow-ic,
 .mrow-ic,
 .tl-ic {
@@ -569,12 +587,6 @@ opacity: 0.5;
   height: 21px;
 }
 
-.brow-edit {
-  display: grid;
-  grid-template-columns: 1fr 92px 34px;
-  gap: 7px;
-  align-items: center;
-}
 
 .bar {
   height: 7px;
@@ -1760,11 +1772,39 @@ border-radius: 999px;
   font-weight: 700;
 }
 
+.member-avatar.sm {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
+/* 当前登录的人：名字后面的小胶囊，列表和付款人里都不用再猜 */
+.me-tag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(47, 128, 237, 0.12);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  vertical-align: 1px;
+}
+
 .vlog-preview {
   width: 100%;
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
   display: block;
+}
+
+/* 长图预览：限高可滑，不然几屏长的图在弹层里缩成一条线 */
+.vlog-scroll {
+  max-height: 62vh;
+  overflow: auto;
+  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .swatches {

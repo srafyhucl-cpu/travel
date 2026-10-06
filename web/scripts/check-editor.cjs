@@ -94,12 +94,35 @@ const h = require('./_harness.cjs');
   await h.sleep(1000);
   // 日期现在是自有的月历（以前是原生 input[type=date]），默认值由打开新项时
   // 同一段代码写进 form.date，所以这里只能从触发按钮上读回来。
-  const mdLabel = await page.evaluate(() => {
-    const d = new Date();
-    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  const mdLabel = await page.evaluate(async () => {
+    /*
+     * 期望值按页面同一条规则算：今天落在行程日期区间内（或某个节点当天）就填今天，
+     * 否则接在最后一项之后。只写死「今天」会在行程结束后的日子里误报 —— 这条在
+     * 10 月 6 号（行程最后一天是 10-04）跑红过。
+     */
+    const token = localStorage.getItem('travel.token');
+    const snap = await (await fetch('/api/trip/snapshot', { headers: { Authorization: 'Bearer ' + token } })).json();
+    const pad = (n) => String(n).padStart(2, '0');
+    const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const shift = (s, n) => {
+      const d = new Date(`${s}T00:00:00`);
+      d.setDate(d.getDate() + n);
+      return iso(d);
+    };
+    const spanDays = (a, b) => Math.round((new Date(`${b}T00:00:00`) - new Date(`${a}T00:00:00`)) / 86400000);
+    const today = iso(new Date());
+    const dates = new Set((snap.nodes || []).map((n) => n.date));
+    if (snap.trip?.start_date && snap.trip?.end_date) {
+      const span = spanDays(snap.trip.start_date, snap.trip.end_date);
+      for (let i = 0; i <= span; i++) dates.add(shift(snap.trip.start_date, i));
+    }
+    const last = (snap.nodes || []).reduce((acc, n) => (!acc || n.date > acc ? n.date : acc), null);
+    const target = dates.has(today) ? today : last ? shift(last, 1) : snap.trip?.start_date;
+    const [, m, d] = target.split('-').map(Number);
+    return `${m}月${d}日`;
   });
   const dateText = (await page.locator('.sheet .picker-trigger').first().innerText()).replace(/\n/g, ' ');
-  t.check('日期已自动填好', dateText.includes(mdLabel), `按钮上写着「${dateText}」，今天 ${mdLabel}`);
+  t.check('日期已自动填好', dateText.includes(mdLabel), `按钮上写着「${dateText}」，期望 ${mdLabel}`);
   await t.shot('日期自动');
 
   // ---- 7. 保存：真的存得下来 ----

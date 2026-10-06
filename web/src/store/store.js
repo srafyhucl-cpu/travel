@@ -3,8 +3,8 @@
  *
  * 策略：先从 IndexedDB 立刻渲染（秒开、断网可用），再从服务器拉最新覆盖。
  */
-import { api, setSession, clearSession, getToken, getTripId, flushQueue, onAuthFailure } from './api.js';
-import { cache } from './idb.js';
+import { api, setSession, clearSession, getToken, getTripId, flushQueue, onAuthFailure, rememberMemberName } from './api.js';
+import { cache, queue } from './idb.js';
 import { normalizeSnapshot } from '../core/checklist.js';
 
 const listeners = new Set();
@@ -81,8 +81,11 @@ export async function boot() {
 function handleOnline() {
   set({ online: true });
   flushQueue()
-    .then((n) => {
-      if (n) toast(`已补传 ${n} 条离线记录`, 'success');
+    .then(({ done, dropped }) => {
+      const bits = [];
+      if (done) bits.push(`已补传 ${done} 条离线记录`);
+      if (dropped) bits.push(`${dropped} 条已失效被跳过`);
+      if (bits.length) toast(bits.join('，'), dropped ? 'warn' : 'success');
       refresh();
     })
     .catch(() => {});
@@ -116,6 +119,8 @@ export async function refresh({ quiet = false } = {}) {
   try {
     const data = normalizeSnapshot(await api.snapshot());
     set({ data, phase: 'ready', syncing: false, error: null });
+    // 改过名之后，登录页预填也要跟着换成新名字，否则下次会被认成另一个人
+    if (data?.me) rememberMemberName(data.me);
     if (data?.trip?.id) await cache.saveSnapshot(data.trip.id, data);
   } catch (e) {
     if (e.status === 0) {
@@ -210,6 +215,11 @@ export const actions = {
     disconnectLive();
     const tripId = getTripId();
     if (tripId) await cache.dropSnapshot(tripId).catch(() => {});
+    /*
+     * 队列里的写操作属于上一趟旅行：路径里的节点 id 在新旅行里对不上，
+     * 新建类操作还会凭空写进新旅行。退出就是退出，清掉，别让它在下次登录时乱补。
+     */
+    await queue.clear().catch(() => {});
     clearSession();
     set({ phase: 'login', data: null, live: false });
   },
@@ -233,6 +243,17 @@ setChecklistItem: (nodeId, itemId, done, text) => run(() => api.setChecklistItem
   addBudget: (payload) => run(() => api.addBudget(payload)),
   patchBudget: (id, payload) => run(() => api.patchBudget(id, payload)),
   deleteBudget: (id) => run(() => api.deleteBudget(id)),
+
+  // 预算只剩一个总数：把历史分类行合并成一行，之后只维护这一行
+  setTotalBudget: (amount, existing = []) =>
+    run(async () => {
+      const [keep, ...rest] = existing;
+      for (const b of rest) await api.deleteBudget(b.id);
+      if (keep) return api.patchBudget(keep.id, { category: '总预算', amount, vocabKey: null });
+      return api.addBudget({ category: '总预算', amount, vocabKey: null });
+    }),
+
+  changePassphrase: (current, next) => run(() => api.changePassphrase({ current, next })),
 
   patchTrip: (payload) => run(() => api.patchTrip(payload)),
 addVocab: (payload) => run(() => api.addVocab(payload)),

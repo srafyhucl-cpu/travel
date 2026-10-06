@@ -4,8 +4,7 @@
  * 这是修过的真 bug：manifest 里定义了今天 / 记账 / 照片三个快捷方式，
  * 代码却从来没读过这个参数，长按图标三个入口全开首页。
  *
- * 照片那一路要看当时有没有照片：有就开相册，没有就退回「加一笔」传照片，
- * 不能什么都不发生。
+ * 照片那一路现在直接开 vlog 面板：长图不带照片也能出，不必再退回「加一笔」。
  *
  * 跑法：node web/scripts/check-shortcuts.cjs
  * 退出码：0 = 三条都对，1 = 有。
@@ -53,14 +52,13 @@ async function fresh(browser, base, q) {
     await ctx.close();
   }
 
-  // ---- 3. ?tab=photos：一张照片都没有，应该退回「加一笔」而不是什么都不发生 ----
+  // ---- 3. ?tab=photos：直接开 vlog 面板（长图不带照片也能出） ----
   {
     const { ctx, page } = await fresh(t.browser, base, '?tab=photos');
     await h.sleep(1000);
-    const quick = await page.locator('.quickcell').count();
-    const poster = await page.locator('.poster, .poster-grid').count();
-    t.check('photos 零张时退回「加一笔」', quick > 0, `格子 ${quick} 个`);
-    t.check('photos 没有误开相册', poster === 0);
+    const isPoster = await page.locator('.sheet', { hasText: '生成 vlog 图' }).count();
+    t.check('photos 直接打开 vlog 面板', isPoster > 0, `面板数 ${await page.locator('.sheet').count()}`);
+    t.check('photos 首页还在（没有白屏）', (await page.locator('.tl-item').count()) > 0);
     await ctx.close();
   }
 

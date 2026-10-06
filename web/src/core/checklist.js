@@ -6,6 +6,9 @@
  */
 let seq = 0;
 
+/** 服务端也卡在 20（见 server/src/checklist.js），这里只负责别让输入超过它 */
+export const CHECKLIST_MAX = 20;
+
 export function newItem(text = '') {
   seq += 1;
   return {
@@ -38,7 +41,17 @@ export function normalizeItems(arr) {
 /** 快照进容器前统一把 checklist 摊成对象数组 */
 export function normalizeSnapshot(data) {
   if (!data || !Array.isArray(data.nodes)) return data;
-  return { ...data, nodes: data.nodes.map((n) => ({ ...n, checklist: normalizeItems(n.checklist) })) };
+  const members = Array.isArray(data.members) ? data.members : [];
+  /*
+   * meId 是登录时记下的成员 id。改名之后 token 里的旧名字就认不出「我」了，
+   * 用 id 反查成员表的当前名字；老 token 没有 meId 时退回按名字认。
+   */
+  const currentName = data.meId ? members.find((m) => m.id === data.meId)?.name : null;
+  return {
+    ...data,
+    me: currentName || data.me,
+    nodes: data.nodes.map((n) => ({ ...n, checklist: normalizeItems(n.checklist) })),
+  };
 }
 
 /** x/y 和「是不是全做完了」——模块卡收起、进度字样都靠它 */

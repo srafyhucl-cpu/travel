@@ -5,19 +5,9 @@ import { actions, toast } from '../store/store.js';
 import { Icon, Glyph, Sheet, Field, Input, Empty } from './bits.jsx';
 import { DateField } from './pickers.jsx';
 import { PICKABLE } from './glyphs.js';
-import { formatDate, daysBetween, todayStr } from '../core/format.js';
+import { formatDate, daysBetween, todayStr, tintOf } from '../core/format.js';
 const MEMBER_COLORS = ['#2F80ED', '#E2574C', '#27AE60', '#F2994A', '#9B51E0', '#00897B', '#111827'];
 
-/*
- * 把成员色调淡成头像底色。头像是实心色块时，下面名字和色块两个都很重，
- * 互相抢；淡底 + 深字才是一枚安静的标识。
- */
-function tintOf(hex) {
-  const h = String(hex || '').replace('#', '');
-  if (h.length !== 6) return 'rgba(47,128,237,0.12)';
-  const n = parseInt(h, 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0.12)`;
-}
 
 export default function Settings({ embedded, onOpenPoster }) {
   const state = useStore();
@@ -36,7 +26,7 @@ export default function Settings({ embedded, onOpenPoster }) {
     );
   }
 
-  const { trip, members, vocab, nodes, expenses, photos } = data;
+  const { trip, members, vocab, nodes, expenses, photos, me } = data;
   const dayCount = Math.max(1, daysBetween(trip.start_date, trip.end_date) + 1);
 
   async function logout() {
@@ -100,7 +90,10 @@ export default function Settings({ embedded, onOpenPoster }) {
               >
                 {(m.name || '?').trim().slice(0, 1)}
               </span>
-              <span className="grow small strong">{m.name}</span>
+              <span className="grow small strong">
+                {m.name}
+                {m.name === me && <span className="me-tag">我</span>}
+              </span>
             </div>
           ))}
         </div>
@@ -167,12 +160,11 @@ export default function Settings({ embedded, onOpenPoster }) {
             className="cat-row"
             style={{ width: '100%', textAlign: 'left', background: 'none', border: 0, borderBottom: '1px solid var(--line)' }}
             onClick={onOpenPoster}
-            disabled={!photos.length}
           >
             <Icon name="sparkle" size={19} />
             <div className="grow">
               <div className="small strong">生成 vlog 图</div>
-              <div className="tiny dim">把照片排成一张图存到相册（{photos.length} 张可用）</div>
+              <div className="tiny dim">行程 + 消费 + 记录导出长图，也可以拼照片海报</div>
             </div>
             <Icon name="chevron" size={16} />
           </button>
@@ -193,14 +185,19 @@ export default function Settings({ embedded, onOpenPoster }) {
 
         <div className="section-title">账号</div>
         <div className="card-flat">
-          <div className="cat-row" style={{ borderBottom: 'none' }}>
-            <Icon name="user" size={19} />
+          <button
+            className="cat-row"
+            style={{ width: '100%', textAlign: 'left', background: 'none', border: 0, borderBottom: '1px solid var(--line)' }}
+            onClick={() => setSheet('pass')}
+          >
+            <Icon name="lock" size={19} />
             <div className="grow">
-              <div className="small strong">旅行口令登录</div>
-              <div className="tiny dim">口令就是这趟旅行的钥匙，别外传</div>
+              <div className="small strong">修改旅行口令</div>
+              <div className="tiny dim">口令就是这趟旅行的钥匙，换一把；已登录的设备不会掉线</div>
             </div>
-          </div>
-          <button className="btn danger" style={{ width: '100%', marginTop: 8 }} onClick={logout}>
+            <Icon name="chevron" size={16} />
+          </button>
+          <button className="btn danger" style={{ width: '100%', marginTop: 12 }} onClick={logout}>
             <Icon name="logout" size={16} /> 退出登录
           </button>
         </div>
@@ -210,6 +207,7 @@ export default function Settings({ embedded, onOpenPoster }) {
 
       {sheet === 'trip' && <TripEditor trip={trip} onClose={() => setSheet(null)} />}
       {sheet === 'members' && <MemberEditor members={members} onClose={() => setSheet(null)} />}
+      {sheet === 'pass' && <PassphraseEditor onClose={() => setSheet(null)} />}
       {sheet === 'vocab' && <VocabManager vocab={vocab} onClose={() => setSheet(null)} />}
       {addingVocab && <VocabCreator kind={addingVocab} onClose={() => setAddingVocab(null)} />}
     </>
@@ -304,6 +302,68 @@ function MemberEditor({ members, onClose }) {
           }}
         >
           保存
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+/* ------------------------------ 修改口令 ------------------------------ */
+
+function PassphraseEditor({ onClose }) {
+  const [form, setForm] = useState({ current: '', next: '', confirm: '' });
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const tooShort = form.next.length > 0 && form.next.length < 6;
+  const mismatch = form.confirm.length > 0 && form.next !== form.confirm;
+  const same = form.next.length > 0 && form.next === form.current;
+  const canSave = form.current && form.next.length >= 6 && !mismatch && !same;
+
+  async function save() {
+    if (!canSave || busy) return;
+    setBusy(true);
+    try {
+      await actions.changePassphrase(form.current, form.next);
+      toast('口令已更新，下次登录用新口令', 'success');
+      onClose();
+    } catch {
+      /* store 已经弹过提示了，面板留着让用户改完重试 */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sheet title="修改旅行口令" onClose={onClose}>
+      <div className="stack">
+        <p className="tiny dim" style={{ margin: 0 }}>
+          改完立即生效。已经登录的设备不受影响，同伴下次登录要用新口令。
+        </p>
+        <Field label="当前口令">
+          <Input
+            type="password"
+            autoComplete="current-password"
+            value={form.current}
+            onChange={set('current')}
+          />
+        </Field>
+        <Field label="新口令" hint="至少 6 位，别用会被猜到的生日或手机号">
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={form.next}
+            onChange={set('next')}
+          />
+        </Field>
+        <Field label="再输一遍">
+          <Input type="password" autoComplete="new-password" value={form.confirm} onChange={set('confirm')} />
+        </Field>
+        {tooShort && <div className="tiny" style={{ color: 'var(--danger)' }}>新口令至少 6 位</div>}
+        {mismatch && <div className="tiny" style={{ color: 'var(--danger)' }}>两遍新口令不一样</div>}
+        {same && <div className="tiny" style={{ color: 'var(--danger)' }}>新口令和当前口令一样</div>}
+        <button className="btn primary" disabled={!canSave || busy} onClick={save}>
+          {busy ? '提交中…' : '更新口令'}
         </button>
       </div>
     </Sheet>

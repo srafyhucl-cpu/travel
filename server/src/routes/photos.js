@@ -34,6 +34,35 @@ const upload = multer({
   },
 });
 
+/*
+ * mimetype 是客户端自己填的，不能只信它：把一段 HTML 改名 .png 传上来，
+ * 光靠 multer 的 fileFilter 拦不住。落盘后再对一次魔数，对不上就删掉。
+ * HEIC 只认文件头里的 ftyp 盒（MOV/MP4 也长这样，但 fileFilter 已经先把
+ * 非图片类型挡在外面了）。
+ */
+const SNIFF = [
+  (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff, // jpeg
+  (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47, // png
+  (b) => b.slice(0, 6).toString('latin1').startsWith('GIF8'), // gif87a / gif89a
+  (b) => b.slice(0, 4).toString('latin1') === 'RIFF' && b.slice(8, 12).toString('latin1') === 'WEBP',
+  (b) => b.slice(4, 8).toString('latin1') === 'ftyp', // heic
+];
+
+function looksLikeImage(filename) {
+  const fd = fs.openSync(path.join(PHOTO_DIR, filename), 'r');
+  try {
+    const head = Buffer.alloc(12);
+    fs.readSync(fd, head, 0, 12, 0);
+    return SNIFF.some((match) => match(head));
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function dropFiles(files) {
+  for (const f of files) fs.promises.unlink(path.join(PHOTO_DIR, f.filename)).catch(() => {});
+}
+
 router.use(requireAuth);
 
 router.get('/', (req, res) => {
@@ -48,6 +77,12 @@ router.post('/', upload.array('photos', 12), (req, res) => {
   const tripId = req.auth.tid;
   const files = req.files || [];
   if (files.length === 0) return res.status(400).json({ error: 'bad_request', message: '没有收到图片' });
+
+  const bad = files.find((f) => !looksLikeImage(f.filename));
+  if (bad) {
+    dropFiles(files);
+    return res.status(400).json({ error: 'bad_image', message: '有一个文件不是有效的图片' });
+  }
 
   let nodeId = null;
   if (req.body?.nodeId) {

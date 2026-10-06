@@ -31,7 +31,16 @@ const DRIVE = path.parse(ROOT).root.replace(/[\\/]$/, '');
 const TEMP_DATA = process.env.DRAG_TEST_DATA || path.join(DRIVE, 'Temp', 'travel-testdata');
 const SHOT_DIR = process.env.SHOTS || path.join(DRIVE, 'Temp', 'travel-shots');
 
-const PASS = process.env.PASS || 'yunnan2026';
+/*
+ * 口令必须由环境变量显式给：脚本登录的是复制出来的真库，用的就是这趟旅行
+ * 真正的口令，代码库里不落任何默认值。
+ *   PASS=你的口令 npm run smoke
+ */
+const PASS = process.env.PASS;
+if (!PASS) {
+  console.error('缺少 PASS 环境变量：先设置这趟旅行的口令再跑，例如  PASS=你的口令 npm run smoke');
+  process.exit(2);
+}
 const PORT = Number(process.env.TEST_PORT || 7032);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

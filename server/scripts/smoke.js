@@ -206,5 +206,28 @@ console.log('\n== 鉴权 ==');
   token = saved;
 }
 
+console.log('\n== 修改口令 ==');
+{
+  const NEW = `${PASS}-v2`;
+
+  const wrong = await api('POST', '/api/auth/passphrase', { current: '不是这个', next: 'whatever123' });
+  check('当前口令不对被拒', wrong.status === 401, String(wrong.status));
+
+  const short = await api('POST', '/api/auth/passphrase', { current: PASS, next: '123' });
+  check('新口令太短被拒', short.status === 400, String(short.status));
+
+  const r = await api('POST', '/api/auth/passphrase', { current: PASS, next: NEW });
+  check('改口令成功', r.status === 200, JSON.stringify(r.json).slice(0, 150));
+
+  const old = await api('POST', '/api/auth/login', { passphrase: PASS, name: '我' });
+  check('旧口令登录被拒', old.status === 401, String(old.status));
+
+  const neu = await api('POST', '/api/auth/login', { passphrase: NEW, name: '我' });
+  check('新口令登录成功', neu.status === 200 && !!neu.json.token, String(neu.status));
+
+  const again = await api('POST', '/api/auth/passphrase', { current: NEW, next: `${PASS}-v3` });
+  check('改完还能再改', again.status === 200, String(again.status));
+}
+
 console.log(`\n${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`}\n`);
 process.exit(failures === 0 ? 0 : 1);

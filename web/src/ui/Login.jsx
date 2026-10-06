@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { actions } from '../store/store.js';
 import { useStore } from './useStore.js';
+import { getMemberName } from '../store/api.js';
 import { Icon } from './bits.jsx';
 
 export default function Login() {
   const state = useStore();
   const [mode, setMode] = useState('login');
   const [passphrase, setPass] = useState('');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => getMemberName() || '');
   const [tripName, setTripName] = useState('');
   const [startDate, setStart] = useState(new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
@@ -37,7 +38,8 @@ export default function Login() {
     }
   }
 
-  const canSubmit = passphrase.trim().length >= 4 && (mode === 'login' || tripName.trim().length > 0);
+  const minLen = mode === 'login' ? 4 : 6; // 新旅行必须 6 位起；老库 4 位的口令照样能登录
+  const canSubmit = passphrase.trim().length >= minLen && (mode === 'login' || tripName.trim().length > 0);
 
   return (
     <div className="auth">
@@ -62,7 +64,7 @@ export default function Login() {
               type="password"
               inputMode="text"
               autoComplete="current-password"
-              placeholder="至少 4 位"
+              placeholder={mode === 'login' ? '至少 4 位' : '至少 6 位'}
               value={passphrase}
               onChange={(e) => setPass(e.target.value)}
             />

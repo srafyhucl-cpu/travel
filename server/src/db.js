@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -240,13 +241,18 @@ const EMOJI_TO_GLYPH = {
 
 /*
  * sort_order 以前是「每一天各自从 0 开始」排的，拖拽要跨天就分不出先后了。
- * 这里按 (日期, 原顺序) 重排成一条贯穿整趟行程的全局序列，幂等，每次启动跑一遍。
+ * 这里按 (日期, 原顺序) 重排成一条贯穿整趟行程的全局序列，幂等。
+ * 已经是全局序列就不动它：每次启动全表重写毫无必要，还会让缓存了旧快照的客户端无谓地换序。
  */
 {
-  const rows = db.prepare('SELECT id FROM nodes ORDER BY trip_id, date, sort_order, start_time').all();
-  const upd = db.prepare('UPDATE nodes SET sort_order = ? WHERE id = ?');
-  const tx = db.transaction(() => rows.forEach((r, i) => upd.run(i * 10, r.id)));
-  tx();
+  const rows = db
+    .prepare('SELECT id, sort_order FROM nodes ORDER BY trip_id, date, sort_order, start_time')
+    .all();
+  if (rows.some((r, i) => r.sort_order !== i * 10)) {
+    const upd = db.prepare('UPDATE nodes SET sort_order = ? WHERE id = ?');
+    const tx = db.transaction(() => rows.forEach((r, i) => upd.run(i * 10, r.id)));
+    tx();
+  }
 }
 
 export function nowISO() {

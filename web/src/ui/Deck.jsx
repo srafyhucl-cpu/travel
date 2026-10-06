@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Bar, Glyph, Icon } from './bits.jsx';
-import { categoryMeta, formatMoney, typeMeta } from '../core/format.js';
+import { categoryMeta, formatMoney, tintOf, typeMeta } from '../core/format.js';
 import { openAmap } from '../core/nav.js';
 import { progress } from '../core/checklist.js';
 import { actions } from '../store/store.js';
@@ -46,7 +46,7 @@ function nowRow(clock) {
   return { label: tone === 'done' ? '已完成' : '空闲', title: headline, sub: subline || day, right: '', tone };
 }
 
-export default function Deck({ clock, vocab, budget, modules, onEditModule, onEditBudget }) {
+export default function Deck({ clock, vocab, budget, members, me, modules, onEditModule, onEditBudget }) {
   const [panel, setPanel] = useState(null); // 'prep' | 'money' | null，一次只开一个
   const toggle = (k) => setPanel((p) => (p === k ? null : k));
 
@@ -152,55 +152,65 @@ export default function Deck({ clock, vocab, budget, modules, onEditModule, onEd
 
       {panel === 'money' && (
         <div className="dk-panel">
-          {/* 明细在滚动区里，「还剩多少 / 改预算」留在外面 —— 展开预算唯一要动手的
-              地方，不该让人先滚一屏才找得到 */}
+          {/* 明细只按实际记账的类别汇总，预算是整趟一个总数；
+              「还剩多少 / 改预算」留在滚动区外，展开就能看到 */}
           <div className="dk-panel-body">
-            {budget.byCategory.length === 0 ? (
+            {budget.spent.length === 0 ? (
               <div className="dk-panel-row">
-                <span className="small dim grow">还没设预算。</span>
-                <button className="btn primary btn-sm" onClick={onEditBudget}>填一下</button>
+                <span className="small dim grow">还没记过账。</span>
               </div>
             ) : (
-              budget.byCategory.map((c) => {
-                const meta = categoryMeta(vocab, c.vocabKey || c.category);
-                const spent = c.actual > 0;
+              budget.spent.map((c) => {
+                const meta = categoryMeta(vocab, c.category);
                 return (
-                  <div key={c.category} className={`brow${spent ? '' : ' is-zero'}`}>
+                  <div key={c.category} className="brow">
                     <span className="brow-ic" style={{ background: meta.soft, color: meta.color }}>
                       <Glyph icon={meta.icon} size={13} />
                     </span>
                     <div className="grow">
                       <div className="row-between">
-                        {/* vocabKey === category 说明这行是「没进任何预算行」的孤儿消费，
-                            budget.js 只能用原始 key 当名字 —— 得查回词汇表的中文标签，
-                            否则用户会看到一行光秃秃的 food。 */}
-                        <span className={`small ${spent ? 'strong' : 'dim'}`}>
-                          {c.vocabKey === c.category ? meta.label : c.category}
-                        </span>
-                        <span className="small mono-num dim">
-                          {c.planned > 0 ? `${formatMoney(c.actual)}/${formatMoney(c.planned)}` : formatMoney(c.actual)}
-                        </span>
+                        <span className="small strong">{meta.label}</span>
+                        <span className="small mono-num">{formatMoney(c.actual)}</span>
                       </div>
-                      {/* 一分钱没花的类别不画进度条：六七行里五行是空灰条，纯噪音 */}
-                      {spent && (
-                        <div style={{ marginTop: 4 }}>
-                          <Bar value={c.actual} max={c.planned} />
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
               })
             )}
+            {budget.paid.length > 0 && (
+              <div className="dk-split">
+                <div className="dk-split-title tiny dim">各自花的</div>
+                <div className="dk-split-grid">
+                  {budget.paid.map((p) => {
+                    const m = (members || []).find((x) => x.name === p.name);
+                    const color = m?.color || '#2F80ED';
+                    return (
+                      <div key={p.name} className="dk-payer">
+                        <span className="member-avatar sm" style={{ color, background: tintOf(color) }}>
+                          {(p.name || '?').slice(0, 1)}
+                        </span>
+                        <span className="grow small strong truncate">
+                          {p.name}
+                          {me === p.name && <span className="me-tag">我</span>}
+                        </span>
+                        <span className="small mono-num">{formatMoney(p.paid)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
-          {budget.byCategory.length > 0 && (
-            <div className="dk-panel-foot">
-              <span className="tiny dim grow">
-                {budget.remaining >= 0 ? `还剩 ${formatMoney(budget.remaining)}` : `超支 ${formatMoney(-budget.remaining)}`}
-              </span>
-              <button className="chip-btn" onClick={onEditBudget}>改预算</button>
-            </div>
-          )}
+          <div className="dk-panel-foot">
+            <span className="tiny dim grow">
+              {budget.plannedTotal > 0
+                ? budget.remaining >= 0
+                  ? `还剩 ${formatMoney(budget.remaining)}`
+                  : `超支 ${formatMoney(-budget.remaining)}`
+                : '还没设总预算'}
+            </span>
+            <button className="chip-btn" onClick={onEditBudget}>改预算</button>
+          </div>
         </div>
       )}
     </div>

@@ -2,8 +2,7 @@ import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { db, DATA_DIR, PHOTO_DIR } from './db.js';
-import { clientCount } from './events.js';
+import { DATA_DIR } from './db.js';
 import authRoutes from './routes/auth.js';
 import tripRoutes from './routes/trip.js';
 import nodeRoutes from './routes/nodes.js';
@@ -37,15 +36,11 @@ app.use((req, res, next) => {
 });
 
 app.get('/api/health', (req, res) => {
-const trips = db.prepare('SELECT id, name FROM trips').all();
+  // 只要一个「活着」的信号就够了；路径、行程名这些不对外说
   res.json({
     ok: true,
     version: 1,
     uptime: Math.round(process.uptime()),
-trips: trips.length,
-online: trips.filter((t) => clientCount(t.id) > 0).map((t) => t.name),
-    dataDir: DATA_DIR,
-    photoDir: PHOTO_DIR,
     node: process.version,
   });
 });
@@ -90,12 +85,13 @@ if (fs.existsSync(FRONTEND_DIST)) {
 }
 
 app.use((err, req, res, next) => {
-  console.error('[error]', err.message);
+  console.error('[error]', err.stack || err.message);
   if (res.headersSent) return next(err);
   const isMulter = err.code?.startsWith?.('LIMIT_');
+  // 对外只给一句能懂的话；堆栈和 SQL 细节留在服务端日志里
   res.status(400).json({
     error: isMulter ? 'upload_too_large' : 'server_error',
-    message: isMulter ? '图片太大了，单张请控制在 25MB 以内' : err.message || '服务器出错了',
+    message: isMulter ? '图片太大了，单张请控制在 25MB 以内' : '服务器出错了，请稍后再试',
   });
 });
 

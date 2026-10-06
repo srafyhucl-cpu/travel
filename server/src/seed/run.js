@@ -1,18 +1,22 @@
 /**
  * 预填云南这趟行程。
- *   node src/seed/run.js [口令]
- * 口令不传则默认 yunnan2026（可用 SEED_PASSPHRASE 环境变量覆盖）。
+ *   node src/seed/run.js <口令>         （或 SEED_PASSPHRASE=<口令>）
+ * 口令必须显式给：以前默认的那个口令进过仓库，不该再被任何一个库继续使用。
  * 已经存在同口令的旅行时会直接退出，不会重复写入。
  */
 import { db, nowISO, uid } from '../db.js';
 import { hashPassphrase } from '../auth.js';
 import { TRIP, NODES, BUDGETS, EXPENSES } from './yunnan.js';
 
-const PASSPHRASE = (process.argv[2] || process.env.SEED_PASSPHRASE || 'yunnan2026').trim();
+const PASSPHRASE = (process.argv[2] || process.env.SEED_PASSPHRASE || '').trim();
 const OWNER = (process.argv[3] || process.env.SEED_OWNER || '我').trim();
 
-if (PASSPHRASE.length < 4) {
-  console.error('口令至少 4 位');
+if (!PASSPHRASE) {
+  console.error('用法：node src/seed/run.js <口令>（或用 SEED_PASSPHRASE 环境变量）');
+  process.exit(1);
+}
+if (PASSPHRASE.length < 6) {
+  console.error('口令至少 6 位');
   process.exit(1);
 }
 

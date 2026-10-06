@@ -66,13 +66,23 @@ const r = now.getBoundingClientRect();
 return {
 found: true,
 top: Math.round(r.top),
+bottom: Math.round(r.bottom),
 hudH: document.querySelector('.hud')?.offsetHeight || 0,
 y: Math.round(window.scrollY),
+maxY: Math.round(document.documentElement.scrollHeight - window.innerHeight),
+vh: Math.round(window.innerHeight),
 };
 });
 t.check('页面上有「现在这格」', landing.found);
 t.check('确实往下滚了', landing.y > 0, `scrollY=${landing.y}`);
-t.check('现在这格贴在常驻块下面', landing.found && landing.top >= landing.hudH - 2 && landing.top <= landing.hudH + 48, `top=${landing.top} hud=${landing.hudH}`);
+/*
+ * 理想落点是贴在常驻块下沿 10px，但页面已经滚到底时办不到：scrollTo 会被
+ * 浏览器钳在最大滚动位置，这时候卡片只要在可视区里就算落对了，不能按“没贴住”
+ * 算失败。两种都收：要么贴住，要么已到底且卡片可见。
+ */
+const pinned = landing.found && landing.top >= landing.hudH - 2 && landing.top <= landing.hudH + 48;
+const clamped = landing.found && landing.y >= landing.maxY - 2 && landing.top > 0 && landing.bottom > landing.hudH && landing.top < landing.vh;
+t.check('现在这格贴在常驻块下面', pinned || clamped, `top=${landing.top} hud=${landing.hudH}${clamped && !pinned ? '（已滚到底，落点受页面高度限制）' : ''}`);
 await t.shot('打开落在现在这格');
 
   // 1 首页
@@ -107,6 +117,26 @@ await t.shot('打开落在现在这格');
   const settingsLen = (await page.locator('.sheet').innerText()).length;
   t.check('设置页有内容', settingsLen > 50, `${settingsLen} 字`);
   await t.shot('设置页');
+
+  /*
+   * 4.1 改名之后「我」还认得出来。
+   * token 里存的是登录时的旧名字，快照得靠 meId 反查成员表才能对上；
+   * 只按名字认「我」的实现，这一步标签会消失。
+   */
+  await page.locator('.sheet button:has-text("改名 / 颜色")').click();
+  await page.waitForSelector('.sheet .field input', { timeout: 8000 });
+  await h.sleep(500);
+  const memberSheet = page.locator('.sheet').last();
+  await memberSheet.locator('.field input').first().fill('我·改名');
+  await memberSheet.locator('button:has-text("保存")').click();
+  await h.sleep(1400);
+  const renamed = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.cat-row')];
+    return rows.some((r) => r.textContent.includes('我·改名') && r.querySelector('.me-tag'));
+  });
+  t.check('改名后「我」跟着新名字走', renamed);
+  await t.shot('改名之后');
+
   await page.keyboard.press('Escape');
   await h.sleep(600);
 

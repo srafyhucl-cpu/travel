@@ -1,9 +1,10 @@
 import express from 'express';
 import { db, nowISO } from '../db.js';
-import { requireAuth } from '../auth.js';
-import { verifyToken } from '../auth.js';
+import { requireAuth, verifyToken } from '../auth.js';
 import { addClient, broadcast } from '../events.js';
 import { addDays } from './auth.js';
+import { vocabFor } from '../vocab.js';
+import { parseChecklist } from '../checklist.js';
 
 const router = express.Router();
 
@@ -105,10 +106,11 @@ router.get('/snapshot', (req, res) => {
 vocab: vocabFor(tripId),
     serverTime: nowISO(),
     me: req.auth.name,
+    // 「我是谁」不能只看名字：改名之后 token 里的旧名字就对不上了
+    meId: req.auth.mid || null,
   });
 });
 
-/** SSE：任何端改了数据，这趟旅行的其他端都会收到通知 */
 /** 更新旅行基本信息（名称、目的地、日期、主题色） */
 router.patch('/trip', (req, res) => {
   const tripId = req.auth.tid;
@@ -153,5 +155,3 @@ router.patch('/members/:id', (req, res) => {
 });
 
 export default router;
-import { vocabFor } from '../vocab.js';
-import { parseChecklist } from '../checklist.js';

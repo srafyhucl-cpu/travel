@@ -13,40 +13,39 @@ export default function App() {
   const state = useStore();
   const [panel, setPanel] = useState(null); // 'settings' | 'poster' | 'add'
   const [addNodeSignal, setAddNodeSignal] = useState(0);
-const [expenseSignal, setExpenseSignal] = useState(0);
+  const [expenseSignal, setExpenseSignal] = useState(0);
   const [pending, setPending] = useState(0);
 
   React.useEffect(() => {
     queue.size().then(setPending).catch(() => {});
   }, [state.data, state.online]);
 
-/*
-* 主屏长按图标的那三个快捷方式，全靠 ?tab= 传进来。manifest 里定义了，
-* 但代码压根没读这个参数，长按弹出来点哪个都是同一个首页，等于三个假入口。
-* 而长按菜单恰恰是用户明确表达意图的时刻，都落到首页就浪费了。
-*/
-useEffect(() => {
-if (state.phase === 'boot') return undefined;
-const apply = () => {
-const tab = new URLSearchParams(window.location.search).get('tab');
-if (!tab) return;
-if (tab === 'money') {
-// 记账面板在 Journey 里，用递增信号把它叫醒（和「加一项」同一套路）
-setExpenseSignal((n) => n + 1);
-setPanel(null);
-} else if (tab === 'photos') {
-// 一张照片都没有时海报编辑器开不了，退回「加一笔」传照片，
-// 好过按了长按图标却什么都没发生。
-setPanel(state.data?.photos?.length > 0 ? 'poster' : 'add');
-}
-// 参数用完抹掉：不然刷新一下、或者从后台切回来，历史里还留着这个
-// tab，回退时又弹一次记账面板。
-window.history.replaceState(null, '', window.location.pathname);
-};
-apply();
-window.addEventListener('popstate', apply);
-return () => window.removeEventListener('popstate', apply);
-}, [state.phase, state.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  /*
+   * 主屏长按图标的那三个快捷方式，全靠 ?tab= 传进来。manifest 里定义了，
+   * 但代码压根没读这个参数，长按弹出来点哪个都是同一个首页，等于三个假入口。
+   * 而长按菜单恰恰是用户明确表达意图的时刻，都落到首页就浪费了。
+   */
+  useEffect(() => {
+    if (state.phase === 'boot') return undefined;
+    const apply = () => {
+      const tab = new URLSearchParams(window.location.search).get('tab');
+      if (!tab) return;
+      if (tab === 'money') {
+        // 记账面板在 Journey 里，用递增信号把它叫醒（和「加一项」同一套路）
+        setExpenseSignal((n) => n + 1);
+        setPanel(null);
+      } else if (tab === 'photos') {
+        // 现在 vlog 图默认是行程长图，没照片也能出，直接开面板。
+        setPanel('poster');
+      }
+      // 参数用完抹掉：不然刷新一下、或者从后台切回来，历史里还留着这个
+      // tab，回退时又弹一次记账面板。
+      window.history.replaceState(null, '', window.location.pathname);
+    };
+    apply();
+    window.addEventListener('popstate', apply);
+    return () => window.removeEventListener('popstate', apply);
+  }, [state.phase, state.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (state.phase === 'boot') {
     return (
@@ -83,7 +82,7 @@ expenseSignal={expenseSignal}
         </Sheet>
       )}
 
-      {panel === 'poster' && state.data?.photos?.length > 0 && (
+      {panel === 'poster' && state.data && (
         <Poster photos={state.data.photos} trip={state.data.trip} onClose={() => setPanel(null)} />
       )}
 

@@ -74,8 +74,22 @@ export function relativeDay(dateStr, now = new Date()) {
 }
 
 export function formatMoney(n) {
-  const v = Math.round(Number(n) || 0);
-  return v.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+  const v = Math.round((Number(n) || 0) * 100) / 100;
+  const cents = Math.abs(v % 1) > 0.0001;
+  return v.toLocaleString(
+    'zh-CN',
+    cents
+      ? { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+      : { maximumFractionDigits: 0 }
+  );
+}
+
+/** 成员头像的淡色底：把一个 HEX 调成 12% 透明度 */
+export function tintOf(hex) {
+  const h = String(hex || '').replace('#', '');
+  if (h.length !== 6) return 'rgba(47,128,237,0.12)';
+  const n = parseInt(h, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0.12)`;
 }
 
 export function formatClockTime(d = new Date()) {

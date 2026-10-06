@@ -232,7 +232,10 @@ function shiftDate(iso, days) {
 }
 
 /**
-
+ * 下一项提醒：按类型的提前量，在「该出发了」的时刻给出提醒。
+ * （这一段原来只开了个头 `/**`、没有正文也没有收尾，把整个函数吞进了注释里，
+ *   文件能跑、函数却是死的 —— 补成正常的文档注释。）
+ */
 export function nextReminder({ trip, nodes = [], checkins = [], vocab = null }, now = new Date()) {
   const state = computeNow({ trip, nodes, checkins }, now);
   if (state.phase !== 'active') return null;

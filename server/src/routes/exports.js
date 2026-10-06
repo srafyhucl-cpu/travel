@@ -2,6 +2,8 @@ import express from 'express';
 import { db, nowISO, uid } from '../db.js';
 import { verifyToken } from '../auth.js';
 import { addDays } from './auth.js';
+import { broadcast } from '../events.js';
+import { vocabFor, typeInfo } from '../vocab.js';
 
 const router = express.Router();
 
@@ -257,8 +259,9 @@ router.post('/import-template', authFromQuery, (req, res) => {
   });
   tx();
 
+  // 导进来的节点别的端也得看到，不然要等下一次手动刷新
+  broadcast(tripId, { type: 'nodes' });
   res.json({ ok: true, created });
 });
 
 export default router;
-import { vocabFor, typeInfo } from '../vocab.js';
