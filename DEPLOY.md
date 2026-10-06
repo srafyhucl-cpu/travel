@@ -45,15 +45,17 @@ ssh root@47.94.102.250 "systemctl restart travel"
 
 清旧包（可选，只为省磁盘）。**别照着上一次的名字手写 rm** —— 改 JSX 不改 CSS 时
 CSS 的 hash 不会变，上一次的 CSS 正是这一次还在用的那一份，手写名字会把它删掉。
-让脚本自己判断：只删「线上 index.html 里没提到」的文件。
+让脚本自己判断，而且**不能只看 index.html**：海报是动态 import 的分包
+（`Poster-*.js`），只在 JS 里被引用，只看 index.html 会把它误删（真删过一次）。
 
 ```bash
 cd /opt/apps/travel/frontend/dist && for f in assets/*; do b=$(basename "$f"); \
-  grep -q "$b" index.html || rm -f "$f"; done; ls assets
+  grep -q "$b" index.html || grep -q "$b" assets/*.js 2>/dev/null || rm -f "$f"; done; ls assets
 ```
 
 注：取不到的旧包会由 nginx 的 SPA 回退返成 `index.html`（HTTP 200 + `text/html`），
 所以「URL 返回 200」不代表文件还在，要看磁盘或 `Content-Type`。
+懒加载分包的 hash 变了同样要重新部署，`ls assets` 出来的文件数和构建产物对得上才算干净。
 
 数据库结构有变动时，schema 在 `server/src/db.js` 的 `SCHEMA` 里，字段追加写在 `ensureColumn()`，
 重启时自动迁移，老数据不用管。
