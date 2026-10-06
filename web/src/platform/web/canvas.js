@@ -527,6 +527,9 @@ const LONG = {
 
 const money = (n) => `¥${formatMoney(n)}`;
 
+/** 让出一次主线程：长图分片绘制之间用 */
+const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 function liText(ctx, s, x, y, { font = `400 28px ${FONT}`, color = LONG.INK, align = 'left' } = {}) {
   ctx.font = font;
   ctx.fillStyle = color;
@@ -921,6 +924,7 @@ function buildNodeCard(ctx, node, opts) {
  * @param {string} opts.accent
  * @param {boolean} opts.includePhotos
  * @param {(id:string)=>Promise<HTMLImageElement>} opts.loadPhoto
+ * @param {(done:number,total:number)=>void} [opts.onProgress] 绘制进度（文本块+照片）
  * @returns {Promise<HTMLCanvasElement>}
  */
 export async function renderTripLongImage(opts = {}) {
@@ -961,40 +965,52 @@ export async function renderTripLongImage(opts = {}) {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = LONG.BG;
   ctx.fillRect(0, 0, W, plan.height);
+
+  /*
+   * 长图可能有几千像素高、上百个块，一口气画完界面会僵住。分片画：
+   * 每画几块让出一次主线程，顺便把进度报给调用方（Poster 上显示 n/N）。
+   * 总步数 = 文本块 + 照片槽，照片那段的进度才有分母。
+   */
+  const totalSteps = plan.blocks.length + plan.photoSlots.length;
+  let step = 0;
+  opts.onProgress?.(0, totalSteps);
   let y = 0;
   for (const b of plan.blocks) {
     b.draw(ctx, y);
     y += b.h;
+    step += 1;
+    if (step % 8 === 0) {
+      opts.onProgress?.(step, totalSteps);
+      await nextFrame();
+    }
   }
 
   // 照片一张一张来：画完就放，别把整本相册都扣在内存里
   if (typeof opts.loadPhoto === 'function') {
-    const total = plan.photoSlots.length;
-    let done = 0;
-    opts.onProgress?.(0, total);
     const startedAt = Date.now();
     for (const slot of plan.photoSlots) {
-      done += 1;
       if (Date.now() - startedAt > LONG.PHOTO_BUDGET) break; // 原图可能很慢，超时就先出图
       try {
         const img = await Promise.race([
           opts.loadPhoto(slot.photoId),
           new Promise((resolve) => setTimeout(() => resolve(null), LONG.PHOTO_TIMEOUT)),
         ]);
-        if (!img) continue;
-        ctx.save();
-        roundRect(ctx, slot.x, slot.y, slot.w, slot.h, 16);
-        ctx.clip();
-        drawCover(ctx, img, slot.x, slot.y, slot.w, slot.h);
-        ctx.restore();
-        img.src = '';
+        if (img) {
+          ctx.save();
+          roundRect(ctx, slot.x, slot.y, slot.w, slot.h, 16);
+          ctx.clip();
+          drawCover(ctx, img, slot.x, slot.y, slot.w, slot.h);
+          ctx.restore();
+          img.src = '';
+        }
       } catch {
         /* 单张失败就留底色，不让整张长图跟着塌 */
       }
-      opts.onProgress?.(done, total);
+      step += 1;
+      opts.onProgress?.(step, totalSteps);
     }
-    if (done < total) opts.onProgress?.(total, total); // 超时收尾，别让进度停在半路
   }
+  opts.onProgress?.(totalSteps, totalSteps);
 
   return canvas;
 }

@@ -1,13 +1,32 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from './ui/useStore.js';
 import { Icon, Sheet, Field } from './ui/bits.jsx';
 import { NodePickField } from './ui/pickers.jsx';
 import Login from './ui/Login.jsx';
 import Journey from './ui/Journey.jsx';
 import Settings from './ui/Settings.jsx';
-import Poster from './ui/Poster.jsx';
 import { actions } from './store/store.js';
 import { platform } from './platform/index.js';
+
+/*
+ * 海报/长图带着 ~950 行 Canvas 代码，是低频入口 —— 懒加载，让首屏主包
+ * 少背这一段。第一次点「生成 vlog 图」时再拉这个 chunk。
+ */
+const Poster = React.lazy(() => import('./ui/Poster.jsx'));
+
+/** 懒加载失败（离线且还没缓存过）时兜个底，别让整个 App 跟着崩 */
+class LazyBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
 
 export default function App() {
   const state = useStore();
@@ -19,6 +38,20 @@ export default function App() {
   React.useEffect(() => {
     platform.queue.size().then(setPending).catch(() => {});
   }, [state.data, state.online]);
+
+  /*
+   * 首屏之后空闲时把海报 chunk 预热了：主包不背它（首屏更快），
+   * 但等用户真要出图时它已经在缓存里；配合 Service Worker，离线也能开。
+   */
+  useEffect(() => {
+    const warm = () => import('./ui/Poster.jsx').catch(() => {});
+    if ('requestIdleCallback' in window) {
+      const id = requestIdleCallback(warm, { timeout: 5000 });
+      return () => cancelIdleCallback(id);
+    }
+    const t = setTimeout(warm, 3000);
+    return () => clearTimeout(t);
+  }, []);
 
   /*
    * 主屏长按图标的那三个快捷方式，全靠 ?tab= 传进来。manifest 里定义了，
@@ -83,7 +116,25 @@ expenseSignal={expenseSignal}
       )}
 
       {panel === 'poster' && state.data && (
-        <Poster photos={state.data.photos} trip={state.data.trip} onClose={() => setPanel(null)} />
+        <LazyBoundary
+          fallback={
+            <Sheet title="生成 vlog 图" onClose={() => setPanel(null)}>
+              <p className="tiny dim" style={{ margin: 0 }}>
+                出图模块还没下载好：第一次打开需要联网一下；下载过一次之后离线也能用。
+              </p>
+            </Sheet>
+          }
+        >
+          <Suspense
+            fallback={
+              <Sheet title="生成 vlog 图" onClose={() => setPanel(null)}>
+                <div className="skeleton" style={{ height: 240 }} />
+              </Sheet>
+            }
+          >
+            <Poster photos={state.data.photos} trip={state.data.trip} onClose={() => setPanel(null)} />
+          </Suspense>
+        </LazyBoundary>
       )}
 
       {panel === 'add' && (

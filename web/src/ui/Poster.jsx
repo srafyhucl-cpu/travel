@@ -30,6 +30,7 @@ export default function Poster({ photos, trip, onClose }) {
   const [count, setCount] = useState(4);
   const [includePhotos, setIncludePhotos] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null); // 长图生成进度 { done, total }
   const [preview, setPreview] = useState(null);
 
   const stats = useMemo(() => {
@@ -57,6 +58,7 @@ export default function Poster({ photos, trip, onClose }) {
     if (mode === 'photo' && !chosen.length) return;
     const gen = ++genRef.current;
     setBusy(true);
+    setProgress(null);
     try {
       let canvas;
       if (mode === 'long') {
@@ -71,6 +73,9 @@ export default function Poster({ photos, trip, onClose }) {
           vocab: data.vocab,
           accent,
           includePhotos: includePhotos && photos.length > 0,
+          onProgress: (done, total) => {
+            if (gen === genRef.current) setProgress({ done, total });
+          },
           loadPhoto: async (id) => {
             const u = await platform.files.url(id);
             return u ? loadImageEl(u) : null;
@@ -105,7 +110,10 @@ export default function Poster({ photos, trip, onClose }) {
     } catch (e) {
       if (gen === genRef.current) toast('出图失败：' + (e?.message || '未知错误'), 'error');
     } finally {
-      if (gen === genRef.current) setBusy(false);
+      if (gen === genRef.current) {
+        setBusy(false);
+        setProgress(null);
+      }
     }
   }
 
@@ -233,7 +241,11 @@ export default function Poster({ photos, trip, onClose }) {
         )}
 
         <button className="btn" onClick={generate} disabled={busy || (mode === 'photo' && !photos.length)}>
-          {busy ? '生成中…' : '重新生成'}
+          {busy
+            ? progress && progress.total
+              ? `出图中… ${Math.min(progress.done, progress.total)}/${progress.total}`
+              : '出图中…'
+            : '重新生成'}
         </button>
       </div>
     </Sheet>
