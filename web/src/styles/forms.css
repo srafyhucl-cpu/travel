@@ -1,0 +1,499 @@
+/* 按钮、表单、代办输入 */
+
+/* ------------------------------ 按钮 ------------------------------ */
+
+.chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 7px;
+  /*
+   * 整行统一 24px。带文字的「出发」原来只有 20px 高，旁边的图标按钮是 24px，
+   * 一行里两种高度、居中对齐，看着就是参差不齐。16 张卡连着看尤其明显。
+   */
+  min-height: 24px;
+  padding: 0 7px;
+  font-size: 11.5px;
+  /* 每一行都省 6px，16 张卡就是 96px —— 这一行是整页最贵的地方 */
+  line-height: 1.35;
+  font-weight: 500;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.chip-btn.primary {
+  /*
+   * 一屏十几张卡都是实心蓝，看着像一排广告 —— 真正的“现在该做的那件事”
+   * 反而被淹没了。所以默认浅底，只给「该做的那张」（.is-now）实心。
+   */
+  background: var(--accent-soft);
+  color: #1c6fd0;
+}
+
+.tl-item.is-now .chip-btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 该做的那张卡，圆点也跟着亮一下，扫一眼就知道该从哪儿开始 */
+.tl-item.is-now .tl-dot {
+  /* 圆点颜色在 JS 里算好了（inline style 会盖掉 border/background），光晕才是 CSS 该管的 */
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.chip-btn.ok {
+  background: var(--ok-soft);
+  color: #1e8449;
+}
+
+.chip-btn.static {
+  pointer-events: none;
+}
+
+/* 纯图标按钮：24px 方块，比带文字的矮，也更容易一眼认出是工具而不是命令 */
+.chip-btn.icon-only {
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  justify-content: center;
+  background: var(--surface-2);
+}
+
+.chip-btn:active {
+  transform: scale(0.96);
+}
+
+.chip-btn:disabled {
+  opacity: 0.45;
+}
+
+.btn {
+  border-radius: 11px;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--ink);
+  color: #fff;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn.primary {
+  background: var(--accent);
+}
+
+.btn.ghost {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.btn.danger {
+  background: var(--danger-soft);
+  color: #b23c32;
+}
+
+.btn:disabled {
+
+/* 删除这一项：一行淡红文字，不占一整块粉红底。常驻的保存条是唯一的主按钮，
+   删除再怎么做也不该跟它抢视线；但点击区仍留够 44px，手机上按得准。 */
+.btn-text-danger {
+  display: block;
+  width: 100%;
+  padding: 13px 12px calc(13px + var(--safe-b));
+  margin-top: 2px;
+  border: none;
+  background: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--danger);
+  opacity: 0.72;
+}
+
+.btn-text-danger:active {
+  opacity: 1;
+}
+  opacity: 0.45;
+}
+
+.btn:active {
+  transform: scale(0.99);
+}
+
+.btn-sm {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 9px;
+  width: auto;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  flex-shrink: 0;
+  color: var(--ink-2);
+}
+
+.icon-btn.accent {
+  background: var(--accent);
+  color: #fff;
+}
+
+.icon-btn:active {
+  transform: scale(0.94);
+}
+
+.quickgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.quickcell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 10px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.quickcell:active {
+  transform: scale(0.98);
+}
+
+.quickcell:disabled {
+  opacity: 0.5;
+}
+
+/* ------------------------------ 表单 ------------------------------ */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* label 和它右边的迷你动作（比如「导航词」）并排，不额外占一行 */
+.field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.field-head > label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.field-act {
+  /*
+   * 「展开写」是写长提示的正路，提示框本身也有 8 行了。
+   * 以前它是一行 11px 的灰字，点击区不到 20px，手机上很难点准 ——
+   * 换成一枚看得见、也点得着的小胶囊。
+   */
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 10px 4px 8px;
+  cursor: pointer;
+}
+
+.field-act.on {
+  color: var(--accent);
+  font-weight: 600;
+}
+.field > label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/*
+ * 必填标记。以前标题和日期实际是必填的（保存键置灰），但界面上一点提示都没有，
+ * 按了没反应只能猜。一枚小红标比一段说明省地方，也不占一整行。
+ */
+.req-star {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: #d64545;
+  background: rgba(214, 69, 69, 0.09);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+/* 置灰的保存键上方说清楚还差什么，而不是让人以为手机卡了 */
+.req-missing {
+  text-align: center;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+
+.input,
+.select {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 16px;
+  background: #fff;
+  outline: none;
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* 收在另一个框下面的次级输入框（地点 → 导航词）。
+   靠一道细缝和上方那个分开，不另起一个带标签的块。 */
+.input-sub {
+  margin-top: 6px;
+  background: rgba(17, 24, 39, 0.02);
+  border-style: dashed;
+}
+
+/* ------------------------------ 代办输入 ------------------------------ */
+/*
+ * 一条一行，每行自带一个 ✕。以前是一个大 textarea、一行一条：写的时候不知道
+ * 哪行是哪行，删一条得整行选中，一不小心连着上一行一起清掉。
+ * 行与行之间只留一道缝，不各自带框 —— 一堆小方框看着像表单，实际只需要一个列表。
+ */
+.cklist {
+  display: flex;
+  flex-direction: column;
+}
+
+.cklist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 小方点代替序号：代办最多四五条，编号反而逼着人去数第几行 */
+.cklist-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  flex-shrink: 0;
+}
+
+.cklist-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 7px 0;
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.cklist-input:focus {
+  /* 只点亮下边线：整格变色会在打字时糊一下，抖得厉害 */
+  border-bottom-color: var(--accent);
+  box-shadow: none;
+}
+
+.cklist-del {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.cklist-del:active {
+  background: rgba(214, 69, 69, 0.1);
+  color: #d64545;
+}
+
+.cklist-add {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 4px 8px 4px 6px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.cklist-add:active {
+  background: var(--surface-2);
+}
+/* 用 minmax(0,·) 而不是 1fr：1fr 的最小尺寸是 auto，长的 <option> 文本会把列撑爆，
+另一列就被挤扁 —— 表现为「挂在」那个下拉只剩 131px、字被箭头盖住。 */
+.grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 类型选择：一行横滑，不因为 8 个类型就吃掉两行高度 */
+.pill-row.scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin-inline: -12px;
+  padding-inline: 12px;
+  scrollbar-width: none;
+}
+/*
+ * 右边缘化开一点：八个类型一行放不下，最后一枚总是被切一半，看着像渲染坏了。
+ * 化开以后它读起来就是「还能往右滑」，而不是「有个按钮坏了」。
+ */
+.pill-row.scroll {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+}
+
+.pill-row.scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.pill-row.scroll .pill {
+  flex: 0 0 auto;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1.5px solid transparent;
+}
+
+.pill.icon-pill {
+  padding: 5px 10px 5px 8px;
+}
+
+.pill.on {
+  background: #fff;
+  border-color: currentColor;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 「+类型」「+类别」是入口，不是类别本身 —— 虚线幽灵样式，别跟真类别混成一片 */
+.pill.add {
+background: none;
+border: 1px dashed var(--line-strong);
+color: var(--ink-3);
+}
+
+.pill.add:active {
+background: var(--surface-2);
+}
+
+.icongrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.iconcell {
+  aspect-ratio: 1;
+  border-radius: 9px;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  border: 1.5px solid transparent;
+}
+
+.iconcell.on {
+  background: #fff;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 0;
+}
+
+.switch .track {
+  width: 46px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  position: relative;
+  transition: background 0.18s ease;
+  flex-shrink: 0;
+}
+
+.switch.on .track {
+  background: var(--ok);
+}
+
+.switch .knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.18s ease;
+}
+
+.switch.on .knob {
+  transform: translateX(18px);
+}
+

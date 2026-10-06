@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from './useStore.js';
 import { icsUrl, templateUrl } from '../store/api.js';
-import { actions, toast } from '../store/store.js';
+import { actions, askConfirm, toast } from '../store/store.js';
 import { platform } from '../platform/index.js';
 import { Icon, Glyph, Sheet, Field, Input, Empty } from './bits.jsx';
 import { DateField } from './pickers.jsx';
@@ -31,7 +31,9 @@ export default function Settings({ embedded, onOpenPoster }) {
   const dayCount = Math.max(1, daysBetween(trip.start_date, trip.end_date) + 1);
 
   async function logout() {
-    if (confirm('退出后要重新输入旅行口令才能进来，确定吗？')) await actions.logout();
+    if (await askConfirm('退出后要重新输入旅行口令才能进来，确定吗？', { danger: true, confirmText: '退出' })) {
+      await actions.logout();
+    }
   }
 
   return (
@@ -407,7 +409,7 @@ function VocabManager({ vocab, onClose }) {
                 <button
                   className="chip-btn"
                   onClick={async () => {
-                    if (!confirm(`删掉「${c.label}」？`)) return;
+                    if (!(await askConfirm(`删掉「${c.label}」？`, { danger: true, confirmText: '删除' }))) return;
                     await actions.deleteVocab(c.id);
                   }}
                 >

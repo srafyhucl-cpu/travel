@@ -1,7 +1,11 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
-import './styles.css';
+import './styles/tokens.css';
+import './styles/timeline.css';
+import './styles/forms.css';
+import './styles/overlays.css';
+import './styles/misc.css';
 import { boot } from './store/store.js';
 
 boot();

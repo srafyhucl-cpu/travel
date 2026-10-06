@@ -210,5 +210,31 @@ await page.locator('.sheet .input[placeholder*="搜标题"]').fill(firstTitle.sl
   // 记一笔弹层里除了这几个，其它框都还在（别把原生控件漏掉了）。
   const nativeLeft = await page.locator('.sheet input[type=date], .sheet input[type=time], .sheet input[type=datetime-local], .sheet select').count();
   t.check('没有残留的原生日期/时间/下拉', nativeLeft === 0, `还剩 ${nativeLeft} 个`);
+
+  // ---- 9. 删除确认：走自定义弹窗，不弹系统 confirm ----
+  await page.keyboard.press('Escape');
+  await h.sleep(600);
+  const victim = await page.locator('.tl-item .tl-title').first().innerText();
+  await page.locator('.tl-item .tl-head').first().click();
+  await page.waitForSelector('.sheet button:has-text("删除这一项")', { timeout: 8000 });
+  await h.sleep(400);
+  await page.locator('.sheet button:has-text("删除这一项")').click();
+  await page.waitForSelector('.confirm-card', { timeout: 5000 });
+  t.check('删除有自定义确认弹窗', (await page.locator('.confirm-card').count()) === 1);
+  const confirmMsg = await page.locator('.confirm-msg').innerText();
+  t.check('确认文案带上标题', confirmMsg.includes(victim), confirmMsg);
+  await t.shot('删除确认');
+  await page.locator('.confirm-card button:has-text("取消")').click();
+  await h.sleep(400);
+  t.check('取消后弹窗关上', (await page.locator('.confirm-card').count()) === 0);
+  t.check('取消后编辑器还在', (await page.locator('.sheet').count()) > 0);
+  await page.locator('.sheet button:has-text("删除这一项")').click();
+  await page.waitForSelector('.confirm-card', { timeout: 5000 });
+  await page.locator('.confirm-card button:has-text("删除")').click();
+  await h.sleep(1400);
+  const left = await page.locator('.tl-title', { hasText: victim }).count();
+  t.check('确认后这一项真的删了', left === 0, `还剩 ${left} 条`);
+  t.check('删除后没有报错', (await page.locator('.toast.error').count()) === 0);
+
   process.exit(await t.end());
 })().catch(async (e) => { console.error('脚本自己炸了:', e.message); process.exit(2); });

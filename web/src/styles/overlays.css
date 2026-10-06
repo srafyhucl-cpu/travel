@@ -1,0 +1,211 @@
+/* 弹层、照片查看、登录页 */
+
+/* ------------------------------ 弹层 ------------------------------ */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.42);
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fade 0.16s ease;
+}
+
+/*
+ * 键盘弹起时才加的类。iOS 缩的是 visualViewport，布局视口不动，
+ * position:fixed 的弹层不会自己让位 —— 底下那条常驻的「保存」就正好
+ * 躲在键盘后面，字写完了想保存还得先把键盘收起来。
+ *
+ * 抬高遮罩而不是弹层：弹层是 align-items:flex-end 贴在遮罩底边的，
+ * 遮罩底边一抬，弹层跟着抬。100% 在 fixed 定位里等于布局视口高度，
+ * 减去可视区高度和偏移，正好是键盘盖住的那一截。
+ */
+.sheet-backdrop.kb {
+  bottom: calc(100% - var(--vvh) - var(--vvt));
+}
+.sheet-backdrop.kb .sheet {
+  max-height: var(--vvh);
+}
+
+.sheet {
+  background: var(--bg);
+  width: 100%;
+  max-width: 520px;
+  border-radius: 22px 22px 0 0;
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+  animation: rise 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  padding-bottom: var(--safe-b);
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 16px 9px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-head h3 {
+  font-size: 15.5px;
+}
+
+.sheet-body {
+flex: 1 1 auto;
+min-height: 0;
+padding: 14px 16px 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 保存条常驻底部：改到再下面哪个框，都不用滚回去找保存按钮 */
+.sheet.has-foot {
+padding-bottom: 0;
+}
+
+.sheet-foot {
+flex: none;
+padding: 10px 16px calc(10px + var(--safe-b));
+border-top: 1px solid var(--line);
+background: var(--card);
+}
+
+.btn.block {
+width: 100%;
+}
+
+.sheet-grab {
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  margin: 8px auto 0;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(18px);
+    opacity: 0.6;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------ 照片查看 ------------------------------ */
+
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(10, 12, 16, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade 0.16s ease;
+}
+
+.viewer img {
+  max-width: 100%;
+  max-height: 78dvh;
+  object-fit: contain;
+  display: block;
+}
+
+.viewer-close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  right: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  width: 38px;
+  height: 38px;
+}
+
+.viewer-nav.l {
+  left: 10px;
+}
+.viewer-nav.r {
+  right: 10px;
+}
+
+.viewer-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px calc(12px + var(--safe-b));
+  background: rgba(10, 12, 16, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.viewer-bar .input {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: transparent;
+  color: #fff;
+  font-size: 14px;
+}
+
+.viewer-bar .input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.viewer-bar .chip-btn {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  padding: 9px 11px;
+}
+
+/* ------------------------------ 登录页 ------------------------------ */
+
+.auth {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 24px calc(32px + var(--safe-b));
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.auth-logo {
+  width: 58px;
+  height: 58px;
+  border-radius: 17px;
+  background: linear-gradient(135deg, #2f80ed, #7b61ff);
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 28px rgba(47, 128, 237, 0.3);
+}
+
+.auth h1 {
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.auth .lead {
+  color: var(--ink-2);
+  margin: 8px 0 26px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+

@@ -20,6 +20,7 @@ const initial = {
   pending: 0,
   error: null,
   toast: null,
+  confirm: null, // 确认弹窗（各端自己画；小程序没有阻塞式 confirm）
 };
 
 let state = { ...initial };
@@ -51,6 +52,26 @@ export function toast(message, kind = 'info') {
   setTimeout(() => {
     if (state.toast?.message === message) set({ toast: null });
   }, 2600);
+}
+
+/*
+ * 确认弹窗。替掉 window.confirm —— 系统弹窗跟 App 两套长相，小程序里也没有
+ * 阻塞式 confirm。状态放这里（纯逻辑），长什么样由各端 ui 自己画。
+ * 返回 Promise<boolean>，调用处 `if (await askConfirm(...))` 即可。
+ */
+export function askConfirm(message, { danger = false, confirmText = '确定', cancelText = '取消' } = {}) {
+  return new Promise((resolve) => {
+    // 上一个还没关就被新的顶掉：旧的按「取消」收场，别把 Promise 悬着
+    state.confirm?.resolve?.(false);
+    set({ confirm: { message, danger, confirmText, cancelText, resolve } });
+  });
+}
+
+export function resolveConfirm(ok) {
+  const c = state.confirm;
+  if (!c) return;
+  set({ confirm: null });
+  c.resolve(ok);
 }
 
 /* ------------------------------ 启动 ------------------------------ */

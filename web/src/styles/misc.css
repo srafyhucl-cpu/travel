@@ -1,0 +1,615 @@
+/* 杂项、长按拖拽、顺延回执、自有日期/时间/挂载控件、确认弹窗、触控与动效 */
+
+/* ------------------------------ 杂项 ------------------------------ */
+
+/* 词表里存了图标名以外的字符时，至少还能显示出来 */
+.glyph-fallback {
+  display: inline-block;
+  line-height: 1;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  width: 100%;
+  text-align: left;
+}
+
+.cat-row:last-child {
+  border-bottom: none;
+}
+
+/* 比如「生成 vlog 图」在一张照片都没有时是禁用的。长得跟能点的一模一样，
+   用户点了没反应只会以为坏了。 */
+.cat-row:disabled {
+opacity: 0.45;
+cursor: default;
+}
+
+.cat-dot {
+width: 22px;
+height: 22px;
+border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+/* 成员头像：写名字首字，不是一枚光秃秃的色点。 */
+.member-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.member-avatar.sm {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
+/* 当前登录的人：名字后面的小胶囊，列表和付款人里都不用再猜 */
+.me-tag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(47, 128, 237, 0.12);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  vertical-align: 1px;
+}
+
+.vlog-preview {
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  display: block;
+}
+
+/* 长图预览：限高可滑，不然几屏长的图在弹层里缩成一条线 */
+.vlog-scroll {
+  max-height: 62vh;
+  overflow: auto;
+  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.swatches {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-xs);
+  border: 2.5px solid transparent;
+}
+
+.swatch.on {
+  border-color: var(--ink);
+}
+
+.empty {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--ink-3);
+}
+
+.empty .big {
+  margin-bottom: 10px;
+  color: var(--ink-3);
+  display: flex;
+  justify-content: center;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + var(--safe-b));
+  transform: translateX(-50%);
+  background: rgba(17, 24, 39, 0.94);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 11px;
+  font-size: 13px;
+  z-index: 90;
+  box-shadow: var(--shadow-lg);
+  max-width: 88vw;
+  text-align: center;
+  animation: rise 0.2s ease;
+}
+
+.toast.error {
+  background: rgba(178, 60, 50, 0.96);
+}
+.toast.warn {
+  background: rgba(154, 91, 18, 0.96);
+}
+.toast.success {
+  background: rgba(24, 137, 75, 0.96);
+}
+
+.net-flag {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  right: 10px;
+  z-index: 70;
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(154, 91, 18, 0.92);
+  color: #fff;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, rgba(17, 24, 39, 0.09) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: var(--radius);
+  height: 140px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* ------------------------------ 长按拖拽排序 ------------------------------ */
+
+body.is-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grabbing;
+  /* 拖起来以后彻底不让浏览器抢手势，否则它会中途接管成页面滚动 */
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+/* 拖起来的那张：抬起来、压深边、跟着手指走 */
+.tl-item.dragging {
+  position: relative;
+  z-index: 30;
+  pointer-events: none;
+  touch-action: none;
+  will-change: transform;
+}
+
+.tl-item.dragging .tl-card {
+  border-color: var(--accent);
+  box-shadow: 0 12px 30px rgba(16, 24, 40, 0.2);
+  background: #fff;
+}
+
+/*
+ * 空位平时高度为 0，不占地方；捏起来的时候所有空位同时张开，
+ * 整个列表像被撑开一样给你看：可以插到任何两张卡中间。
+ */
+.dropslot {
+  height: 0;
+  margin-left: var(--indent);
+  position: relative;
+  z-index: 20;
+  transition: height 0.14s ease;
+}
+
+.dropslot.live {
+  height: 26px;
+}
+
+.dropslot.live::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 6px;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.dropslot.on::after {
+  background: var(--accent);
+  height: 3px;
+  margin-top: -1.5px;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ------------------------------ 顺延 / 回执 ------------------------------ */
+.flashbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 0 8px;
+  padding: 8px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: #fff;
+  font-size: 12.5px;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.18);
+}
+
+/* ------------------------------ 自有日期/时间/挂载控件 ------------------------------ */
+/*
+ * 以前这里是 <input type="date">、<input type="time">、<input type="datetime-local">
+ * 和 <select>。它们展开出来都是系统的面板 —— 安卓 Chrome 一整屏黑滚轮，
+ * iOS 灰圆盘，桌面上一个方框加下划线，跟旁边所有控件都不像；<select> 更是
+ * 一整屏反色菜单，想找一项只能靠滚。
+ * 下面这些是替身：框线、圆角、字重全跟 .input 一样，所以换完之后两行并排的
+ * 日期/时间看不出接缝（见 .picker-trigger）。
+ */
+
+/* 触发按钮：跟 .input 同框线，唯一区别是右端多一枚 chevron 表明可展开 */
+.picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 38px; /* .input 是 8+8 padding + 一行 22 ≈ 38 */
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 16px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.picker-trigger.empty .picker-trigger-main {
+  color: var(--ink-3);
+}
+
+/* 主值 + 右端副值（「周四 · 3 天后」/「晚上 7:30」）。副值只是辅助，
+   flex 挤不下时先让它消失，主值一定要留全。 */
+.picker-trigger-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.picker-trigger-sub {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.picker-trigger-chev {
+  flex: none;
+  transform: rotate(90deg);
+  color: var(--ink-3);
+}
+
+/* ------------------------------ 月历 ------------------------------ */
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cal-title {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.cal-nav {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.cal-nav:active {
+  background: rgba(17, 24, 39, 0.06);
+}
+
+/* 「下个月」用同一个 back 图标，翻个面朝右 */
+.cal-nav.flip {
+  transform: scaleX(-1);
+}
+
+.cal-week,
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.cal-week {
+  margin-bottom: 4px;
+}
+
+.cal-week span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+/* 格子接近正方形：宽由 7 列均分，高锁死 38px ——
+   高度跟着宽度走的话，iPhone SE 上格子会矮到 30px 出头，很难点准。 */
+.cal-cell {
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.cal-cell.out {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.cal-cell.today {
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.cal-cell.sel {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+
+.cal-cell.no {
+  color: var(--ink-3);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cal-foot {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.cal-foot::-webkit-scrollbar {
+  display: none;
+}
+
+.cal-foot .pill {
+  flex: none;
+  padding: 6px 10px;
+}
+
+.cal-foot .pill:disabled {
+  opacity: 0.4;
+}
+
+/* ------------------------------ 时间胶囊 ------------------------------ */
+/* 30 分钟一档。一行放不下就横滑 —— 比换成两列小格更好找：眼睛是横着扫的。 */
+.picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.picker-chips .pill {
+  padding: 7px 11px;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.picker-chips .pill.on {
+  background: #fff;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.picker-manual {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.picker-manual .input {
+  flex: 1;
+}
+
+.picker-manual .btn {
+  flex: none;
+  padding-inline: 16px;
+}
+
+/* ------------------------------ 日期 + 时间并排 ------------------------------ */
+/* 两列各占一半，月历那列稍宽一点（7 列格子挤在 ~46% 里才不至于难点）。
+   480px 以上（平板/桌面）再各拉回一点，中间的缝不无限长。 */
+.dt-panel {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.dt-time-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 8px;
+}
+
+@media (max-width: 360px) {
+  .dt-panel {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+/* ------------------------------ 行程挂载列表 ------------------------------ */
+.pick-list {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.pick-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 9px 2px 5px;
+  background: var(--bg);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pick-row:active {
+  background: var(--surface-2);
+}
+
+.pick-row.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pick-row-time {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pick-row.on .pick-row-time {
+  color: var(--accent);
+}
+
+.pick-row-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.pick-row-ok {
+  flex: none;
+  color: var(--accent);
+}
+
+/* ------------------------------ 确认弹窗 ------------------------------ */
+
+/* 比弹层(60)/查看器(80)/toast(90)都高一档：删除确认必须压在最上面 */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  animation: fade 0.16s ease;
+}
+
+.confirm-card {
+  width: 100%;
+  max-width: 320px;
+  background: var(--card);
+  border-radius: 16px;
+  padding: 20px 18px 16px;
+  box-shadow: var(--shadow-lg);
+  animation: rise 0.18s ease;
+}
+
+.confirm-msg {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.confirm-actions .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* ------------------------------ 触控与动效 ------------------------------ */
+
+/*
+ * 小按钮视觉尺寸不动，命中区偷偷补到 ~40px。这几个都是独处一角的按钮
+ * （时间点右侧、日期行末尾、待办行末尾），放大互不重叠。
+ * 卡片里那排 24px 的 chip 是有意排密的（一屏 16 张卡），不在这里动。
+ */
+.dk-act,
+.dm-add,
+.cklist-del {
+  position: relative;
+}
+
+.dk-act::after,
+.dm-add::after,
+.cklist-del::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+/* 系统开了「减弱动态效果」：把过渡和动画收掉 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

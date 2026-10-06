@@ -43,6 +43,11 @@ export function Glyph({ icon, size = 14, style }) {
 
 export function Sheet({ title, onClose, children, footer }) {
   const ref = useRef(null);
+  /*
+   * 打开前焦点在哪。关闭时送回去，键盘用户不会掉到页面开头；
+   * 在 render 期取（还没挂载），拿到的就是打开它的那个按钮。
+   */
+  const returnFocus = useRef(typeof document === 'undefined' ? null : document.activeElement);
 /*
 * 手机键盘弹起来会吃掉屏幕下面一截，而弹层本身不会自动让位，
 * 于是正在输入的那个框常常正好躲在键盘后面 —— 看得见光标，看不见自己写的字。
@@ -109,6 +114,15 @@ useEffect(() => {
       document.body.style.overflow = prev;
     };
   }, [onClose]);
+
+  // 关掉之后把焦点送回打开它的那个按钮；元素已经不在了就作罢
+  useEffect(
+    () => () => {
+      const prev = returnFocus.current;
+      if (prev instanceof HTMLElement && document.contains(prev)) prev.focus?.();
+    },
+    []
+  );
 
   return (
     <div className="sheet-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>

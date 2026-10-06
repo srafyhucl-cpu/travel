@@ -5,7 +5,7 @@ import { NodePickField } from './ui/pickers.jsx';
 import Login from './ui/Login.jsx';
 import Journey from './ui/Journey.jsx';
 import Settings from './ui/Settings.jsx';
-import { actions } from './store/store.js';
+import { actions, resolveConfirm } from './store/store.js';
 import { platform } from './platform/index.js';
 
 /*
@@ -26,6 +26,39 @@ class LazyBoundary extends React.Component {
   render() {
     return this.state.failed ? this.props.fallback : this.props.children;
   }
+}
+
+/** 确认弹窗的宿主：store 只存状态，长相和按键在这里 */
+function ConfirmHost({ confirm }) {
+  useEffect(() => {
+    if (!confirm) return undefined;
+    // 捕获阶段先吃 Escape：别让下层的 Sheet 也被一起关掉
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        resolveConfirm(false);
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [confirm]);
+
+  if (!confirm) return null;
+  return (
+    <div className="confirm-backdrop" onMouseDown={(e) => e.target === e.currentTarget && resolveConfirm(false)}>
+      <div className="confirm-card" role="alertdialog" aria-modal="true" aria-label={confirm.message}>
+        <div className="confirm-msg">{confirm.message}</div>
+        <div className="confirm-actions">
+          <button className="btn" autoFocus onClick={() => resolveConfirm(false)}>
+            {confirm.cancelText}
+          </button>
+          <button className={`btn ${confirm.danger ? 'danger' : 'primary'}`} onClick={() => resolveConfirm(true)}>
+            {confirm.confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -149,6 +182,7 @@ expenseSignal={expenseSignal}
       )}
 
       {state.toast && <div className={`toast ${state.toast.kind}`}>{state.toast.message}</div>}
+      <ConfirmHost confirm={state.confirm} />
     </div>
   );
 }
@@ -165,10 +199,10 @@ function QuickAdd({ nodes, onClose, onAddNode }) {
     if (!files.length) return;
     setBusy(true);
     try {
-      const fd = new FormData();
-      for (const f of files) fd.append('photos', f);
-      if (nodeId) fd.append('nodeId', nodeId);
-      await actions.uploadPhotos(fd);
+      await actions.uploadPhotos({
+        files: files.map((f) => ({ name: f.name, file: f })),
+        fields: nodeId ? { nodeId } : {},
+      });
       onClose();
     } catch {
       /* store 弹过了 */

@@ -1,0 +1,811 @@
+/* 首页：卡片、顶部常驻块、日期分隔、时间线 */
+
+/* ------------------------------ 卡片 ------------------------------ */
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+
+.card-tight {
+  padding: 11px 12px;
+}
+
+.card-flat {
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  padding: 11px 12px;
+}
+
+.section-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+margin: 16px 2px 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-title .act {
+  font-weight: 500;
+  color: var(--accent);
+  font-size: 12.5px;
+}
+
+.section-title button.act {
+background: none;
+border: 0;
+padding: 0;
+cursor: pointer;
+}
+
+/* ------------------------------ 顶部常驻块 ------------------------------ */
+
+/*
+ * 顶栏 + 「现在 / 前置 / 钱」这一整块合成 HUD，一起 sticky。
+ * 不去算「顶栏到底多高」再给下面那块定 top —— 两者包在同一个 sticky 容器里，
+ * 浏览器自己排：加安全区、换字号都不用回来改数值，滚起来也不会错位。
+ */
+.hud {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(244, 245, 247, 0.92);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  padding-bottom: 8px;
+}
+
+/* 顶栏自己不再 sticky（外层已经是了），半透明底也交给 hud 统一一层 */
+.hud .topbar {
+  position: static;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 0;
+}
+
+.deck {
+  margin: 0 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+/* ------------------------------ 现在 ------------------------------ */
+
+.dk-now {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 11px 7px;
+}
+
+.dk-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.dk-l1 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dk-label {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--ink-3);
+}
+
+.dk-title {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.dk-l2 {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 1px;
+}
+
+.dk-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+
+.dk-act {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  border: 0;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.dk-act:active {
+  transform: scale(0.94);
+}
+
+/* 语气：进行中=主色（外圈一圈柔光表示「正在这儿」）、落后=黄、完成=绿 */
+.dk-now.tone-active .dk-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.dk-now.tone-active .dk-label {
+  color: var(--accent);
+}
+.dk-now.tone-warn .dk-dot {
+  background: var(--warn);
+}
+.dk-now.tone-warn .dk-label {
+  color: var(--warn);
+}
+.dk-now.tone-done .dk-dot {
+  background: var(--ok);
+}
+.dk-now.tone-done .dk-label {
+  color: var(--ok);
+}
+
+/* ------------------------------ 前置 / 钱 ------------------------------ */
+
+.dk-segs {
+  display: flex;
+  border-top: 1px solid var(--line);
+}
+
+.dk-seg {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dk-seg + .dk-seg {
+  border-left: 1px solid var(--line);
+}
+
+.dk-seg .bar {
+  height: 4px;
+}
+
+.ds-l1 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+.ds-ic {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.ds-ic.plain {
+  background: rgba(17, 24, 39, 0.06);
+  color: var(--ink-2);
+}
+
+.ds-label {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+/* 数字靠右：两格对齐，「3/7」和「¥1,280」落在同一个位置，扫一眼就能比 */
+.ds-num {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ds-num.danger {
+  color: var(--danger);
+}
+
+.ds-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ds-bar .bar {
+  flex: 1;
+}
+
+.ds-bar .tiny {
+  flex-shrink: 0;
+}
+
+.prep-seg.ok .ds-num {
+  color: var(--ok);
+}
+
+.prep-seg.ok .bar i {
+  background: var(--ok);
+}
+
+.dk-caret {
+  color: var(--ink-3);
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.dk-caret.open {
+  transform: rotate(90deg);
+}
+
+/* ------------------------------ 展开的面板 ------------------------------ */
+
+.dk-panel {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  /*
+   * 整块是 sticky 的，面板不封顶就会长过屏幕：一屏里先钉着顶栏和半张卡，
+   * 底下那截还永远够不着。封顶 + 明细自己滚，下面的行程永远还剩得下、点得到。
+   */
+  max-height: min(42vh, 340px);
+  animation: dk-in 0.15s ease;
+}
+
+@keyframes dk-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 面板里唯一会滚的那层。overscroll-behavior: contain 管住连锁：面板已经滚到底
+了还要往上划时，不跟着滑底下的行程（看着像在拖一张卡） */
+.dk-panel-body {
+min-height: 0;
+overflow-y: auto;
+overscroll-behavior: contain;
+padding: 0 11px;
+}
+
+.dk-panel-head,
+.dk-panel-row,
+.dk-panel-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dk-panel-head {
+  margin-bottom: 4px;
+  padding: 8px 11px 4px;
+  flex-shrink: 0;
+}
+
+.dk-panel-foot {
+/* 一根发丝线把「逐类明细」和「还剩多少 / 改预算」分开，明细滚动时线也不动 */
+border-top: 1px solid var(--line);
+  padding: 8px 11px 10px;
+  flex-shrink: 0;
+}
+
+/* 「还没设预算」那一行自己带上下留白（面板本身的 padding 已经收进各层了） */
+.dk-panel-row {
+  padding: 10px 0;
+}
+
+.dk-panel .brow:first-child {
+  padding-top: 6px;
+}
+
+/* 「各自花的」和上面的实际类别明细分开一段 */
+.dk-split {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.dk-split-title {
+  padding: 2px 0;
+}
+
+/* 两个人并排；三个以上自动换行，不把面板顶长 */
+.dk-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
+.dk-payer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  min-width: 0;
+}
+
+.brow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.brow:last-child {
+  border-bottom: none;
+}
+
+.brow-ic,
+.mrow-ic,
+.tl-ic {
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+
+.brow-ic {
+  width: 21px;
+  height: 21px;
+}
+
+
+.bar {
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(17, 24, 39, 0.07);
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.bar i.over {
+  background: var(--danger);
+}
+
+/* ------------------------------ 日期分隔 ------------------------------ */
+
+.daymark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 8px;
+cursor: pointer;
+}
+
+.daymark:first-child {
+  margin-top: 6px;
+}
+
+.dm-date {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dm-rel {
+  font-size: 11px;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.daymark.now .dm-date {
+  color: var(--accent);
+}
+
+.daymark.now .dm-rel {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.dm-line {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* 日期行末尾的加号：整行可点，不额外占高度 */
+.dm-add {
+width: 18px;
+height: 18px;
+flex: none;
+display: grid;
+place-items: center;
+padding: 0;
+border-radius: 5px;
+background: var(--surface-2);
+color: var(--ink-2);
+}
+
+.dm-add:active {
+background: var(--accent);
+color: #fff;
+}
+
+.dayempty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--indent);
+  padding: 9px 12px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  background: rgba(17, 24, 39, 0.03);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  width: calc(100% - var(--indent));
+}
+
+/* ------------------------------ 时间线 ------------------------------ */
+
+.timeline {
+  position: relative;
+}
+
+.tl-item {
+  display: flex;
+  gap: 0;
+  /*
+* 长按是拿来拖的，所以整张卡片都得禁掉选中文字和系统的长按菜单。
+* 整张卡统一 none，不能在备注/待办那里单独放开 —— 手指按住卡片中间
+* 描述文字那一块是最容易发力的位置，一放开选中就永远拖不动。
+   */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  position: relative;
+}
+
+/*
+ * 上面那两条不往子元素传。卡片里的 <img> 长按会弹系统的图片菜单、还能被当成
+ * 可拖对象 —— 一旦系统接管这根手指就发 pointercancel，拖到一半被掐掉，
+ * 表现就是「卡跟着手指跑，松手却放不下去」。这里连同整棵子树一起封死。
+ */
+.tl-item * {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+
+.tl-rail {
+  width: var(--rail);
+  flex-shrink: 0;
+  text-align: right;
+  padding-top: 11px;
+}
+
+.tl-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-line {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding-left: var(--tl-gutter);
+  padding-bottom: 6px;
+}
+
+.tl-line::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: -6px;
+  width: 1.5px;
+  /* 比边框还淡：它是背景结构，不该跟内容抢 */
+  background: rgba(17, 24, 39, 0.09);
+}
+
+.tl-item:last-child .tl-line::before {
+  display: none;
+}
+
+.tl-dot {
+  position: absolute;
+  left: 1px;
+  top: 14px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--line-strong);
+  z-index: 1;
+}
+
+.tl-dot.s-done {
+  border-color: var(--ok);
+  background: var(--ok);
+}
+
+.tl-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px 6px;
+  /* 两层：先接触感再浮起感。单层阴影卡片发平，看着像贴纸 */
+  /*
+   * 开头那道 inset 阴影是类型色竖条，全项目最强的一个信号。
+   * 不用 border-left：它会把内容整体往右挤一格，16 张卡的标题就不在一条线上了。
+   * inset 画在边框内侧，不动任何布局。
+   */
+  box-shadow:
+    inset 3px 0 0 var(--tc, transparent),
+    0 1px 1px rgba(16, 24, 40, 0.04),
+    0 2px 8px rgba(16, 24, 40, 0.032);
+}
+
+.tl-card.s-done {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.tl-card.s-done .tl-title {
+  color: var(--ink-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--line-strong);
+}
+
+.tl-head {
+/* 整个标题区就是「点开编辑」的入口（铅笔按钮是同一件事的另一个入口），
+按下去给一点反馈，不然手机上没人知道这块能点。 */
+border-radius: var(--radius-sm);
+margin: -3px -5px -2px;
+padding: 3px 5px 2px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.tl-head:active {
+background: rgba(17, 24, 39, 0.035);
+}
+
+.tl-ic {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 6px;
+}
+
+.tl-title {
+/*
+* 一张卡里挤着标题、副信息、提示、待办、消费五层字，全靠字号和墨色分主次。
+* 原来标题 14.5 / 提示 12.5 / 副信息 11.5，只差 2px，扫下去没有锚点 ——
+* 标题提到 15 并压到 700，副信息收到 11，主次才拉得开。
+*/
+font-size: 15px;
+font-weight: 700;
+  line-height: 1.3;
+}
+
+.tl-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 1px;
+}
+
+/* 元信息每一段都完整显示，宁可整段换行也不从中间断开 */
+.tl-meta > span {
+  white-space: nowrap;
+}
+
+.tl-loc {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-spend {
+  /*
+   * 以前是个裸数字悬在标题行右边，标题一多行它就孤零零地飘在中间，
+   * 看着像渲染错了。收成一枚弱化的小胶囊：金额仍然一眼可见（下面明细里
+   * 每笔都列着，这里只负责给个总数），但不再抢标题的戏。
+   */
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 2px 8px;
+  align-self: flex-start;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.tl-checks {
+  margin-top: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.tl-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  /*
+   * 待办是补充信息，墨色比标题和提示淡一档 —— 但以前完成项和未完成项
+   * 用的是同一个 --ink-3，全靠左边那个绿勾和删除线区分，扫一眼分不出哪个还要做。
+   * 未完成这边提到 --ink-2（真正要读的是这些），完成后才退成灰。
+   */
+  color: var(--ink-2);
+  padding: 1px 0;
+  text-align: left;
+  min-width: 0;
+}
+
+.tl-check .box {
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  border: 1.5px solid var(--line-strong);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.tl-check.on {
+  /* 划掉了、字也退成最淡的一档，绿勾负责说「这条已经好了」 */
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.tl-check.on .box {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+/* 消费行：长在时间线项里 */
+.tl-money {
+  margin-top: 7px;
+  border-top: 1px dashed var(--line);
+  padding-top: 5px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  width: 100%;
+  text-align: left;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.mrow-ic {
+  width: 17px;
+  height: 17px;
+}
+
+.mrow .strong {
+  flex-shrink: 0;
+}
+
+/* 照片条 */
+.tl-shots {
+  margin-top: 7px;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.shot {
+  width: 62px;
+  height: 62px;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  background: var(--surface-2);
+  position: relative;
+  flex-shrink: 0;
+  display: block;
+}
+
+.shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.shot-cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 4px 2px;
+  font-size: 9.5px;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shot-skel {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--surface-2) 25%, rgba(17, 24, 39, 0.09) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.shot-skel.big {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius);
+}
+
+.tl-acts {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+
+.drive-hint {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--ink-3);
+  /* 已经收进 .tl-acts 那行，不另占高度；右边留一点缝，别贴着第一个按钮 */
+  margin-right: auto;
+}
+
