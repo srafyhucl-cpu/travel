@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './useStore.js';
 import { actions } from '../store/store.js';
-import { photoUrl, forgetPhotoUrl } from '../store/api.js';
+import { platform } from '../platform/index.js';
 import { computeNow, nodeState, decorate } from '../core/timeline.js';
 import {
   formatDate, relativeDay, typeMeta, categoryMeta, humanizeDuration, formatMoney, addDays,
 } from '../core/format.js';
-import { openAmap } from '../core/nav.js';
 import CheckItem from './CheckItem.jsx';
 import Deck from './Deck.jsx';
 import { computeBudget } from '../core/budget.js';
@@ -430,10 +429,10 @@ function NodeCard({ node, prev, clock, vocab, photos, expenses, dragging, onEdit
     if (!files.length) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      for (const f of files) fd.append('photos', f);
-      fd.append('nodeId', node.id);
-      await actions.uploadPhotos(fd);
+      await actions.uploadPhotos({
+        files: files.map((f) => ({ name: f.name, file: f })),
+        fields: { nodeId: node.id },
+      });
     } catch {
       /* store 弹过了 */
     } finally {
@@ -550,7 +549,7 @@ onToggle={(d) => actions.setChecklistItem(node.id, c.id, d, c.text)}
             {node.navKeyword && (
               <button
                 className="chip-btn icon-only"
-                onClick={() => openAmap(node.navKeyword, '')}
+                onClick={() => platform.services.openMap(node.navKeyword)}
                 aria-label="导航过去"
                 title="导航过去"
               >
@@ -581,7 +580,8 @@ function Shot({ photo, onClick }) {
   const [url, setUrl] = useState(null);
   useEffect(() => {
     let alive = true;
-    photoUrl(photo.id)
+    platform.files
+      .url(photo.id, { thumb: true })
       .then((u) => alive && setUrl(u))
       .catch(() => {});
     return () => {
@@ -631,12 +631,13 @@ function PhotoViewer({ photo, photos, onClose, onEdit }) {
 
   useEffect(() => {
     let alive = true;
-    photoUrl(photo.id)
+    platform.files
+      .url(photo.id)
       .then((u) => alive && setUrl(u))
       .catch(() => {});
     return () => {
       alive = false;
-      forgetPhotoUrl(photo.id);
+      platform.files.forget(photo.id);
     };
   }, [photo.id]);
 

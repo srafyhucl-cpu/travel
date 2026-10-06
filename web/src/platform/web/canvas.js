@@ -4,8 +4,8 @@
  *
  * 所有图片请先由调用方加载成 HTMLImageElement（blob: 或同源 URL 均可）再传进来。
  */
-import { formatMoney, formatDate, tintOf, categoryMeta, typeMeta } from './format.js';
-import { computeBudget } from './budget.js';
+import { formatMoney, formatDate, tintOf, categoryMeta, typeMeta } from '../../core/format.js';
+import { buildLongImageModel, pickPhotosByNode } from '../../core/vlog-model.js';
 
 
 const W = 1080;
@@ -521,8 +521,6 @@ const LONG = {
   OK: '#27AE60',
   DANGER: '#E2574C',
   MAX_H: 15000,
-  MAX_PHOTOS: 6,
-  MAX_PER_NODE: 2,
   PHOTO_TIMEOUT: 25000,
   PHOTO_BUDGET: 90000,
 };
@@ -926,73 +924,22 @@ function buildNodeCard(ctx, node, opts) {
  * @returns {Promise<HTMLCanvasElement>}
  */
 export async function renderTripLongImage(opts = {}) {
-  const trip = opts.trip || {};
-  const vocab = opts.vocab || {};
-  const nodes = (opts.nodes || []).filter((n) => n && n.date);
-  const expenses = opts.expenses || [];
-  const photos = opts.photos || [];
-  const checkins = opts.checkins || [];
+  const model = buildLongImageModel({
+    trip: opts.trip,
+    nodes: opts.nodes,
+    expenses: opts.expenses,
+    photos: opts.photos,
+    checkins: opts.checkins,
+    budgets: opts.budgets,
+    members: opts.members,
+    vocab: opts.vocab,
+  });
   const accent = opts.accent || ACCENTS[0];
 
-  const expenseByNode = new Map();
-  for (const e of expenses) {
-    if (!e.node_id) continue;
-    if (!expenseByNode.has(e.node_id)) expenseByNode.set(e.node_id, []);
-    expenseByNode.get(e.node_id).push(e);
-  }
-  const loose = expenses.filter((e) => !e.node_id);
-
-  const photoByNode = new Map();
-  for (const p of photos) {
-    if (!p.node_id) continue;
-    if (!photoByNode.has(p.node_id)) photoByNode.set(p.node_id, []);
-    photoByNode.get(p.node_id).push(p);
-  }
-  const doneByNode = new Set(checkins.filter((c) => c.action === 'done').map((c) => c.node_id));
-
-  const dates = [...new Set(nodes.map((n) => n.date))].sort();
-  const days = dates.map((d) => ({ date: d, nodes: nodes.filter((n) => n.date === d) }));
-
-  const budget = computeBudget({ budgets: opts.budgets || [], expenses });
-
-  const buildPhotoPick = () => {
-    const pick = new Map();
-    let total = 0;
-    for (const day of days) {
-      for (const n of day.nodes) {
-        const list = photoByNode.get(n.id) || [];
-        const take = [];
-        for (const p of list) {
-          if (take.length >= LONG.MAX_PER_NODE || total >= LONG.MAX_PHOTOS) break;
-          take.push(p.id);
-          total += 1;
-        }
-        if (take.length) pick.set(n.id, take);
-      }
-    }
-    return pick;
-  };
-
   const scratch = document.createElement('canvas').getContext('2d');
-  const modelBase = {
-    trip,
-    vocab,
-    days,
-    loose,
-    expenseByNode,
-    photoByNode,
-    doneByNode,
-    members: opts.members || [],
-    budget,
-    actualTotal: budget.actualTotal,
-    totalDays: dates.length,
-    nodeCount: nodes.length,
-    photoTotal: photos.length,
-  };
-
   const render = (usePhotos) => {
     const photoSlots = [];
-    const blocks = buildTripBlocks(scratch, { ...modelBase, photoPick: usePhotos ? buildPhotoPick() : new Map() }, {
+    const blocks = buildTripBlocks(scratch, { ...model, photoPick: usePhotos ? pickPhotosByNode(model) : new Map() }, {
       accent,
       usePhotos,
       title: opts.title,
@@ -1022,8 +969,12 @@ export async function renderTripLongImage(opts = {}) {
 
   // 照片一张一张来：画完就放，别把整本相册都扣在内存里
   if (typeof opts.loadPhoto === 'function') {
+    const total = plan.photoSlots.length;
+    let done = 0;
+    opts.onProgress?.(0, total);
     const startedAt = Date.now();
     for (const slot of plan.photoSlots) {
+      done += 1;
       if (Date.now() - startedAt > LONG.PHOTO_BUDGET) break; // 原图可能很慢，超时就先出图
       try {
         const img = await Promise.race([
@@ -1040,7 +991,9 @@ export async function renderTripLongImage(opts = {}) {
       } catch {
         /* 单张失败就留底色，不让整张长图跟着塌 */
       }
+      opts.onProgress?.(done, total);
     }
+    if (done < total) opts.onProgress?.(total, total); // 超时收尾，别让进度停在半路
   }
 
   return canvas;

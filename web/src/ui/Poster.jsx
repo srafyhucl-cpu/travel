@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './useStore.js';
 import { toast } from '../store/store.js';
-import { photoUrl } from '../store/api.js';
-import { TEMPLATES, ACCENTS, renderPoster, renderTripLongImage, savePoster, canvasToBlob } from '../core/vlog.js';
+import { platform } from '../platform/index.js';
+import { TEMPLATES, ACCENTS, renderPoster, renderTripLongImage, savePoster, canvasToBlob } from '../platform/web/canvas.js';
 import { formatDate, formatMoney } from '../core/format.js';
 import { computeBudget } from '../core/budget.js';
 import { Icon, Sheet, Field, Input } from './bits.jsx';
@@ -72,14 +72,14 @@ export default function Poster({ photos, trip, onClose }) {
           accent,
           includePhotos: includePhotos && photos.length > 0,
           loadPhoto: async (id) => {
-            const u = await photoUrl(id);
+            const u = await platform.files.url(id);
             return u ? loadImageEl(u) : null;
           },
         });
       } else {
         const srcs = [];
         for (const p of chosen) {
-          const u = await photoUrl(p.id);
+          const u = await platform.files.url(p.id);
           if (u) srcs.push(u);
         }
         canvas = await renderPoster({

@@ -16,7 +16,8 @@
     "check:imports": "node scripts/check-imports.cjs",
     "check:prep": "node scripts/check-prep.cjs",
     "check:vlog": "node scripts/check-vlog.cjs",
-    "check:money": "node scripts/check-money.cjs"
+    "check:money": "node scripts/check-money.cjs",
+    "check:core": "node scripts/check-core.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

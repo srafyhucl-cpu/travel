@@ -1,6 +1,8 @@
 /**
- * 极简 IndexedDB 封装：离线优先的基础设施。
- * 存三类东西：行程快照、照片二进制、待同步的写操作队列。
+ * 平台持久化（Web 实现）：极简 IndexedDB 封装，离线优先的基础设施。
+ * 存三类东西：行程快照、照片二进制（含缩略图，键名 "thumb:<id>"）、待同步的写操作队列。
+ *
+ * 小程序实现换成 wx.setStorageSync + FileSystemManager 即可，接口保持一致。
  */
 
 const DB_NAME = 'travel-companion';
@@ -78,7 +80,7 @@ export const idb = {
 
 /* --------------------------- 业务封装 --------------------------- */
 
-export const cache = {
+export const storage = {
   saveSnapshot: (tripId, data) => idb.set('snapshots', tripId, { data, savedAt: Date.now() }),
   loadSnapshot: async (tripId) => {
     const row = await idb.get('snapshots', tripId);

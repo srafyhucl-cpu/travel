@@ -66,6 +66,7 @@ cd /opt/apps/travel/frontend/dist && for f in assets/*; do b=$(basename "$f"); \
 npm run build            # 大多数测试要对着构建产物跑，先得 build
 
 npm run check:imports    # 具名 import 能不能对上（最快，先跑这个）
+npm run check:core       # 纯逻辑自测：node 直跑 core/，不需要浏览器/后端
 npm run smoke            # 每个界面走一遍，收集控制台报错
 npm run check:editor     # 卡片类型色 / 代办逐条输入 / 必填标注 / 日期自动
 npm run check:fields     # 记账弹层输入框有没有被挤爆
@@ -85,7 +86,7 @@ $env:PASS = "你的口令"
 npm run smoke
 ```
 
-除 `check:order` 外都会**自己复制一份 `server/data` 到临时目录、另起一个端口的后端、
+除 `check:order` 和 `check:core` 外都会**自己复制一份 `server/data` 到临时目录、另起一个端口的后端、
 测完连数据一起删**，真库一个字节都不会动 —— 因为有一半会改数据（敲表单、拖拽），而
 落点、表单这类操作没法靠「改完再改回去」复原。共用流程写在 `web/scripts/_harness.cjs`。
 
@@ -105,6 +106,18 @@ npm run smoke
   **这两个文件丢了就登不了录了**，备份 `data/` 目录时务必一起带上。
 - 测试脚本的口令必须由 `PASS` 环境变量给（见上）；仓库里不落任何默认口令 ——
   默认值等于把钥匙写在门上。
+
+## 以后做小程序
+
+代码分四层（详见 `docs/specs/2026-10-06-frontend-polish-design.md`）：
+
+- `core/` 纯逻辑，不许碰 DOM / 平台；`npm run check:core` 用 node 直接跑
+- `platform/` 唯一平台入口，Web 实现全在 `platform/web/`（存储/请求/实时/照片/设备/服务/Canvas）
+- `store/` 只依赖 platform 的接口，不直接碰浏览器 API
+- `ui/` 每端各写一套（目前是 React）
+
+移植时：新建 `platform/wx`（接口形状照 `platform/web/index.js`），把 `platform/index.js` 指过去，
+`core/` 和 `store/` 原样复制，`ui/` 重写。实时同步在小程序端可以先用轮询实现，服务端不用动。
 
 ## 几个容易踩的坑
 

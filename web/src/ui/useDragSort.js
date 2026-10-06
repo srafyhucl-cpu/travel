@@ -13,6 +13,7 @@
  * 交接点是长按计时器触发的那一刻。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { platform } from '../platform/index.js';
 
 const HOLD_MS = 300;   // 按住多久算捏起来
 const SLOP = 8;         // 抖动容忍：按住后移动超过这个距离就是想滚动列表
@@ -306,7 +307,7 @@ export function useDragSort({ onDrop, onLiftBlocked, onDropCanceled }) {
             s.scrollY0 = window.scrollY;
             s.el.style.transform = 'scale(1.025)';
           });
-          if (navigator.vibrate) navigator.vibrate(8);
+          if (navigator.vibrate) platform.device.vibrate(8);
         }, HOLD_MS);
       },
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Bar, Glyph, Icon } from './bits.jsx';
 import { categoryMeta, formatMoney, tintOf, typeMeta } from '../core/format.js';
-import { openAmap } from '../core/nav.js';
+import { platform } from '../platform/index.js';
 import { progress } from '../core/checklist.js';
 import { actions } from '../store/store.js';
 import CheckItem from './CheckItem.jsx';
@@ -79,7 +79,7 @@ export default function Deck({ clock, vocab, budget, members, me, modules, onEdi
         </div>
         {now.right && <span className="dk-time mono-num">{now.right}</span>}
         {navNode?.navKeyword && (
-          <button className="dk-act" onClick={() => openAmap(navNode.navKeyword, '')} aria-label="导航过去">
+          <button className="dk-act" onClick={() => platform.services.openMap(navNode.navKeyword)} aria-label="导航过去">
             <Icon name="pin" size={13} />
           </button>
         )}

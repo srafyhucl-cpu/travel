@@ -1,10 +1,11 @@
 /**
- * 应用状态容器。不依赖 React，小程序版可直接照搬这个结构。
+ * 应用状态容器。不依赖 React，也只依赖 platform 的接口 ——
+ * 换成小程序时，这个文件和 core/ 原样复用。
  *
- * 策略：先从 IndexedDB 立刻渲染（秒开、断网可用），再从服务器拉最新覆盖。
+ * 策略：先从本地快照立刻渲染（秒开、断网可用），再从服务器拉最新覆盖。
  */
-import { api, setSession, clearSession, getToken, getTripId, flushQueue, onAuthFailure, rememberMemberName } from './api.js';
-import { cache, queue } from './idb.js';
+import { api, flushQueue, onAuthFailure } from './api.js';
+import { platform } from '../platform/index.js';
 import { normalizeSnapshot } from '../core/checklist.js';
 
 const listeners = new Set();
@@ -13,8 +14,8 @@ const initial = {
   phase: 'boot', // boot | login | ready
   data: null, // 行程快照
   now: new Date(),
-  online: typeof navigator === 'undefined' ? true : navigator.onLine,
-  live: false, // SSE 是否连着
+  online: platform.device.isOnline(),
+  live: false, // 实时流是否连着
   syncing: false,
   pending: 0,
   error: null,
@@ -24,7 +25,7 @@ const initial = {
 let state = { ...initial };
 let refreshTimer = null;
 let tickTimer = null;
-let es = null;
+let stream = null;
 let reconnectTimer = null;
 
 function emit() {
@@ -56,26 +57,25 @@ export function toast(message, kind = 'info') {
 
 export async function boot() {
   onAuthFailure(() => {
-    clearSession();
+    platform.session.clear();
     set({ phase: 'login', data: null, live: false });
   });
 
-  if (!getToken()) {
+  if (!platform.session.getToken()) {
     set({ phase: 'login' });
     return;
   }
 
-  const tripId = getTripId();
-  const cached = tripId ? await cache.loadSnapshot(tripId) : null;
+  const tripId = platform.session.getTripId();
+  const cached = tripId ? await platform.storage.loadSnapshot(tripId) : null;
   if (cached) set({ phase: 'ready', data: normalizeSnapshot(cached) });
 
   await refresh({ quiet: true });
   connectLive();
   startClock();
 
-  window.addEventListener('online', handleOnline);
-  window.addEventListener('offline', handleOffline);
-  document.addEventListener('visibilitychange', handleVisibility);
+  platform.device.onNetwork(({ online }) => (online ? handleOnline() : handleOffline()));
+  platform.device.onResume(handleVisibility);
 }
 
 function handleOnline() {
@@ -97,7 +97,7 @@ function handleOffline() {
 }
 
 function handleVisibility() {
-  if (document.visibilityState === 'visible' && navigator.onLine) {
+  if (platform.device.isOnline()) {
     refresh({ quiet: true });
     connectLive();
   }
@@ -114,14 +114,14 @@ function startClock() {
 /* ------------------------------ 拉数据 ------------------------------ */
 
 export async function refresh({ quiet = false } = {}) {
-  if (!getToken()) return;
+  if (!platform.session.getToken()) return;
   if (!quiet) set({ syncing: true });
   try {
     const data = normalizeSnapshot(await api.snapshot());
     set({ data, phase: 'ready', syncing: false, error: null });
     // 改过名之后，登录页预填也要跟着换成新名字，否则下次会被认成另一个人
-    if (data?.me) rememberMemberName(data.me);
-    if (data?.trip?.id) await cache.saveSnapshot(data.trip.id, data);
+    if (data?.me) platform.session.setMemberName(data.me);
+    if (data?.trip?.id) await platform.storage.saveSnapshot(data.trip.id, data);
   } catch (e) {
     if (e.status === 0) {
       set({ syncing: false, online: false });
@@ -134,27 +134,29 @@ export async function refresh({ quiet = false } = {}) {
 /* ------------------------------ 实时同步 ------------------------------ */
 
 export function connectLive() {
-  if (es || !getToken()) return;
+  if (stream || !platform.session.getToken()) return;
   try {
-    // EventSource 不能带 Authorization 头，令牌只能走 query
-    es = new EventSource(`/api/trip/stream?token=${encodeURIComponent(getToken() || '')}`);
-    es.onopen = () => set({ live: true });
-    es.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === 'hello') return;
-      } catch {
-        /* 忽略心跳 */
-      }
-      debouncedRefresh();
-    };
-    es.onerror = () => {
-      set({ live: false });
-      es?.close();
-      es = null;
-      clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(connectLive, 4000);
-    };
+    // Web 端 Stream 走 EventSource（令牌由平台实现放进 query）；小程序端可以换成轮询
+    stream = platform.net.openStream({
+      path: '/api/trip/stream',
+      onOpen: () => set({ live: true }),
+      onMessage: (data) => {
+        try {
+          const msg = JSON.parse(data);
+          if (msg.type === 'hello') return;
+        } catch {
+          /* 忽略心跳 */
+        }
+        debouncedRefresh();
+      },
+      onError: () => {
+        set({ live: false });
+        stream?.close();
+        stream = null;
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connectLive, 4000);
+      },
+    });
   } catch {
     set({ live: false });
   }
@@ -167,8 +169,8 @@ function debouncedRefresh() {
 }
 
 export function disconnectLive() {
-  es?.close();
-  es = null;
+  stream?.close();
+  stream = null;
   clearTimeout(reconnectTimer);
   clearInterval(tickTimer);
   tickTimer = null;
@@ -192,11 +194,18 @@ async function run(fn, { quiet = false } = {}) {
   }
 }
 
+/** 登录成功：把令牌、旅行、名字写进平台会话存储 */
+function applySession({ token, trip, member }) {
+  platform.session.setToken(token);
+  if (trip?.id) platform.session.setTripId(trip.id);
+  if (member?.name) platform.session.setMemberName(member.name);
+}
+
 export const actions = {
   login: (passphrase, name) =>
     run(async () => {
       const res = await api.login(passphrase, name);
-      setSession(res);
+      applySession(res);
       set({ phase: 'ready' });
       connectLive();
       return res;
@@ -205,7 +214,7 @@ export const actions = {
   createTrip: (payload) =>
     run(async () => {
       const res = await api.createTrip(payload);
-      setSession(res);
+      applySession(res);
       set({ phase: 'ready' });
       connectLive();
       return res;
@@ -213,14 +222,14 @@ export const actions = {
 
   logout: async () => {
     disconnectLive();
-    const tripId = getTripId();
-    if (tripId) await cache.dropSnapshot(tripId).catch(() => {});
+    const tripId = platform.session.getTripId();
+    if (tripId) await platform.storage.dropSnapshot(tripId).catch(() => {});
     /*
      * 队列里的写操作属于上一趟旅行：路径里的节点 id 在新旅行里对不上，
      * 新建类操作还会凭空写进新旅行。退出就是退出，清掉，别让它在下次登录时乱补。
      */
-    await queue.clear().catch(() => {});
-    clearSession();
+    await platform.queue.clear().catch(() => {});
+    platform.session.clear();
     set({ phase: 'login', data: null, live: false });
   },
 
@@ -235,7 +244,7 @@ export const actions = {
   checkin: (nodeId, action) => run(() => api.checkin(nodeId, action)),
   undoCheckin: (id) => run(() => api.deleteCheckin(id)),
 
-setChecklistItem: (nodeId, itemId, done, text) => run(() => api.setChecklistItem(nodeId, itemId, done, text)),
+  setChecklistItem: (nodeId, itemId, done, text) => run(() => api.setChecklistItem(nodeId, itemId, done, text)),
   addExpense: (payload) => run(() => api.addExpense(payload)),
   patchExpense: (id, payload) => run(() => api.patchExpense(id, payload)),
   deleteExpense: (id) => run(() => api.deleteExpense(id)),
@@ -256,19 +265,25 @@ setChecklistItem: (nodeId, itemId, done, text) => run(() => api.setChecklistItem
   changePassphrase: (current, next) => run(() => api.changePassphrase({ current, next })),
 
   patchTrip: (payload) => run(() => api.patchTrip(payload)),
-addVocab: (payload) => run(() => api.addVocab(payload)),
-patchVocab: (id, payload) => run(() => api.patchVocab(id, payload)),
-deleteVocab: (id) => run(() => api.deleteVocab(id)),
+  addVocab: (payload) => run(() => api.addVocab(payload)),
+  patchVocab: (id, payload) => run(() => api.patchVocab(id, payload)),
+  deleteVocab: (id) => run(() => api.deleteVocab(id)),
   patchMember: (id, payload) => run(() => api.patchMember(id, payload)),
 
-  uploadPhotos: (formData) =>
+  /** payload = { files: [{ name, file }], fields } */
+  uploadPhotos: (payload) =>
     run(async () => {
-      const rows = await api.uploadPhotos(formData);
+      const rows = await api.uploadPhotos(payload);
       toast(`已上传 ${rows.length} 张照片`, 'success');
       return rows;
     }),
 
-  deletePhoto: (id) => run(() => api.deletePhoto(id)),
+  deletePhoto: (id) =>
+    run(async () => {
+      const r = await api.deletePhoto(id);
+      platform.files.drop(id); // 本地缓存的缩略图/原图一并清掉
+      return r;
+    }),
   patchPhoto: (id, payload) => run(() => api.patchPhoto(id, payload)),
 
   flushQueue,

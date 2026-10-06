@@ -7,7 +7,7 @@ import Journey from './ui/Journey.jsx';
 import Settings from './ui/Settings.jsx';
 import Poster from './ui/Poster.jsx';
 import { actions } from './store/store.js';
-import { queue } from './store/idb.js';
+import { platform } from './platform/index.js';
 
 export default function App() {
   const state = useStore();
@@ -17,7 +17,7 @@ export default function App() {
   const [pending, setPending] = useState(0);
 
   React.useEffect(() => {
-    queue.size().then(setPending).catch(() => {});
+    platform.queue.size().then(setPending).catch(() => {});
   }, [state.data, state.online]);
 
   /*

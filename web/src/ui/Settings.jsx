@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from './useStore.js';
 import { icsUrl, templateUrl } from '../store/api.js';
 import { actions, toast } from '../store/store.js';
+import { platform } from '../platform/index.js';
 import { Icon, Glyph, Sheet, Field, Input, Empty } from './bits.jsx';
 import { DateField } from './pickers.jsx';
 import { PICKABLE } from './glyphs.js';
@@ -169,11 +170,9 @@ export default function Settings({ embedded, onOpenPoster }) {
             <Icon name="chevron" size={16} />
           </button>
 
-          <button className="cat-row" style={{ width: '100%', textAlign: 'left', background: 'none', border: 0, borderBottom: '1px solid var(--line)' }} onClick={() => {
-            navigator.clipboard?.writeText(window.location.origin).then(
-              () => toast('网址已复制', 'success'),
-              () => toast('复制失败', 'warn')
-            );
+          <button className="cat-row" style={{ width: '100%', textAlign: 'left', background: 'none', border: 0, borderBottom: '1px solid var(--line)' }} onClick={async () => {
+            const r = await platform.services.copyText(window.location.origin);
+            toast(r === 'copied' ? '网址已复制' : '复制失败', r === 'copied' ? 'success' : 'warn');
           }}>
             <Icon name="plus" size={19} />
             <div className="grow">

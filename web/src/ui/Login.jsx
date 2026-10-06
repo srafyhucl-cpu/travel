@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { actions } from '../store/store.js';
 import { useStore } from './useStore.js';
-import { getMemberName } from '../store/api.js';
+import { platform } from '../platform/index.js';
 import { Icon } from './bits.jsx';
 
 export default function Login() {
   const state = useStore();
   const [mode, setMode] = useState('login');
   const [passphrase, setPass] = useState('');
-  const [name, setName] = useState(() => getMemberName() || '');
+  const [name, setName] = useState(() => platform.session.getMemberName() || '');
   const [tripName, setTripName] = useState('');
   const [startDate, setStart] = useState(new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);

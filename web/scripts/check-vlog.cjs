@@ -18,28 +18,24 @@ const h = require('./_harness.cjs');
   await t.login();
   const page = t.page;
 
-  // 先往第一张卡上塞两张纯色小图，这样能同时测「带照片」这条路径
-  const uploaded = await page.evaluate(async () => {
-    const token = localStorage.getItem('travel.token');
-    const snap = await (await fetch('/api/trip/snapshot', { headers: { Authorization: `Bearer ${token}` } })).json();
-    const node = snap.nodes.find((n) => n.role !== 'module') || snap.nodes[0];
-    const make = async (color) => {
-      const c = document.createElement('canvas');
-      c.width = 8;
-      c.height = 8;
-      const g = c.getContext('2d');
-      g.fillStyle = color;
-      g.fillRect(0, 0, 8, 8);
-      return await new Promise((r) => c.toBlob(r, 'image/png'));
-    };
-    const fd = new FormData();
-    fd.append('photos', new File([await make('#e2574c')], 'a.png', { type: 'image/png' }));
-    fd.append('photos', new File([await make('#2f80ed')], 'b.png', { type: 'image/png' }));
-    fd.append('nodeId', node.id);
-    const res = await fetch('/api/photos', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
-    return { ok: res.ok, status: res.status };
+  /*
+   * 用界面自己的上传入口塞两张纯色小图（走真实的 File 上传路径，
+   * 之前是直接 fetch，接口一改这里就漏测）。顺带验时间线缩略图能渲染。
+   */
+  const PNG_1PX = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  await page.locator('.tl-item input[type="file"]').first().setInputFiles([
+    { name: 'check-vlog-a.png', mimeType: 'image/png', buffer: PNG_1PX },
+    { name: 'check-vlog-b.png', mimeType: 'image/png', buffer: PNG_1PX },
+  ]);
+  await page.waitForSelector('.tl-item .tl-shots img', { timeout: 15000 });
+  const thumb = await page.evaluate(() => {
+    const img = document.querySelector('.tl-item .tl-shots img');
+    return img && img.src.startsWith('blob:') ? { w: img.naturalWidth, h: img.naturalHeight } : null;
   });
-  t.check('测试照片已上传', uploaded.ok, `HTTP ${uploaded.status}`);
+  t.check('界面上传后时间线出现缩略图', !!thumb && thumb.w > 0, thumb ? `${thumb.w}×${thumb.h}` : '没等到');
 
   await page.reload({ waitUntil: 'networkidle' });
   await h.sleep(900);
