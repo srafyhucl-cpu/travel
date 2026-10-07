@@ -7,6 +7,21 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
     />
     <meta name="theme-color" content="#F5F6F8" />
+    <script>
+      /*
+       * 画面之前定主题：不然开了深色偏好的手机，会先闪一帧亮色。
+       * 逻辑与 src/ui/theme.js 一致（这段不能 import，只能重复一小截）。
+       */
+      (function () {
+        try {
+          var m = localStorage.getItem('travel.theme');
+          var dark = m === 'dark' || (m !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#0F1115' : '#F5F6F8');
+        } catch (e) {}
+      })();
+    </script>
     <meta name="description" content="旅行助手 · 现在该去哪、行程调整、记账和 vlog" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />

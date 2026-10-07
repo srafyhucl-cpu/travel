@@ -1,6 +1,8 @@
 /* 设计 tokens + reset + 布局骨架（从原 styles.css 顺序切开，顺序即层叠顺序） */
 
 :root {
+  color-scheme: light;
+
   --bg: #f4f5f7;
   --card: #ffffff;
   --ink: #111827;
@@ -10,10 +12,14 @@
   --line-strong: rgba(17, 24, 39, 0.14);
   --accent: #2f80ed;
   --accent-soft: #eaf2fe;
+  /* 浅底上的强调/成功文字（比底色深一档，保证对比度） */
+  --accent-text: #1c6fd0;
+  --ok-text: #1e8449;
   --warn: #f2994a;
   --warn-soft: #fef3e6;
   --danger: #e2574c;
   --danger-soft: #fdecea;
+  --danger-text: #b23c32;
   --ok: #27ae60;
   --ok-soft: #e8f7ef;
   --radius: 13px;
@@ -22,6 +28,21 @@
   --r-xs: 8px;
   /* 未选中的胶囊 / 图标按钮 / 输入框的中性填充 */
   --surface-2: rgba(17, 24, 39, 0.05);
+  /* 更重一档的中性填充：骨架高光、结构线 */
+  --surface-3: var(--surface-3);
+  /* 极淡的填充：字段类框、空白天背景 */
+  --fill-faint: var(--fill-faint);
+  /* 弹层遮罩 */
+  --scrim: rgba(17, 24, 39, 0.42);
+  /* 磨砂常驻条的半透明底 */
+  --bg-trans: rgba(244, 245, 247, 0.92);
+  /* 深色底上的文字（--ink 反色时的前景） */
+  --on-ink: #ffffff;
+  /* 已完成卡片：比卡片再淡一点，退到背景里 */
+  --card-dim: rgba(255, 255, 255, 0.62);
+  /* toast：浅色主题用深气泡、深色主题用浅气泡，两边都好读 */
+  --toast-bg: rgba(17, 24, 39, 0.94);
+  --toast-ink: #ffffff;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
   --shadow-lg: 0 2px 6px rgba(16, 24, 40, 0.06), 0 18px 48px rgba(16, 24, 40, 0.12);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -31,6 +52,45 @@
   --tl-gutter: 24px;
   /* 所有跟卡片左边缘对齐的东西都用它 */
   --indent: calc(var(--rail) + var(--tl-gutter));
+}
+
+/*
+ * 深色主题。挂载点在 <html data-theme>：index.html 里有一小段首屏前置脚本，
+ * 在打包脚本跑之前就把属性定好（不然深色偏好下会先闪一帧亮色）；
+ * 「跟随系统」由 ui/theme.js 解析成 light/dark 再写进来。
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0f1115;
+  --card: #171a20;
+  --ink: #e8eaef;
+  --ink-2: #a0a6b0;
+  --ink-3: #6e747e;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --accent: #4b93f2;
+  --accent-soft: rgba(75, 147, 242, 0.16);
+  --accent-text: #9cc3f7;
+  --ok-text: #7fd8a4;
+  --warn: #f2a35c;
+  --warn-soft: rgba(242, 153, 74, 0.16);
+  --danger: #ef6b60;
+  --danger-soft: rgba(239, 107, 96, 0.15);
+  --danger-text: #f0938a;
+  --ok: #3dbb70;
+  --ok-soft: rgba(61, 187, 112, 0.16);
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-3: rgba(255, 255, 255, 0.12);
+  --fill-faint: rgba(255, 255, 255, 0.045);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --bg-trans: rgba(15, 17, 21, 0.92);
+  --on-ink: #14171c;
+  --card-dim: rgba(23, 26, 32, 0.62);
+  --toast-bg: rgba(232, 235, 241, 0.95);
+  --toast-ink: #14171c;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 18px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5), 0 18px 48px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -170,7 +230,7 @@ h4 {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(244, 245, 247, 0.9);
+  background: var(--bg-trans);
   backdrop-filter: saturate(180%) blur(14px);
   -webkit-backdrop-filter: saturate(180%) blur(14px);
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 9px;

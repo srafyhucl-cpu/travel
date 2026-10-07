@@ -3,6 +3,7 @@ import { useStore } from './useStore.js';
 import { icsUrl, templateUrl } from '../store/api.js';
 import { actions, askConfirm, toast } from '../store/store.js';
 import { platform } from '../platform/index.js';
+import { getThemeMode, setThemeMode } from './theme.js';
 import { Icon, Glyph, Sheet, Field, Input, Empty } from './bits.jsx';
 import { DateField } from './pickers.jsx';
 import { PICKABLE } from './glyphs.js';
@@ -15,6 +16,7 @@ export default function Settings({ embedded, onOpenPoster }) {
   const data = state.data;
   const [sheet, setSheet] = useState(null); // 'trip' | 'members' | 'vocab' | null
   const [addingVocab, setAddingVocab] = useState(null); // 'node_type' | 'expense_category'
+  const [themeMode, setThemeModeState] = useState(() => getThemeMode());
 
   if (!data) {
     return (
@@ -110,7 +112,7 @@ export default function Settings({ embedded, onOpenPoster }) {
           <div className="section-title" style={{ margin: '6px 0 8px', fontSize: 12 }}>行程类型</div>
           <div className="pill-row">
             {vocab.nodeTypes.map((t) => (
-              <span key={t.key} className="pill" style={{ color: t.color, background: t.soft }}>
+              <span key={t.key} className="pill soft-chip" style={{ color: t.color, background: t.soft }}>
                 <Glyph icon={t.icon} size={13} /> {t.label}
               </span>
             ))}
@@ -122,7 +124,7 @@ export default function Settings({ embedded, onOpenPoster }) {
           <div className="section-title" style={{ margin: '14px 0 8px', fontSize: 12 }}>消费类别</div>
           <div className="pill-row">
             {vocab.categories.map((c) => (
-              <span key={c.key} className="pill" style={{ color: c.color, background: c.soft }}>
+              <span key={c.key} className="pill soft-chip" style={{ color: c.color, background: c.soft }}>
                 <Glyph icon={c.icon} size={13} /> {c.label}
               </span>
             ))}
@@ -182,6 +184,33 @@ export default function Settings({ embedded, onOpenPoster }) {
               <div className="tiny dim">发给同伴，他用同一个口令就能进来看</div>
             </div>
           </button>
+        </div>
+
+        {/* 外观 */}
+        <div className="section-title">外观</div>
+        <div className="card-flat" style={{ padding: '4px 16px 14px' }}>
+          <div className="small dim" style={{ padding: '10px 0' }}>
+            整体配色；「跟随系统」会跟着手机的深色模式自动切。
+          </div>
+          <div className="pill-row">
+            {[
+              ['system', '跟随系统'],
+              ['light', '浅色'],
+              ['dark', '深色'],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`pill${themeMode === key ? ' on' : ''}`}
+                onClick={() => {
+                  setThemeMode(key);
+                  setThemeModeState(key);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="section-title">账号</div>

@@ -78,6 +78,7 @@ npm run check:order      # 时间倒流检查（只读，默认直接打生产�
 npm run check:prep       # 前置模块卡：位置 / 勾选同步 / 全完成折叠 / 编辑器开关
 npm run check:vlog       # 行程长图：默认长图能出、带照片开关生效
 npm run check:money      # 总预算合并成一条 / meId 贯通
+npm run check:theme      # 暗色模式：跟随系统 / 手动切换 / 记住选择
 ```
 
 退出码：0 = 全通，1 = 有失败或报错，2 = 脚本自己炸了。环境变量：`BASE` 改目标地址、
@@ -144,3 +145,6 @@ node scripts\check-platform.mjs   # 不用开发者工具，先在 Node 里把 p
   于是会进 nginx 的 access log。要么给这几条路径单独关日志，要么定期换口令（App 里现在能换）。
 - **HEIC 原样进原样出。** iPhone 传的 HEIC 只有苹果设备能解码，安卓看是破图、长图也画不出。
   在意的话让上传方在系统设置里选「兼容性最佳」（拍 JPEG）。
+- **深色主题的挂载点是 `<html data-theme>`**（`styles/tokens.css` 里两套 token）。
+  首屏前置脚本在 `index.html`，「跟随系统」的解析在 `ui/theme.js`——改主题逻辑时两处都要动。
+  海报/长图是给相册看的图片，固定浅色，不跟主题。

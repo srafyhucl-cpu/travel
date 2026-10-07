@@ -7,7 +7,9 @@ import './styles/forms.css';
 import './styles/overlays.css';
 import './styles/misc.css';
 import { boot } from './store/store.js';
+import { initTheme } from './ui/theme.js';
 
+initTheme();
 boot();
 
 createRoot(document.getElementById('root')).render(

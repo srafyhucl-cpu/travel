@@ -29,7 +29,7 @@
    * 反而被淹没了。所以默认浅底，只给「该做的那张」（.is-now）实心。
    */
   background: var(--accent-soft);
-  color: #1c6fd0;
+  color: var(--accent-text);
 }
 
 .tl-item.is-now .chip-btn.primary {
@@ -45,7 +45,7 @@
 
 .chip-btn.ok {
   background: var(--ok-soft);
-  color: #1e8449;
+  color: var(--ok-text);
 }
 
 .chip-btn.static {
@@ -75,7 +75,7 @@
   font-size: 15px;
   font-weight: 600;
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink); /* 深色主题里 --ink 是浅色，前景要跟着翻 */
   width: 100%;
   display: inline-flex;
   align-items: center;
@@ -95,7 +95,7 @@
 
 .btn.danger {
   background: var(--danger-soft);
-  color: #b23c32;
+  color: var(--danger-text);
 }
 
 .btn:disabled {
@@ -243,7 +243,7 @@
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
-  color: #d64545;
+  color: var(--danger-text);
   background: rgba(214, 69, 69, 0.09);
   border-radius: 4px;
   padding: 2px 4px;
@@ -263,7 +263,7 @@
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 16px;
-  background: #fff;
+  background: var(--card);
   outline: none;
 }
 
@@ -277,7 +277,7 @@
    靠一道细缝和上方那个分开，不另起一个带标签的块。 */
 .input-sub {
   margin-top: 6px;
-  background: rgba(17, 24, 39, 0.02);
+  background: var(--fill-faint);
   border-style: dashed;
 }
 
@@ -337,8 +337,8 @@
 }
 
 .cklist-del:active {
-  background: rgba(214, 69, 69, 0.1);
-  color: #d64545;
+  background: var(--danger-soft);
+  color: var(--danger-text);
 }
 
 .cklist-add {
@@ -420,7 +420,7 @@
 }
 
 .pill.on {
-  background: #fff;
+  background: var(--card);
   border-color: currentColor;
   color: var(--accent);
   font-weight: 600;
@@ -454,7 +454,7 @@ background: var(--surface-2);
 }
 
 .iconcell.on {
-  background: #fff;
+  background: var(--card);
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -488,6 +488,7 @@ background: var(--surface-2);
   width: 22px;
   height: 22px;
   border-radius: 50%;
+  /* 开关旋钮：两种主题下都保持白点，跟彩色滑轨的对比是固定的 */
   background: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   transition: transform 0.18s ease;
