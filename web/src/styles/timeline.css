@@ -785,6 +785,19 @@ font-size: 11px;
   animation: shimmer 1.4s ease infinite;
 }
 
+/* 解不开的图（如非苹果浏览器上的 HEIC）：给一句说明，不摆破图 */
+.shot-bad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  font-size: 10px;
+  color: var(--ink-3);
+  text-align: center;
+}
+
 .shot-skel.big {
   width: 100%;
   aspect-ratio: 3 / 4;

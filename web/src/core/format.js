@@ -15,22 +15,6 @@ export function toMinutes(t) {
   return h * 60 + min;
 }
 
-/** 1190 -> "19:50" */
-export function toTime(minutes) {
-  if (!Number.isFinite(minutes)) return '';
-  const w = ((Math.round(minutes) % 1440) + 1440) % 1440;
-  return `${PAD(Math.floor(w / 60))}:${PAD(w % 60)}`;
-}
-
-/** "09:50" -> "9小时50分"；用于"还有多久" */
-export function humanizeDuration(mins) {
-  const m = Math.max(0, Math.round(mins));
-  if (m < 60) return `${m} 分钟`;
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  return r === 0 ? `${h} 小时` : `${h} 小时 ${r} 分`;
-}
-
 const WEEKDAY = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 /** "2026-10-01" -> "10月1日 周三" */
@@ -41,12 +25,6 @@ export function formatDate(dateStr, opts = {}) {
   const md = `${d.getMonth() + 1}月${d.getDate()}日`;
   if (opts.short) return md;
   return `${md} ${WEEKDAY[d.getDay()]}`;
-}
-
-export function weekdayOf(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(`${dateStr}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? '' : WEEKDAY[d.getDay()];
 }
 
 export function todayStr(now = new Date()) {
@@ -90,10 +68,6 @@ export function tintOf(hex) {
   if (h.length !== 6) return 'rgba(47,128,237,0.12)';
   const n = parseInt(h, 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0.12)`;
-}
-
-export function formatClockTime(d = new Date()) {
-  return `${PAD(d.getHours())}:${PAD(d.getMinutes())}`;
 }
 
 /*

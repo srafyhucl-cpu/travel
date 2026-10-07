@@ -7,11 +7,14 @@ import { Icon } from '../bits.jsx';
 export default function PhotoViewer({ photo, photos, onClose, onEdit }) {
   const [caption, setCaption] = useState(photo.caption || '');
   const [url, setUrl] = useState(null);
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const idx = photos.findIndex((p) => p.id === photo.id);
 
   useEffect(() => {
     let alive = true;
+    setUrl(null);
+    setFailed(false);
     platform.files
       .url(photo.id)
       .then((u) => alive && setUrl(u))
@@ -29,7 +32,16 @@ export default function PhotoViewer({ photo, photos, onClose, onEdit }) {
 
   return (
     <div className="viewer" onClick={onClose}>
-      {url ? <img src={url} alt={caption} onClick={(e) => e.stopPropagation()} /> : <div className="shot-skel big" />}
+      {url && !failed ? (
+        <img src={url} alt={caption} onClick={(e) => e.stopPropagation()} onError={() => setFailed(true)} />
+      ) : failed ? (
+        <div className="viewer-bad">
+          <div>这张照片的格式当前设备解不开</div>
+          <div className="viewer-bad-sub">比如 iPhone 拍的 HEIC，在非苹果浏览器上会这样</div>
+        </div>
+      ) : (
+        <div className="shot-skel big" />
+      )}
       <button className="icon-btn viewer-close" onClick={onClose} aria-label="关闭">
         <Icon name="close" size={18} />
       </button>

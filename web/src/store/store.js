@@ -24,7 +24,6 @@ const initial = {
 };
 
 let state = { ...initial };
-let refreshTimer = null;
 let tickTimer = null;
 let stream = null;
 let reconnectTimer = null;
@@ -206,7 +205,8 @@ async function run(fn, { quiet = false } = {}) {
     return r;
   } catch (e) {
     if (e.status === 0) {
-      toast('已离线，记录会等联网后自动同步', 'warn');
+      // 队列类操作会说「已加入待同步队列」；照片这种不排队的会说「要联网」
+      toast(e.message || '已离线，记录会等联网后自动同步', 'warn');
       await refresh({ quiet: true });
     } else {
       toast(e.message || '操作失败', 'error');
@@ -257,13 +257,9 @@ export const actions = {
   createNode: (payload) => run(() => api.createNode(payload)),
   patchNode: (id, payload) => run(() => api.patchNode(id, payload)),
   deleteNode: (id) => run(() => api.deleteNode(id)),
-  reorder: (ids) => run(() => api.reorder(ids), { quiet: true }),
-  shift: (payload) => run(() => api.shift(payload)),
   move: (payload) => run(() => api.move(payload)),
-  shiftDays: (payload) => run(() => api.shiftDays(payload)),
 
   checkin: (nodeId, action) => run(() => api.checkin(nodeId, action)),
-  undoCheckin: (id) => run(() => api.deleteCheckin(id)),
 
   setChecklistItem: (nodeId, itemId, done, text) => run(() => api.setChecklistItem(nodeId, itemId, done, text)),
   addExpense: (payload) => run(() => api.addExpense(payload)),

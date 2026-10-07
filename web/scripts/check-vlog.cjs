@@ -20,7 +20,7 @@ const h = require('./_harness.cjs');
 
   /*
    * 用界面自己的上传入口塞两张纯色小图（走真实的 File 上传路径，
-   * 之前是直接 fetch，接口一改这里就漏测）。顺带验时间线缩略图能渲染。
+   * 之前是直接 fetch，接口一改这里就漏测）。顺带验成功提示与缩略图。
    */
   const PNG_1PX = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -30,12 +30,28 @@ const h = require('./_harness.cjs');
     { name: 'check-vlog-a.png', mimeType: 'image/png', buffer: PNG_1PX },
     { name: 'check-vlog-b.png', mimeType: 'image/png', buffer: PNG_1PX },
   ]);
+  await page.waitForSelector('.toast.success', { timeout: 15000 });
+  const upToast = await page.locator('.toast.success').innerText();
+  // 平台重构时这里漏过一步响应解析，提示会变成「已上传 undefined 张照片」
+  t.check('上传成功提示带张数', upToast.includes('已上传 2 张照片'), upToast);
+
   await page.waitForSelector('.tl-item .tl-shots img', { timeout: 15000 });
   const thumb = await page.evaluate(() => {
     const img = document.querySelector('.tl-item .tl-shots img');
     return img && img.src.startsWith('blob:') ? { w: img.naturalWidth, h: img.naturalHeight } : null;
   });
   t.check('界面上传后时间线出现缩略图', !!thumb && thumb.w > 0, thumb ? `${thumb.w}×${thumb.h}` : '没等到');
+
+  // 魔数对、内容坏的图：解不开时应该给一句说明，而不是摆一个破图
+  const BAD_PNG = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), // PNG 魔数
+    Buffer.from('not really a png body'),
+  ]);
+  await page.locator('.tl-item input[type="file"]').first().setInputFiles([
+    { name: 'check-vlog-bad.png', mimeType: 'image/png', buffer: BAD_PNG },
+  ]);
+  await page.waitForSelector('.tl-item .shot-bad', { timeout: 20000 });
+  t.check('坏图解不开时给说明块', true);
 
   await page.reload({ waitUntil: 'networkidle' });
   await h.sleep(900);

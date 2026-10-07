@@ -85,14 +85,10 @@ export function createApi(platform) {
        对不上时靠文案找（见 routes/nodes.js）。 */
     setChecklistItem: (nodeId, itemId, done, text) => post(`/api/nodes/${nodeId}/checklist/${itemId}`, { done, text }),
     deleteNode: (id) => del(`/api/nodes/${id}`),
-    reorder: (orderedIds) => post('/api/nodes/reorder', { orderedIds }),
-    shift: (payload) => post('/api/nodes/shift', payload),
     move: (payload) => post('/api/nodes/move', payload),
-    shiftDays: (payload) => post('/api/nodes/shift-days', payload),
 
     /* ---- 打卡 ---- */
     checkin: (nodeId, action, at) => post('/api/checkins', { nodeId, action, at }),
-    deleteCheckin: (id) => del(`/api/checkins/${id}`),
 
     /* ---- 钱 ---- */
     addExpense: (payload) => post('/api/money/expenses', payload),
@@ -113,7 +109,27 @@ export function createApi(platform) {
     deleteVocab: (id) => del(`/api/vocab/${id}`),
 
     /* ---- 照片 ---- */
-    uploadPhotos: ({ files, fields }) => net.upload({ path: '/api/photos', files, fields }),
+    /*
+     * 上传不走 request()：照片不排离线队列（文件上不了队），失败就当场说清楚。
+     * net.upload 返回的是原始响应，这里必须像别处一样判状态、解析 JSON ——
+     * 少这一步会把 400 当成功、把 undefined 当张数（真发生过）。
+     */
+    uploadPhotos: async ({ files, fields }) => {
+      let res;
+      try {
+        res = await net.upload({ path: '/api/photos', files, fields });
+      } catch {
+        throw new ApiError(0, { message: '网络不可用，照片要联网才能传' });
+      }
+      if (res.status === 401) {
+        authFailed?.();
+        throw new ApiError(401, await safeJson(res));
+      }
+      if (!res.ok) {
+        throw new ApiError(res.status, await safeJson(res));
+      }
+      return res.json();
+    },
     patchPhoto: (id, payload) => patch(`/api/photos/${id}`, payload),
     deletePhoto: (id) => del(`/api/photos/${id}`),
   };

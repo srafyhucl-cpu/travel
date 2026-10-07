@@ -53,10 +53,12 @@ const RGB_LIGHT_BG = 'rgb(244, 245, 247)';
     bg: getComputedStyle(document.body).backgroundColor,
     hud: getComputedStyle(document.querySelector('.hud')).backgroundColor,
     card: getComputedStyle(document.querySelector('.tl-card')).backgroundColor,
+    sheet: getComputedStyle(document.querySelector('.sheet')).backgroundColor,
   }));
   t.check('手动切深色即时生效', manualDark.attr === 'dark' && manualDark.bg === RGB_DARK_BG, JSON.stringify(manualDark));
   t.check('深色下卡片与页面分层', manualDark.card !== manualDark.bg, `card=${manualDark.card}`);
   t.check('顶栏磨砂底是深色', /rgba\(15, 17, 21/.test(manualDark.hud), manualDark.hud);
+  t.check('弹层也是深色（不是白板）', manualDark.sheet === RGB_DARK_BG, `sheet=${manualDark.sheet}`);
   await t.shot('暗色-设置');
 
   // ---- 3. 手动选择记住：系统回到浅色，刷新后仍是深色 ----

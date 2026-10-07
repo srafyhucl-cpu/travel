@@ -5,8 +5,8 @@
 import { computeBudget } from './budget.js';
 
 /** 每个节点最多带几张、整趟最多带几张 */
-export const LONG_MAX_PHOTOS = 6;
-export const LONG_MAX_PER_NODE = 2;
+const LONG_MAX_PHOTOS = 6;
+const LONG_MAX_PER_NODE = 2;
 
 export function buildLongImageModel({ trip, nodes, expenses, photos, checkins, budgets, members, vocab } = {}) {
   const list = (nodes || []).filter((n) => n && n.date);
