@@ -1,0 +1,26 @@
+<view class="page">
+  <view class="brand">
+    <view class="logo">旅</view>
+    <view class="title">旅行助手</view>
+    <view class="lead">输入同伴给你的口令，就能看到这趟旅行的行程和花销。</view>
+  </view>
+
+  <view class="card form">
+    <view class="field">
+      <text class="label">旅行口令</text>
+      <input class="input" password="{{true}}" value="{{passphrase}}" bindinput="onPass" placeholder="至少 4 位" />
+    </view>
+
+    <view class="field">
+      <text class="label">你是谁</text>
+      <input class="input" value="{{name}}" bindinput="onName" placeholder="例如：我 / 小王" maxlength="24" />
+      <view class="muted hint">用来标记记账时是谁付的钱，同名会自动认成同一个人。</view>
+    </view>
+
+    <button class="btn-primary {{busy ? 'off' : ''}}" disabled="{{busy}}" bindtap="submit">
+      {{busy ? '请稍候…' : '进入这趟旅行'}}
+    </button>
+  </view>
+
+  <view class="muted foot">数据存在你自己的服务器上，不经过任何第三方。</view>
+</view>

@@ -109,17 +109,28 @@ npm run smoke
 - 测试脚本的口令必须由 `PASS` 环境变量给（见上）；仓库里不落任何默认口令 ——
   默认值等于把钥匙写在门上。
 
-## 以后做小程序
+## 微信小程序（骨架已立）
 
-代码分四层（详见 `docs/specs/2026-10-06-frontend-polish-design.md`）：
+代码分四层（详见 `docs/specs/2026-10-06-frontend-polish-design.md` 与
+`docs/specs/2026-10-07-miniprogram-spike-design.md`）：
 
 - `core/` 纯逻辑，不许碰 DOM / 平台；`npm run check:core` 用 node 直接跑
-- `platform/` 唯一平台入口，Web 实现全在 `platform/web/`（存储/请求/实时/照片/设备/服务/Canvas）
-- `store/` 只依赖 platform 的接口，不直接碰浏览器 API
-- `ui/` 每端各写一套（目前是 React）
+- `platform/` 唯一平台入口；Web 实现在 `platform/web/`，小程序实现在 `miniprogram/platform/wx/`
+- `store/` 只依赖 platform 的接口，两端共用
+- `ui/` 每端各写一套（Web 是 React，小程序是 `miniprogram/pages/`）
 
-移植时：新建 `platform/wx`（接口形状照 `platform/web/index.js`），把 `platform/index.js` 指过去，
-`core/` 和 `store/` 原样复制，`ui/` 重写。实时同步在小程序端可以先用轮询实现，服务端不用动。
+小程序工程在 `miniprogram/`。改完 web 的 `core/` 或 `store/` 之后：
+
+```powershell
+cd D:\Project\travel\miniprogram
+node scripts\sync-shared.mjs      # 从 web/src 同步 core/store，顺带全量语法检查
+$env:PASS = "你的口令"
+node scripts\check-platform.mjs   # 不用开发者工具，先在 Node 里把 platform/wx 跑一遍（只读）
+```
+
+然后用微信开发者工具导入 `miniprogram/`（没 AppID 选测试号）。真机预览前要把
+`https://travel.hclstudio.cn` 加进 request 合法域名。`miniprogram/core|store` 是生成物，
+**勿手改**。
 
 ## 几个容易踩的坑
 

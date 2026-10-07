@@ -1,0 +1,78 @@
+/* 全局 tokens 与公共样式：与 web/src/styles/tokens.css 同一套语义色 */
+page {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --ink: #111827;
+  --ink-2: #6b7280;
+  --ink-3: #9ca3af;
+  --line: rgba(17, 24, 39, 0.08);
+  --accent: #2f80ed;
+  --accent-soft: #eaf2fe;
+  --ok: #27ae60;
+  --danger: #e2574c;
+  --radius: 26rpx;
+
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 30rpx;
+  line-height: 1.5;
+}
+
+/* 小程序 button 自带一根边框，用伪元素画出来的，统一去掉 */
+button::after {
+  border: none;
+}
+
+.page {
+  padding: 24rpx;
+  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+}
+
+.btn-primary {
+  margin-top: 32rpx;
+  background: var(--accent);
+  color: #ffffff;
+  border-radius: 22rpx;
+  font-size: 32rpx;
+  line-height: 2.6;
+}
+
+.btn-primary.off {
+  opacity: 0.55;
+}
+
+.field {
+  margin-top: 28rpx;
+}
+
+.field .label {
+  display: block;
+  font-size: 26rpx;
+  color: var(--ink-2);
+  margin-bottom: 10rpx;
+}
+
+.field .input {
+  height: 84rpx;
+  padding: 0 24rpx;
+  background: #ffffff;
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  font-size: 30rpx;
+}
+
+.muted {
+  color: var(--ink-3);
+  font-size: 24rpx;
+}
+
+.strike {
+  text-decoration: line-through;
+  color: var(--ink-3);
+}

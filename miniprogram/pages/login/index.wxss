@@ -1,0 +1,42 @@
+.brand {
+  padding: 110rpx 24rpx 24rpx;
+  text-align: center;
+}
+
+.logo {
+  width: 108rpx;
+  height: 108rpx;
+  margin: 0 auto 26rpx;
+  border-radius: 30rpx;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 50rpx;
+  line-height: 108rpx;
+  font-weight: 600;
+}
+
+.title {
+  font-size: 44rpx;
+  font-weight: 700;
+}
+
+.lead {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: var(--ink-2);
+  line-height: 1.7;
+}
+
+.form {
+  margin-top: 24rpx;
+  padding: 20rpx 28rpx 32rpx;
+}
+
+.hint {
+  margin-top: 10rpx;
+}
+
+.foot {
+  margin-top: 44rpx;
+  text-align: center;
+}

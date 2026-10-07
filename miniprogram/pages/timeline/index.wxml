@@ -1,0 +1,67 @@
+<view class="page">
+  <block wx:if="{{ready}}">
+    <view class="hud">
+      <view class="now tone-{{now.tone}}">
+        <view class="now-label">{{now.label}}</view>
+        <view class="now-title">{{now.title}}</view>
+        <view class="now-sub">{{now.sub}}</view>
+      </view>
+      <view class="flags">
+        <text wx:if="{{!online}}" class="flag off">离线中</text>
+        <text wx:elif="{{syncing}}" class="flag">同步中…</text>
+      </view>
+    </view>
+
+    <view wx:for="{{days}}" wx:key="date" class="day">
+      <view class="day-mark {{item.isToday ? 'today' : ''}}">
+        <text class="dm-date">{{item.label}}</text>
+        <text class="dm-rel">{{item.rel}}</text>
+        <text class="dm-count">{{item.done}}/{{item.total}}</text>
+      </view>
+
+      <view wx:if="{{item.total === 0}}" class="day-empty">这天还没安排</view>
+
+      <view
+        wx:for="{{item.nodes}}"
+        wx:for-item="n"
+        wx:key="id"
+        class="node {{n.done ? 'done' : ''}} {{n.current ? 'current' : ''}}"
+      >
+        <view class="node-time">{{n.time}}</view>
+        <view class="node-card" style="border-left-color:{{n.typeColor}}">
+          <view class="node-meta">
+            <view class="type-dot" style="background:{{n.typeColor}}"></view>
+            <text class="type-name" style="color:{{n.typeColor}}">{{n.typeLabel}}</text>
+            <text wx:if="{{n.range}}" class="node-range">{{n.range}}</text>
+          </view>
+          <view class="node-title {{n.done ? 'strike' : ''}}">{{n.title}}</view>
+          <view wx:if="{{n.location}}" class="node-loc">{{n.location}}</view>
+
+          <view wx:if="{{n.checklist.length}}" class="checks">
+            <view
+              wx:for="{{n.checklist}}"
+              wx:for-item="c"
+              wx:key="id"
+              class="check-row"
+              data-node="{{n.id}}"
+              data-item="{{c.id}}"
+              data-done="{{c.done}}"
+              data-text="{{c.text}}"
+              bindtap="onToggle"
+            >
+              <view class="checkbox {{c.done ? 'on' : ''}}">{{c.done ? '✓' : ''}}</view>
+              <text class="check-text {{c.done ? 'strike' : ''}}">{{c.text}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="tail muted">下拉刷新 · 每 20 秒自动同步</view>
+  </block>
+
+  <view wx:else class="loading">
+    <view class="loading-title">正在打开…</view>
+    <view class="muted">首次进入会从服务器加载这趟旅行</view>
+  </view>
+</view>

@@ -1,0 +1,16 @@
+{
+  "pages": [
+    "pages/timeline/index",
+    "pages/login/index"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#F4F5F7",
+    "navigationBarTitleText": "旅行助手",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F4F5F7",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}
