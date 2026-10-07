@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { db, nowISO, uid, PHOTO_DIR } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { broadcast } from '../events.js';
+import { ensureDerivative, isVariant, removeDerivatives, warmPhoto } from '../derivatives.js';
 
 const router = express.Router();
 
@@ -14,6 +15,7 @@ const ALLOWED = new Map([
   ['image/png', '.png'],
   ['image/webp', '.webp'],
   ['image/heic', '.heic'],
+  ['image/heif', '.heic'],
   ['image/gif', '.gif'],
 ]);
 
@@ -121,15 +123,37 @@ router.post('/', upload.array('photos', 12), (req, res) => {
   });
   tx();
 
+  // 后台预热两个派生：上传响应不等它。旧照片没预热也没关系，看的时候按需生成。
+  for (const row of rows) warmPhoto(row).catch(() => {});
+
   broadcast(tripId, { type: 'photos' });
   res.status(201).json(rows);
 });
 
-/** 缩略图：前端 canvas 拼图用小图，省流量 */
-router.get('/:id/file', (req, res) => {
+/**
+ * 取图：
+ *   ?variant=thumb    长边 320 的 JPEG（时间线）
+ *   ?variant=display  长边 2048 的 JPEG（查看器/长图）；HEIC 在这里转成 JPEG
+ *   不带参数 = 原图（老客户端兼容，「存原图」也走这里）
+ * 派生生成失败兜底发原图，并留在日志里。
+ */
+router.get('/:id/file', async (req, res) => {
   const tripId = req.auth.tid;
   const photo = db.prepare('SELECT * FROM photos WHERE id = ? AND trip_id = ?').get(req.params.id, tripId);
   if (!photo) return res.status(404).json({ error: 'not_found' });
+
+  const variant = String(req.query.variant || '');
+  if (variant) {
+    if (!isVariant(variant)) return res.status(400).json({ error: 'bad_variant' });
+    const derived = await ensureDerivative(photo, variant);
+    if (derived) {
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+      fs.createReadStream(derived).pipe(res);
+      return;
+    }
+    /* 生成不出来（原图损坏等）：掉到下面发原图 */
+  }
 
   const file = path.join(PHOTO_DIR, photo.filename);
   if (!fs.existsSync(file)) return res.status(404).json({ error: 'file_missing' });
@@ -166,6 +190,7 @@ router.delete('/:id', (req, res) => {
 
   db.prepare('DELETE FROM photos WHERE id = ?').run(photo.id);
   fs.promises.unlink(path.join(PHOTO_DIR, photo.filename)).catch(() => {});
+  removeDerivatives(photo.id);
   broadcast(tripId, { type: 'photos' });
   res.json({ ok: true });
 });

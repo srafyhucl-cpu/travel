@@ -25,7 +25,7 @@ async function api(method, path, body, isForm = false) {
   } catch {
     json = text.slice(0, 200);
   }
-  return { status: res.status, json, text };
+  return { status: res.status, json, text, headers: res.headers };
 }
 
 function check(name, cond, extra = '') {
@@ -163,6 +163,33 @@ console.log('\n== 预算与消费 ==');
 
   const neg = await api('POST', '/api/money/expenses', { amount: -5, category: '餐饮', payer: '我' });
   check('负数金额被拒', neg.status === 400, JSON.stringify(neg.json).slice(0, 120));
+}
+
+console.log('\n== 照片与派生图 ==');
+let photoId = '';
+{
+  // 1×1 的合法 PNG：魔数校验过得了，足够验变体链路
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  const fd = new FormData();
+  fd.append('photos', new Blob([png], { type: 'image/png' }), 'smoke.png');
+  const up = await api('POST', '/api/photos', fd, true);
+  check('上传照片', up.status === 201 && !!up.json?.[0]?.id, JSON.stringify(up.json).slice(0, 120));
+  photoId = up.json?.[0]?.id || '';
+
+  const orig = await api('GET', `/api/photos/${photoId}/file`);
+  check('不带参数仍是原图', orig.status === 200 && orig.headers.get('content-type') === 'image/png', orig.headers.get('content-type'));
+
+  const thumb = await api('GET', `/api/photos/${photoId}/file?variant=thumb`);
+  check('缩略图是 JPEG', thumb.status === 200 && thumb.headers.get('content-type') === 'image/jpeg', thumb.headers.get('content-type'));
+
+  const display = await api('GET', `/api/photos/${photoId}/file?variant=display`);
+  check('展示图是 JPEG', display.status === 200 && display.headers.get('content-type') === 'image/jpeg', display.headers.get('content-type'));
+
+  const bad = await api('GET', `/api/photos/${photoId}/file?variant=huge`);
+  check('非法变体被拒', bad.status === 400, String(bad.status));
 }
 
 console.log('\n== 快照 ==');

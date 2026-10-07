@@ -53,6 +53,50 @@ const h = require('./_harness.cjs');
   await page.waitForSelector('.tl-item .shot-bad', { timeout: 20000 });
   t.check('坏图解不开时给说明块', true);
 
+  /*
+   * 服务端派生变体：另传一张 800×600 的 JPEG，比对三个图源
+   * （原图 / 缩略图 / 展示图）的类型、尺寸和大小。
+   */
+  const variantInfo = await page.evaluate(async () => {
+    const c = document.createElement('canvas');
+    c.width = 800;
+    c.height = 600;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 800, 600);
+    grad.addColorStop(0, '#e2574c');
+    grad.addColorStop(1, '#2f80ed');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 800, 600);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9));
+    const token = localStorage.getItem('travel.token');
+    const fd = new FormData();
+    fd.append('photos', new File([blob], 'variant.jpg', { type: 'image/jpeg' }));
+    const up = await fetch('/api/photos', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+    if (!up.ok) return { error: `upload ${up.status}` };
+    const row = (await up.json())[0];
+    const read = async (query) => {
+      const res = await fetch(`/api/photos/${row.id}/file${query}`, { headers: { Authorization: `Bearer ${token}` } });
+      const b = await res.blob();
+      let w = 0;
+      try {
+        w = (await createImageBitmap(b)).width;
+      } catch {
+        /* 解不开就留 0，断言会红 */
+      }
+      return { type: res.headers.get('content-type'), size: b.size, w };
+    };
+    return {
+      id: row.id,
+      orig: await read(''),
+      thumb: await read('?variant=thumb'),
+      display: await read('?variant=display'),
+    };
+  });
+  t.check('变体：缩略图 ≤320 且是 JPEG', variantInfo.thumb?.type === 'image/jpeg' && variantInfo.thumb.w > 0 && variantInfo.thumb.w <= 320, JSON.stringify(variantInfo.thumb));
+  t.check('变体：缩略图比原图小', variantInfo.thumb?.size > 0 && variantInfo.thumb.size < variantInfo.orig.size, `${variantInfo.thumb?.size} < ${variantInfo.orig?.size}`);
+  t.check('变体：展示图 ≤2048 且不放大小', variantInfo.display?.type === 'image/jpeg' && variantInfo.display.w === 800, JSON.stringify(variantInfo.display));
+  t.check('变体：不带参数仍是原图', variantInfo.orig?.type === 'image/jpeg' && variantInfo.orig.w === 800, JSON.stringify(variantInfo.orig));
+
   await page.reload({ waitUntil: 'networkidle' });
   await h.sleep(900);
 

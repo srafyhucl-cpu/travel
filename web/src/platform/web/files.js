@@ -1,15 +1,14 @@
 /**
  * 平台照片文件（Web 实现）：鉴权取回 → 本地缓存 → 可显示 URL。
  *
- * 时间线要的是缩略图（thumb:true）：首次由原图在本地生成 320px JPEG 存进
- * IndexedDB，之后不再碰网络；查看器和长图用原图。小程序实现换成
- * wx.downloadFile / FileSystemManager，返回本地临时路径即可。
+ * 图源是服务端的两个派生变体（缓存键 thumb:<id> / display:<id>）：
+ *   thumb    时间线用，长边 320（约 20KB）
+ *   display  查看器/长图用，长边 2048（HEIC 已在服务端转成 JPEG）
+ * 原图不进这里 ——「存原图」走 net.url 的下载链接。小程序版换成 wx.downloadFile，
+ * 请求同样的变体即可。
  */
 import { storage } from './persist.js';
 import { session } from './session.js';
-
-const THUMB_MAX = 320;
-const THUMB_QUALITY = 0.72;
 
 const urlCache = new Map(); // `${id}:f|t` -> objectURL
 
@@ -18,58 +17,26 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/** 原图：先本地缓存，没有再下载；下载成功顺手存缓存 */
-async function fullBlob(id) {
-  const cached = await storage.loadBlob(id).catch(() => null);
+async function variantBlob(id, variant) {
+  const key = variant === 'thumb' ? `thumb:${id}` : `display:${id}`;
+  const cached = await storage.loadBlob(key).catch(() => null);
   if (cached) return cached;
-  const res = await fetch(`/api/photos/${id}/file`, { headers: authHeaders() });
+  const res = await fetch(`/api/photos/${id}/file?variant=${variant}`, { headers: authHeaders() });
   if (!res.ok) return null;
   const blob = await res.blob();
-  storage.saveBlob(id, blob).catch(() => {});
+  storage.saveBlob(key, blob).catch(() => {});
   return blob;
-}
-
-/** 本地生成缩略图；失败返回 null（调用方用原图顶） */
-async function makeThumb(blob) {
-  const src = URL.createObjectURL(blob);
-  try {
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = reject;
-      i.src = src;
-    });
-    const iw = img.naturalWidth || 1;
-    const ih = img.naturalHeight || 1;
-    const scale = Math.min(1, THUMB_MAX / Math.max(iw, ih));
-    const w = Math.max(1, Math.round(iw * scale));
-    const h = Math.max(1, Math.round(ih * scale));
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    c.getContext('2d').drawImage(img, 0, 0, w, h);
-    return await new Promise((resolve) => c.toBlob((b) => resolve(b), 'image/jpeg', THUMB_QUALITY));
-  } finally {
-    URL.revokeObjectURL(src);
-  }
 }
 
 async function url(id, { thumb = false } = {}) {
   if (!id) return null;
-  const key = thumb ? `${id}:t` : `${id}:f`;
+  const key = `${id}:${thumb ? 't' : 'f'}`;
   if (urlCache.has(key)) return urlCache.get(key);
 
-  let blob = null;
-  if (thumb) {
-    blob = await storage.loadBlob(`thumb:${id}`).catch(() => null);
-    if (!blob) {
-      const full = await fullBlob(id);
-      if (!full) return null;
-      blob = (await makeThumb(full).catch(() => null)) || full;
-      if (blob !== full) storage.saveBlob(`thumb:${id}`, blob).catch(() => {});
-    }
-  } else {
-    blob = await fullBlob(id);
+  let blob = await variantBlob(id, thumb ? 'thumb' : 'display');
+  if (!blob && !thumb) {
+    // 旧版本把原图缓存在 id 键下：断网时，看过的照片还能显示
+    blob = await storage.loadBlob(id).catch(() => null);
   }
   if (!blob) return null;
   const u = URL.createObjectURL(blob);
@@ -77,7 +44,10 @@ async function url(id, { thumb = false } = {}) {
   return u;
 }
 
-/** 大图看完了：释放原图（内存 URL + 本地缓存），缩略图留着 */
+/**
+ * 大图看完了：只释放内存里的 URL。展示图很小（~400KB），
+ * 缓存留在 IndexedDB 里，断网还能看。
+ */
 function forget(id) {
   const key = `${id}:f`;
   const u = urlCache.get(key);
@@ -85,10 +55,9 @@ function forget(id) {
     URL.revokeObjectURL(u);
     urlCache.delete(key);
   }
-  storage.dropBlob(id).catch(() => {});
 }
 
-/** 照片删除了：连同缩略图一起清干净 */
+/** 照片删除了：变体与旧缓存一并清干净 */
 function drop(id) {
   for (const k of [`${id}:f`, `${id}:t`]) {
     const u = urlCache.get(k);
@@ -97,8 +66,9 @@ function drop(id) {
       urlCache.delete(k);
     }
   }
-  storage.dropBlob(id).catch(() => {});
   storage.dropBlob(`thumb:${id}`).catch(() => {});
+  storage.dropBlob(`display:${id}`).catch(() => {});
+  storage.dropBlob(id).catch(() => {}); // 旧版本的原图缓存
 }
 
 export const files = { url, forget, drop };

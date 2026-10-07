@@ -3,7 +3,9 @@ import { platform } from '../../platform/index.js';
 import { actions, askConfirm } from '../../store/store.js';
 import { Icon } from '../bits.jsx';
 
-/** 全屏看照片：左右翻页、写一句话、删掉 */
+/** 全屏看照片：左右翻页、写一句话、存原图、删掉 */
+const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heic', 'image/gif': 'gif' };
+
 export default function PhotoViewer({ photo, photos, onClose, onEdit }) {
   const [caption, setCaption] = useState(photo.caption || '');
   const [url, setUrl] = useState(null);
@@ -71,6 +73,16 @@ export default function PhotoViewer({ photo, photos, onClose, onEdit }) {
             }
           }}
         />
+        {/* 看的是展示图（2048），原图留档在这里取 */}
+        <a
+          className="chip-btn icon-only"
+          href={platform.net.url(`/api/photos/${photo.id}/file`)}
+          download={`原图-${photo.id.slice(0, 8)}.${EXT[photo.mime] || 'jpg'}`}
+          aria-label="存原图"
+          title="存原图"
+        >
+          <Icon name="download" size={13} />
+        </a>
         <button
           className="chip-btn"
           disabled={busy}

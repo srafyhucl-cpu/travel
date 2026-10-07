@@ -40,6 +40,9 @@ cd D:\Project\travel
 tar -cf - -C server --exclude=data --exclude=node_modules --exclude='.testdata*' --exclude=scripts src frontend/dist package.json package-lock.json `
   | ssh root@47.94.102.250 "tar -xf - -C /opt/apps/travel"
 
+# server/package.json 有变动的版本：先在服务器装依赖，再重启
+ssh root@47.94.102.250 "cd /opt/apps/travel && npm install --omit=dev"
+
 ssh root@47.94.102.250 "systemctl restart travel"
 ```
 
@@ -160,3 +163,7 @@ node scripts\check-platform.mjs   # 不用开发者工具，先在 Node 里把 p
 - **深色主题的挂载点是 `<html data-theme>`**（`styles/tokens.css` 里两套 token）。
   首屏前置脚本在 `index.html`，「跟随系统」的解析在 `ui/theme.js`——改主题逻辑时两处都要动。
   海报/长图是给相册看的图片，固定浅色，不跟主题。
+- **照片派生图。** `data/photos/derived/` 里是服务端生成的缩略图（320）与展示图（2048，
+  HEIC 也在这里转成 JPEG）；原图永远不动，删除照片会连派生一起删。改过派生参数
+  （尺寸/质量）要清掉 `derived/` 重新生成；存量照片预热：`node src/tools/warm-derivatives.js`
+  （串行执行——12MP HEIC 解码峰值内存约 400MB，服务器只有 1.6G）。
