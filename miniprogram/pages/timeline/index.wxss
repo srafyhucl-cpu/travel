@@ -234,3 +234,65 @@
   font-weight: 600;
   margin-bottom: 12rpx;
 }
+
+/* ---------- 照片 ---------- */
+
+/* 缩略图行：120rpx 的小方格换行排，一屏能扫过不少照片 */
+.shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 12rpx;
+}
+
+/* 路径没到时就这块底色撑住版面，图到了直接换 src，不引起跳动。
+   app.wxss 还没有 --surface-2 变量，退回 --line（深浅两套都有值）当占位色 */
+.shot-thumb {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 14rpx;
+  background: var(--surface-2, var(--line));
+}
+
+/* 卡片底部操作行：小胶囊风，和右边的状态色不抢注意力 */
+.card-acts {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 14rpx;
+}
+
+.act-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2, var(--line));
+  color: var(--ink-2);
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+/* 相机小图标：data URI 画的，颜色随图标自己，这里只管尺寸 */
+.act-ic {
+  width: 30rpx;
+  height: 30rpx;
+  flex: none;
+}
+
+/* 随手记（散照片）：不属于任何一天，收在时间线末尾 */
+.loose {
+  margin-top: 28rpx;
+}
+
+.loose-title {
+  padding: 0 4rpx 14rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.loose .shots {
+  margin-top: 0;
+}

@@ -1,0 +1,79 @@
+<view class="page">
+  <view wx:if="{{ready}}" class="card form">
+    <view class="field">
+      <text class="label">金额</text>
+      <view class="amount-row">
+        <text class="amount-cur">¥</text>
+        <input
+          class="amount-input"
+          type="digit"
+          value="{{amount}}"
+          focus="{{ready}}"
+          placeholder="0"
+          placeholder-class="amount-ph"
+          bindinput="onAmount"
+        />
+      </view>
+    </view>
+
+    <view class="field">
+      <text class="label">类别</text>
+      <scroll-view class="pill-scroll" scroll-x enable-flex>
+        <view
+          wx:for="{{categories}}"
+          wx:key="key"
+          class="pill {{item.on ? 'on' : ''}}"
+          style="{{item.on ? 'color:' + item.color + ';border-color:' + item.color : ''}}"
+          hover-class="pill-press"
+          data-key="{{item.key}}"
+          bindtap="onCategory"
+        >
+          <image class="pill-icon" src="{{item.icon}}" mode="aspectFit" />
+          <text>{{item.label}}</text>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view wx:if="{{payers.length > 1}}" class="field">
+      <text class="label">谁付的</text>
+      <view class="pill-row">
+        <view
+          wx:for="{{payers}}"
+          wx:key="id"
+          class="pill {{item.on ? 'on' : ''}}"
+          hover-class="pill-press"
+          data-name="{{item.name}}"
+          bindtap="onPayer"
+        >
+          <text>{{item.name}}</text>
+          <text wx:if="{{item.me}}" class="me-tag">我</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="field">
+      <text class="label">备注</text>
+      <input
+        class="input"
+        value="{{note}}"
+        placeholder="买了什么（可不填）"
+        maxlength="200"
+        bindinput="onNote"
+      />
+    </view>
+
+    <button
+      class="btn-primary {{canSave ? '' : 'off'}}"
+      hover-class="{{canSave ? 'btn-press' : 'none'}}"
+      disabled="{{!canSave}}"
+      bindtap="onSave"
+    >记下</button>
+
+    <view wx:if="{{nodeTitle}}" class="attached">挂在「{{nodeTitle}}」</view>
+  </view>
+
+  <view wx:else class="loading">
+    <view class="loading-title">加载中…</view>
+    <view class="muted">正在准备这趟旅行的数据</view>
+  </view>
+</view>

@@ -11,6 +11,8 @@ page {
   --ok: #27ae60;
   --danger: #e2574c;
   --radius: 26rpx;
+  /* 未选中的胶囊 / 图标块的中性填充（与 web tokens 同一语义） */
+  --surface-2: rgba(17, 24, 39, 0.05);
 
   background: var(--bg);
   color: var(--ink);
@@ -32,6 +34,7 @@ page {
     --accent-soft: rgba(75, 147, 242, 0.16);
     --ok: #3dbb70;
     --danger: #ef6b60;
+    --surface-2: rgba(255, 255, 255, 0.07);
   }
 }
 

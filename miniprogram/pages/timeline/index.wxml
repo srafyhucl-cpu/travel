@@ -37,6 +37,22 @@
           <view class="node-title {{n.done ? 'strike' : ''}}">{{n.title}}</view>
           <view wx:if="{{n.location}}" class="node-loc">{{n.location}}</view>
 
+          <!-- 这趟节点下的照片：缩略图路径由页面逐张回填，src 为空时就是一块占位底色 -->
+          <view wx:if="{{n.photos.length}}" class="shots">
+            <image
+              wx:for="{{n.photos}}"
+              wx:for-item="p"
+              wx:key="id"
+              class="shot-thumb"
+              src="{{photoPaths[p.id]}}"
+              mode="aspectFill"
+              data-group="n:{{n.id}}"
+              data-pid="{{p.id}}"
+              bindtap="onPhoto"
+              bindlongpress="onPhotoLong"
+            />
+          </view>
+
           <view wx:if="{{n.checklist.length}}" class="checks">
             <view
               wx:for="{{n.checklist}}"
@@ -53,7 +69,32 @@
               <text class="check-text {{c.done ? 'strike' : ''}}">{{c.text}}</text>
             </view>
           </view>
+
+          <!-- 卡片底部的附加操作：跟待办、地点一样是这张卡的附注，不抢标题的视线 -->
+          <view class="card-acts">
+            <view class="act-btn" data-id="{{n.id}}" bindtap="onAddPhoto"><image class="act-ic" src="{{cameraIcon}}" mode="aspectFit" />照片</view>
+            <view class="act-btn" data-id="{{n.id}}" bindtap="onAddExpense"><image class="act-ic" src="{{walletIcon}}" mode="aspectFit" />记一笔</view>
+          </view>
         </view>
+      </view>
+    </view>
+
+    <!-- 不属于任何节点的散照片（随手拍），收在时间线末尾 -->
+    <view wx:if="{{loose.length}}" class="loose">
+      <view class="loose-title">随手记 · 照片</view>
+      <view class="shots">
+        <image
+          wx:for="{{loose}}"
+          wx:for-item="p"
+          wx:key="id"
+          class="shot-thumb"
+          src="{{photoPaths[p.id]}}"
+          mode="aspectFill"
+          data-group="loose"
+          data-pid="{{p.id}}"
+          bindtap="onPhoto"
+          bindlongpress="onPhotoLong"
+        />
       </view>
     </view>
 

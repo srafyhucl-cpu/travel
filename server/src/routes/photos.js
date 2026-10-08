@@ -31,31 +31,36 @@ const upload = multer({
   storage,
   limits: { fileSize: 25 * 1024 * 1024, files: 12 },
   fileFilter: (req, file, cb) => {
-    if (!ALLOWED.has(file.mimetype)) return cb(new Error('只支持 JPG / PNG / WebP / HEIC / GIF 图片'));
-    cb(null, true);
+    // 客户端给的 mimetype 只当第一道粗筛；真正的类型由落盘后的魔数定。
+    // 小程序 wx.uploadFile 常见 application/octet-stream，别在这一步就拦掉。
+    if (ALLOWED.has(file.mimetype) || file.mimetype === 'application/octet-stream') return cb(null, true);
+    return cb(new Error('只支持 JPG / PNG / WebP / HEIC / GIF 图片'));
   },
 });
 
 /*
- * mimetype 是客户端自己填的，不能只信它：把一段 HTML 改名 .png 传上来，
- * 光靠 multer 的 fileFilter 拦不住。落盘后再对一次魔数，对不上就删掉。
- * HEIC 只认文件头里的 ftyp 盒（MOV/MP4 也长这样，但 fileFilter 已经先把
- * 非图片类型挡在外面了）。
+ * 魔数是权威：mimetype 是客户端自己填的，不能只信它 —— 把一段 HTML 改名 .png
+ * 传上来，光靠 multer 的 fileFilter 拦不住。落盘后按文件头定类型，对不上就删掉。
+ * 老数据库里 mime 可能存着 octet-stream；从这版起一律存魔数认出来的规范类型，
+ * 派生图（HEIC→JPEG）才认得出该走哪条路。
+ * HEIC 只认文件头里的 ftyp 盒（MOV/MP4 也长这样，但 fileFilter 已把非图片挡在外面）。
  */
 const SNIFF = [
-  (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff, // jpeg
-  (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47, // png
-  (b) => b.slice(0, 6).toString('latin1').startsWith('GIF8'), // gif87a / gif89a
-  (b) => b.slice(0, 4).toString('latin1') === 'RIFF' && b.slice(8, 12).toString('latin1') === 'WEBP',
-  (b) => b.slice(4, 8).toString('latin1') === 'ftyp', // heic
+  ['image/jpeg', (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff],
+  ['image/png', (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47],
+  ['image/gif', (b) => b.slice(0, 6).toString('latin1').startsWith('GIF8')],
+  ['image/webp', (b) => b.slice(0, 4).toString('latin1') === 'RIFF' && b.slice(8, 12).toString('latin1') === 'WEBP'],
+  ['image/heic', (b) => b.slice(4, 8).toString('latin1') === 'ftyp'],
 ];
 
-function looksLikeImage(filename) {
+/** 按文件头判断真实类型；不是图片返回 null */
+function sniffImage(filename) {
   const fd = fs.openSync(path.join(PHOTO_DIR, filename), 'r');
   try {
     const head = Buffer.alloc(12);
     fs.readSync(fd, head, 0, 12, 0);
-    return SNIFF.some((match) => match(head));
+    for (const [mime, match] of SNIFF) if (match(head)) return mime;
+    return null;
   } finally {
     fs.closeSync(fd);
   }
@@ -80,7 +85,10 @@ router.post('/', upload.array('photos', 12), (req, res) => {
   const files = req.files || [];
   if (files.length === 0) return res.status(400).json({ error: 'bad_request', message: '没有收到图片' });
 
-  const bad = files.find((f) => !looksLikeImage(f.filename));
+  // 魔数定类型：客户端 mimetype 只做粗筛（小程序可能给 octet-stream）
+  const kinds = new Map();
+  for (const f of files) kinds.set(f.filename, sniffImage(f.filename));
+  const bad = files.find((f) => !kinds.get(f.filename));
   if (bad) {
     dropFiles(files);
     return res.status(400).json({ error: 'bad_image', message: '有一个文件不是有效的图片' });
@@ -111,7 +119,7 @@ router.post('/', upload.array('photos', 12), (req, res) => {
         node_id: nodeId,
         member_id: uploaderId,
         filename: f.filename,
-        mime: f.mimetype,
+        mime: kinds.get(f.filename),
         size: f.size,
         width: Number.isFinite(+req.body?.width) ? +req.body.width : null,
         height: Number.isFinite(+req.body?.height) ? +req.body.height : null,

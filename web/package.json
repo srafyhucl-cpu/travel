@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "miniprogram-automator": "^0.12.1",
     "playwright": "^1.63.0",
     "vite": "^6.0.7"
   }

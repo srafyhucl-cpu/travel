@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/timeline/index",
+    "pages/expense/index",
     "pages/login/index"
   ],
   "window": {

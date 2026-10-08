@@ -7,56 +7,89 @@
  */
 import { session } from './session.js';
 
-/* 小程序不能发相对地址；这里就是线上域名。开发阶段 DevTools 勾了
- * 「不校验合法域名」，真机预览要先把域名加进 request 合法域名。 */
-const BASE = 'https://travel.hclstudio.cn';
+/* 小程序不能发相对地址；这里是线上域名。
+ * 开发/自动化测试时可以在控制台或脚本里 wx.setStorageSync('travel.base', 'http://127.0.0.1:7042')
+ * 指向本机后端 —— 每次请求现读，改完不用重启。 */
+const PROD_BASE = 'https://travel.hclstudio.cn';
+
+export function baseUrl() {
+  try {
+    return wx.getStorageSync('travel.base') || PROD_BASE;
+  } catch {
+    return PROD_BASE;
+  }
+}
 
 const POLL_MS = 20000;
 
-function toResponse(res) {
-  const data = res.data;
+function parseMaybe(data) {
+  if (typeof data !== 'string') return data ?? null;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+
+function toResponse(status, data) {
+  const parsed = parseMaybe(data);
   return {
-    status: res.statusCode,
-    ok: res.statusCode >= 200 && res.statusCode < 300,
-    text: () => Promise.resolve(typeof data === 'string' ? data : JSON.stringify(data ?? '')),
-    json: () =>
-      Promise.resolve(
-        typeof data === 'string'
-          ? (() => {
-              try {
-                return JSON.parse(data);
-              } catch {
-                return null;
-              }
-            })()
-          : data ?? null
-      ),
+    status,
+    ok: status >= 200 && status < 300,
+    text: () => Promise.resolve(typeof data === 'string' ? data : JSON.stringify(parsed ?? '')),
+    json: () => Promise.resolve(parsed),
   };
+}
+
+function authHeader() {
+  const token = session.getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export function send({ method = 'GET', path, headers = {}, body, isForm = false }) {
   return new Promise((resolve, reject) => {
-    const header = { ...headers };
-    const token = session.getToken();
-    if (token) header.Authorization = `Bearer ${token}`;
+    const header = { ...headers, ...authHeader() };
     if (!isForm && body !== undefined) header['Content-Type'] = 'application/json';
     wx.request({
-      url: `${BASE}${path}`,
+      url: `${baseUrl()}${path}`,
       method,
       header,
       data: body,
-      success: (res) => resolve(toResponse(res)),
+      success: (res) => resolve(toResponse(res.statusCode, res.data)),
       fail: (err) => reject(new Error(err?.errMsg || 'request failed')),
     });
   });
 }
 
 /**
- * 上传：wx.uploadFile 一次只能传一个文件，和 Web 的批量语义不同。
- * 本轮不加照片，先占位；开做照片时再定「多张顺序传、合并返回」的实现。
+ * 上传：wx.uploadFile 一次只能传一个文件，这里顺序逐张传，
+ * 把每次返回的数组拼起来，给 store/api 的响应形状保持不变。
+ * 中途失败就把那一次的状态/文案带回去（前面已传成功的照片服务端已收下）。
  */
-export function upload() {
-  return Promise.reject(new Error('小程序端上传尚未实现（照片功能开做时补）'));
+export async function upload({ path, files = [], fields = {} }) {
+  const rows = [];
+  for (const f of files) {
+    const formData = {};
+    for (const [k, v] of Object.entries(fields)) {
+      if (v !== undefined && v !== null) formData[k] = String(v);
+    }
+    const res = await new Promise((resolve) =>
+      wx.uploadFile({
+        url: `${baseUrl()}${path}`,
+        filePath: f.filePath,
+        name: f.field || 'photos',
+        header: authHeader(),
+        formData,
+        success: (r) => resolve({ status: r.statusCode, data: r.data }),
+        fail: () => resolve({ status: 0, data: null }),
+      })
+    );
+    if (res.status < 200 || res.status >= 300) return toResponse(res.status, res.data);
+    const parsed = parseMaybe(res.data);
+    if (Array.isArray(parsed)) rows.push(...parsed);
+    else if (parsed) rows.push(parsed);
+  }
+  return toResponse(200, JSON.stringify(rows));
 }
 
 export function openStream({ onOpen, onMessage, onError }) {

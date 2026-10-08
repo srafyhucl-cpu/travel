@@ -1,0 +1,136 @@
+/* 「记一笔」：跟时间线同一套卡片 / 胶囊语言，颜色全走 app.wxss 的 tokens（深色自适应） */
+
+.form {
+  padding: 6rpx 28rpx 36rpx;
+}
+
+/* ------------------------------ 金额 ------------------------------ */
+
+.amount-row {
+  display: flex;
+  align-items: baseline;
+}
+
+.amount-cur {
+  flex: none;
+  margin-right: 12rpx;
+  font-size: 40rpx;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.amount-input {
+  flex: 1;
+  min-width: 0;
+  height: 112rpx;
+  font-size: 66rpx;
+  font-weight: 700;
+  line-height: 112rpx;
+}
+
+.amount-ph {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+/* ------------------------------ 胶囊 ------------------------------ */
+
+/* 类别：一行横滑，不吃两行高度（enable-flex 把 scroll-view 变成 flex 容器） */
+.pill-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.pill-scroll .pill {
+  margin: 0 14rpx 0 0;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.pill-row .pill {
+  margin: 0 14rpx 14rpx 0;
+}
+
+.pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  border: 3rpx solid transparent;
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 26rpx;
+}
+
+.pill.on {
+  background: var(--card);
+  border-color: currentColor;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pill-icon {
+  flex: none;
+  width: 30rpx;
+  height: 30rpx;
+  margin-right: 8rpx;
+}
+
+/* 点按反馈：胶囊和主按钮都压一下透明度 */
+.pill-press {
+  opacity: 0.7;
+}
+
+/* 当前登录的人：名字后面的小胶囊（名字本来就叫「我」时不加） */
+.me-tag {
+  margin-left: 8rpx;
+  padding: 0 10rpx;
+  border-radius: 999rpx;
+  background: rgba(47, 128, 237, 0.12);
+  color: var(--accent);
+  font-size: 20rpx;
+  font-weight: 600;
+  line-height: 30rpx;
+}
+
+/* 备注框坐在卡片上：用页面底色做内嵌感 */
+.form .input {
+  background: var(--bg);
+}
+
+/* ------------------------------ 按钮 ------------------------------ */
+
+/* 微信内置的 disabled 底色会盖过来，这里按 token 拽回去 */
+button.btn-primary[disabled] {
+  background: var(--accent);
+  color: #ffffff;
+  opacity: 0.55;
+}
+
+.btn-press {
+  opacity: 0.86;
+}
+
+.attached {
+  margin-top: 18rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+/* ------------------------------ 加载 ------------------------------ */
+
+.loading {
+  padding-top: 220rpx;
+  text-align: center;
+}
+
+.loading-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}
