@@ -635,3 +635,61 @@
 .fab-press {
   opacity: 0.85;
 }
+
+/* ---------- 长按拖动排序 ---------- */
+
+/* 页面本身不再滚：内容整体交给 scroll-view，拖动时锁滚动、自己控制 scrollTop */
+.timeline {
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.scroll {
+  height: 100%;
+}
+
+.scroll-inner {
+  padding: 24rpx;
+  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
+}
+
+/* 被捏起来的卡片：放大、抬阴影、半透明，随手指平移（transform 由行内样式给） */
+.node.dragging {
+  position: relative;
+  z-index: 10;
+}
+
+.node.dragging .node-card {
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 0 2rpx var(--accent-soft), 0 18rpx 48rpx rgba(16, 24, 40, 0.25);
+  opacity: 0.9;
+}
+
+/* 原位占位：卡片走了，留一条虚线框告诉用户它从哪儿来 */
+.drag-ghost {
+  position: absolute;
+  left: 134rpx; /* 让开左边的时间列（118rpx + 16rpx 间距） */
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border: 3rpx dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  opacity: 0.45;
+}
+
+/* 插入指示线：fixed 在视口里，跟着落点上下走 */
+.drop-line {
+  position: fixed;
+  left: 28rpx;
+  right: 28rpx;
+  height: 6rpx;
+  margin-top: -3rpx;
+  border-radius: 999rpx;
+  background: var(--accent);
+  box-shadow: 0 0 0 6rpx var(--accent-soft);
+  z-index: 40;
+  pointer-events: none;
+}
