@@ -4,6 +4,7 @@
     "pages/expense/index",
     "pages/login/index",
     "pages/node/index",
+    "pages/nodepick/index",
     "pages/budget/index",
     "pages/achievements/index",
     "pages/settings/index",

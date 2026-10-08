@@ -54,6 +54,26 @@
     </view>
 
     <view class="field">
+      <text class="label">时间</text>
+      <view class="time-row">
+        <picker class="time-date" mode="date" value="{{date}}" bindchange="onDate">
+          <view class="picker-trigger">{{date}}</view>
+        </picker>
+        <picker class="time-time" mode="time" value="{{time}}" bindchange="onTime">
+          <view class="picker-trigger">{{time}}</view>
+        </picker>
+      </view>
+    </view>
+
+    <view class="field">
+      <text class="label">挂在</text>
+      <view class="node-field {{nodeTitle ? '' : 'empty'}}" hover-class="pill-press" bindtap="onPickNode">
+        <text class="node-field-text">{{nodeTitle || '不指定'}}</text>
+        <text class="node-field-chev">›</text>
+      </view>
+    </view>
+
+    <view class="field">
       <text class="label">备注</text>
       <input
         class="input"
@@ -72,8 +92,6 @@
     >{{editing ? '保存' : '记下'}}</button>
 
     <button wx:if="{{editing}}" class="btn-danger" hover-class="btn-press" bindtap="onDelete">删掉</button>
-
-    <view wx:if="{{nodeTitle}}" class="attached">挂在「{{nodeTitle}}」</view>
   </view>
 
   <view wx:else class="loading">

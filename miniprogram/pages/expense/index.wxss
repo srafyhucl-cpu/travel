@@ -109,6 +109,59 @@
   background: var(--bg);
 }
 
+/* ------------------------------ 时间 / 挂在 ------------------------------ */
+
+/* 日期 + 时间并排一行：两个原生 picker，样子跟其它表单框一致 */
+.time-row {
+  display: flex;
+  gap: 20rpx;
+}
+
+.time-date,
+.time-time {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-trigger {
+  height: 84rpx;
+  line-height: 84rpx;
+  padding: 0 24rpx;
+  background: var(--bg);
+  border-radius: 20rpx;
+  font-size: 30rpx;
+}
+
+/* 挂在：整行可点，点开节点选择页；没挂时显示「不指定」并淡下去 */
+.node-field {
+  display: flex;
+  align-items: center;
+  height: 84rpx;
+  padding: 0 24rpx;
+  background: var(--bg);
+  border-radius: 20rpx;
+  font-size: 30rpx;
+}
+
+.node-field-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.node-field.empty .node-field-text {
+  color: var(--ink-3);
+}
+
+.node-field-chev {
+  flex: none;
+  margin-left: 12rpx;
+  color: var(--ink-3);
+  font-size: 32rpx;
+}
+
 /* ------------------------------ 按钮 ------------------------------ */
 
 /* 微信内置的 disabled 底色会盖过来，这里按 token 拽回去 */
@@ -131,13 +184,6 @@ button.btn-primary[disabled] {
 
 .btn-press {
   opacity: 0.86;
-}
-
-.attached {
-  margin-top: 18rpx;
-  text-align: center;
-  font-size: 24rpx;
-  color: var(--ink-3);
 }
 
 /* ------------------------------ 加载 ------------------------------ */

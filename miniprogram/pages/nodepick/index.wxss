@@ -1,0 +1,114 @@
+/* 「挂在哪一项」：跟 Web 的 NodePickField 同一套语义 ——
+   可搜索、按日期分组、当前项打勾；样式沿用记账/行程页的卡片与胶囊语言 */
+
+.pick {
+  padding: 24rpx 28rpx 32rpx;
+}
+
+.pick-top {
+  display: flex;
+  padding-bottom: 20rpx;
+}
+
+/* 顶部「不指定」：选中时高亮（on 态样式在下面，跟其它页胶囊同款） */
+
+/* 搜索框：坐在卡片上，用页面底色做内嵌感 */
+.pick .input {
+  height: 84rpx;
+  padding: 0 24rpx;
+  background: var(--bg);
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  font-size: 30rpx;
+}
+
+.pick-group-head {
+  padding: 22rpx 4rpx 10rpx;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  padding: 22rpx 4rpx;
+  border-bottom: 1rpx solid var(--line);
+  font-size: 30rpx;
+}
+
+.pick-row-time {
+  flex: none;
+  width: 92rpx;
+  color: var(--ink-3);
+  font-size: 26rpx;
+}
+
+.pick-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pick-row.on .pick-row-title {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pick-row-ok {
+  flex: none;
+  margin-left: 12rpx;
+  color: var(--accent);
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.pick-press {
+  opacity: 0.7;
+}
+
+.pick-empty {
+  padding: 40rpx 4rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: var(--ink-3);
+}
+
+/* ------------------------------ 胶囊（与记账页同款） ------------------------------ */
+
+.pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  border: 3rpx solid transparent;
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 26rpx;
+}
+
+.pill.on {
+  background: var(--card);
+  border-color: currentColor;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pill-press {
+  opacity: 0.7;
+}
+
+/* ------------------------------ 加载 ------------------------------ */
+
+.loading {
+  padding-top: 220rpx;
+  text-align: center;
+}
+
+.loading-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}

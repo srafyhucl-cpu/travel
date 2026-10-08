@@ -1,0 +1,42 @@
+<view class="page">
+  <view wx:if="{{ready}}" class="card pick">
+    <view class="pick-top">
+      <view
+        class="pill pick-none {{current ? '' : 'on'}}"
+        hover-class="pill-press"
+        bindtap="onClear"
+      >不指定</view>
+    </view>
+
+    <input
+      class="input pick-search"
+      value="{{q}}"
+      placeholder="搜标题、日期或地点（可不搜）"
+      bindinput="onSearch"
+    />
+
+    <block wx:for="{{groups}}" wx:key="date" wx:for-item="g">
+      <view class="pick-group-head">{{g.label}}</view>
+      <view
+        wx:for="{{g.items}}"
+        wx:key="id"
+        wx:for-item="n"
+        class="pick-row {{n.on ? 'on' : ''}}"
+        hover-class="pick-press"
+        data-id="{{n.id}}"
+        bindtap="onPick"
+      >
+        <text wx:if="{{n.time}}" class="pick-row-time">{{n.time}}</text>
+        <text class="pick-row-title">{{n.title}}</text>
+        <text wx:if="{{n.on}}" class="pick-row-ok">✓</text>
+      </view>
+    </block>
+
+    <view wx:if="{{emptyText}}" class="pick-empty">{{emptyText}}</view>
+  </view>
+
+  <view wx:else class="loading">
+    <view class="loading-title">加载中…</view>
+    <view class="muted">正在准备这趟旅行的数据</view>
+  </view>
+</view>
