@@ -112,7 +112,9 @@ function collectErrors(page, tag = '') {
 
 async function login(page, base) {
   await page.fill('#pass', PASS);
-  if (await page.locator('#who').count()) await page.fill('#who', '我');
+  // 生产只许用「龙哥」：名字不认识时服务端会建新成员，非本机地址不能用「我」
+  const who = /^https?:\/\/(127\.0\.0\.1|localhost)[:/]/.test(base) ? '我' : '龙哥';
+  if (await page.locator('#who').count()) await page.fill('#who', who);
   await page.click('button[type=submit]');
   await page.waitForSelector('.tl-item', { timeout: 20000 });
   await sleep(900);

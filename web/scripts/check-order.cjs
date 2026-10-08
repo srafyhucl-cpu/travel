@@ -5,6 +5,9 @@
  * 默认直接打生产（BASE 可以改）。当初 10-02「丽江古城」排在
  * 「玉龙雪山」后面那条时间倒流，就是它查出来的。
  *
+ * 登录只许用「龙哥」：口令对了、名字不认识，服务端会顺手建一个新成员 ——
+ * 用「我」会在真库留一个空壳成员（已经踩过两次，别再来第三次）。
+ *
  * 跑法：
  *   node web/scripts/check-order.cjs                    # 打生产（只读）
  *   BASE=http://localhost:7031 node web/scripts/check-order.cjs
@@ -24,7 +27,7 @@ const toMin = (t) => (t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : n
   const login = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ passphrase: PASS, name: '我' }),
+    body: JSON.stringify({ passphrase: PASS, name: '龙哥' }),
   });
   const auth = await login.json();
   if (!auth.token) {
