@@ -120,6 +120,7 @@ export function openStream({ onOpen, onMessage, onError }) {
 /** 带令牌的下载地址（日历订阅/模板导出用；小程序里打开文件另走 wx.downloadFile） */
 export function url(path) {
   const token = session.getToken();
-  if (!token) return `${BASE}${path}`;
-  return `${BASE}${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+  const base = baseUrl();
+  if (!token) return `${base}${path}`;
+  return `${base}${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
 }

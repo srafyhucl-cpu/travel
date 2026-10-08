@@ -1,11 +1,20 @@
 <view
   class="page timeline"
+  style="padding-top:{{nav.navTotal}}px"
   bindtouchmove="onDragMove"
   bindtouchend="onDragEnd"
   bindtouchcancel="onDragCancel"
 >
+  <!-- ① 自定义导航栏：左「我的」、中行程名（居中单行 + 自适应字号）、右给微信胶囊留白 -->
+  <view class="nav" style="padding-top:{{nav.statusBarHeight}}px">
+    <view class="nav-bar" style="height:{{nav.navBarHeight}}px">
+      <view class="nav-left" hover-class="nav-press" bindtap="onSettings">我的</view>
+      <view class="nav-title" style="font-size:{{navTitleSize}}px;max-width:{{nav.navTitleMax}}px">{{tripName}}</view>
+    </view>
+  </view>
+
   <block wx:if="{{ready}}">
-    <!-- 整页交给 scroll-view：拖动时锁滚动、由页面自己控制 scrollTop（边缘自动滚动） -->
+    <!-- 整页交给 scroll-view：拖动/确认面板时锁滚动，由页面自己控制 scrollTop（边缘自动滚动） -->
     <scroll-view
       class="scroll"
       scroll-y="{{!dragging}}"
@@ -17,39 +26,46 @@
       bindscroll="onScroll"
     >
       <view class="scroll-inner">
-        <view class="hud">
-          <view class="now tone-{{now.tone}}">
-            <view class="now-label">{{now.label}}</view>
-            <view class="now-title">{{now.title}}</view>
-            <view class="now-sub">{{now.sub}}</view>
-          </view>
-
-          <!-- 和 Web 的 Deck 同构：前置（模块）与钱各一格，点开一格看明细 -->
-          <view class="segs">
+        <!-- ② 总结卡：状态 + 日期范围 + 大标题 + 总进度 + 三格统计（前置/已花可点开明细） -->
+        <view class="sum-card">
+          <view class="sum-top">
+            <text class="sum-status tone-{{summary.tone}}">{{summary.status}}</text>
+            <text wx:if="{{summary.range}}" class="sum-dates">{{summary.range}}</text>
+            <text wx:if="{{!online}}" class="flag off">离线中</text>
+            <text wx:elif="{{syncing}}" class="flag">同步中…</text>
             <view
               wx:if="{{module}}"
-              class="seg {{module.allDone ? 'ok' : ''}} {{seg === 'prep' ? 'open' : ''}}"
+              class="prep-chip {{module.allDone ? 'ok' : ''}} {{seg === 'prep' ? 'on' : ''}}"
               data-seg="prep"
               bindtap="onSeg"
             >
-              <view class="seg-l1">
-                <image class="seg-ic" src="{{module.icon}}" mode="aspectFit" />
-                <text class="seg-label">前置</text>
-                <text class="seg-num">{{module.allDone ? '✓ 完成' : module.done + '/' + module.total}}</text>
-              </view>
-              <view class="bar"><view class="bar-fill" style="width:{{module.total ? module.done * 100 / module.total : 0}}%"></view></view>
-            </view>
-
-            <view class="seg {{budget.over ? 'over' : ''}} {{seg === 'money' ? 'open' : ''}}" data-seg="money" bindtap="onSeg">
-              <view class="seg-l1">
-                <text class="seg-label">已花</text>
-                <text class="seg-num {{budget.over ? 'danger' : ''}}">¥{{budget.actual}}</text>
-              </view>
-              <view class="bar"><view class="bar-fill" style="width:{{budget.rate * 100}}%"></view></view>
-              <text class="seg-sub">{{budget.hasPlanned ? '预算 ¥' + budget.planned : '未设预算'}}</text>
+              <image class="prep-ic" src="{{module.icon}}" mode="aspectFit" />
+              <text>前置 {{module.allDone ? '✓' : module.done + '/' + module.total}}</text>
             </view>
           </view>
 
+          <view class="sum-title">{{now.title || tripName}}</view>
+          <view wx:if="{{now.sub}}" class="sum-sub">{{now.sub}}</view>
+
+          <view class="sum-bar"><view class="sum-fill" style="width:{{summary.pct}}%"></view></view>
+          <view class="sum-bar-note">{{summary.done}}/{{summary.total}} 项完成 · {{summary.pct}}%</view>
+
+          <view class="sum-stats">
+            <view class="sum-stat">
+              <text class="ss-num">{{summary.done}}/{{summary.total}}</text>
+              <text class="ss-label">完成</text>
+            </view>
+            <view class="sum-stat {{budget.over ? 'over' : ''}} {{seg === 'money' ? 'on' : ''}}" data-seg="money" bindtap="onSeg">
+              <text class="ss-num {{budget.over ? 'danger' : ''}}">¥{{budget.actual}}</text>
+              <text class="ss-label">{{budget.hasPlanned ? (budget.over ? '超支 ¥' + budget.remaining : '预算 ¥' + budget.planned) : '已花'}}</text>
+            </view>
+            <view class="sum-stat">
+              <text class="ss-num">{{summary.photos}}</text>
+              <text class="ss-label">照片</text>
+            </view>
+          </view>
+
+          <!-- 前置明细（点「前置」胶囊展开）：清单可勾选 + 编辑，交互与数据照旧 -->
           <view wx:if="{{seg === 'prep' && module}}" class="panel">
             <view class="panel-head">
               <text class="panel-title">{{module.title}}</text>
@@ -74,6 +90,7 @@
             <view wx:else class="panel-empty">还没写待办，点「编辑」加几条</view>
           </view>
 
+          <!-- 钱明细（点「已花」格展开）：分类 / 各自花的 / 改预算 -->
           <view wx:if="{{seg === 'money'}}" class="panel">
             <view wx:if="{{!budget.spent.length}}" class="panel-empty">还没记过账</view>
             <view wx:for="{{budget.spent}}" wx:key="key" class="brow">
@@ -97,12 +114,6 @@
               <text class="foot-btn" bindtap="onEditBudget">改预算</text>
             </view>
           </view>
-
-          <view class="flags">
-            <text wx:if="{{!online}}" class="flag off">离线中</text>
-            <text wx:elif="{{syncing}}" class="flag">同步中…</text>
-            <text class="flag-link" bindtap="onSettings">我的 ›</text>
-          </view>
         </view>
 
         <view wx:for="{{days}}" wx:key="date" class="day" data-date="{{item.date}}">
@@ -114,7 +125,8 @@
 
           <view wx:if="{{item.total === 0}}" class="day-empty" data-date="{{item.date}}" bindtap="onAddNode">这天还没安排 · 点一下加一项</view>
 
-          <!-- 长按卡片进拖动排序（照片自己长按出菜单，已用 catchlongpress 拦住） -->
+          <!-- 长按卡片进拖动排序（照片自己长按出菜单，已用 catchlongpress 拦住）；
+               拖动中：原位置留虚线占位，视觉由 fixed 的迷你卡跟手 -->
           <view
             wx:for="{{item.nodes}}"
             wx:for-item="n"
@@ -125,21 +137,23 @@
             bindtouchstart="onNodeTouchStart"
             bindlongpress="onNodeLongPress"
           >
-            <!-- 原位占位：卡片被捏起来后留在原地的一条虚线框 -->
+            <!-- 原位占位：迷你卡跟手去了，这里留一条虚线框告诉用户它从哪儿来 -->
             <view wx:if="{{dragId === n.id}}" class="drag-ghost"></view>
             <view class="node-time">{{n.time}}</view>
-            <view class="node-card" style="border-left-color:{{n.typeColor}};{{dragId === n.id ? 'transform: translate3d(0,' + dragY + 'px,0) scale(1.03);' : ''}}">
+            <view class="node-card" style="border-left-color:{{n.typeColor}}">
               <view class="node-head" data-id="{{n.id}}" bindtap="onEditNode">
                 <view class="node-meta">
                   <image class="type-icon" src="{{n.icon}}" mode="aspectFit" />
                   <text class="type-name" style="color:{{n.typeColor}}">{{n.typeLabel}}</text>
                 </view>
                 <view class="node-right">
+                  <!-- ④ 完成不再划线：类型行右侧一个绿色小徽章，有实际完成时间就带上 -->
+                  <text wx:if="{{n.done}}" class="done-badge">✓ 完成{{n.doneAt ? ' · ' + n.doneAt : ''}}</text>
                   <text wx:if="{{n.range}}" class="node-range">{{n.range}}</text>
                   <text wx:if="{{n.spend}}" class="node-spend">¥{{n.spend}}</text>
                 </view>
               </view>
-              <view class="node-title {{n.done ? 'strike' : ''}}">{{n.title}}</view>
+              <view class="node-title">{{n.title}}</view>
               <view wx:if="{{n.location}}" class="node-loc">{{n.location}}</view>
 
               <!-- 这趟节点下的照片：缩略图路径由页面逐张回填，src 为空时就是一块占位底色 -->
@@ -245,6 +259,37 @@
 
     <!-- 拖动落点的插入指示线：fixed 定位，top 是视口坐标 -->
     <view wx:if="{{dragging && dropDate}}" class="drop-line" style="top:{{dropY}}px"></view>
+
+    <!-- ⑤ 迷你拖拽卡：跟着手指纵向走的一条小卡（类型图标 + 时间 + 标题一行截断） -->
+    <view
+      wx:if="{{dragging && dragId}}"
+      class="drag-card"
+      style="top:{{dragCardTop}}px;border-left-color:{{dragView.color}}"
+    >
+      <image class="drag-ic" src="{{dragView.icon}}" mode="aspectFit" />
+      <text class="drag-time">{{dragView.time}}</text>
+      <text class="drag-title">{{dragView.title}}</text>
+    </view>
+
+    <!-- ⑥ 落点确认面板：确认后这一天的安排按新顺序顺延，其它天不动 -->
+    <view wx:if="{{dropSheet}}" class="drop-mask" catchtouchmove="noop" catchtap="noop"></view>
+    <view wx:if="{{dropSheet}}" class="drop-sheet">
+      <view class="ds-head">确认后这一天的安排按新顺序顺延，其它天不动</view>
+      <view class="ds-day">{{dropSheet.dayLabel}}</view>
+      <scroll-view class="ds-list" scroll-y>
+        <view wx:for="{{dropSheet.rows}}" wx:key="id" class="drop-row {{item.on ? 'on' : ''}}">
+          <image class="drop-ic" src="{{item.icon}}" mode="aspectFit" />
+          <text class="drop-time">{{item.time}}</text>
+          <text class="drop-title">{{item.title}}</text>
+          <text wx:if="{{item.timeMoved}}" class="time-moved">时间调整</text>
+        </view>
+      </scroll-view>
+      <view wx:if="{{dropSheet.note}}" class="ds-note">{{dropSheet.note}}</view>
+      <view class="ds-acts">
+        <view class="drop-cancel" hover-class="ds-press" bindtap="onDropCancel">取消</view>
+        <view class="drop-ok {{dropSheet.busy ? 'busy' : ''}}" hover-class="ds-press" bindtap="onDropConfirm">确认放入</view>
+      </view>
+    </view>
 
     <!-- 右下角快捷入口：传照片（不指定进随手记）/ 加一项 -->
     <view class="fab" hover-class="fab-press" bindtap="onQuickAdd">＋</view>

@@ -210,22 +210,6 @@ button.btn-primary[disabled] {
   color: var(--danger);
 }
 
-.move-row {
-  display: flex;
-  gap: 20rpx;
-  margin-top: 28rpx;
-}
-
-.move-btn {
-  flex: 1;
-  text-align: center;
-  padding: 20rpx 0;
-  background: var(--bg);
-  border-radius: 20rpx;
-  font-size: 27rpx;
-  color: var(--ink-2);
-}
-
 .btn-danger {
   margin-top: 20rpx;
   background: transparent;

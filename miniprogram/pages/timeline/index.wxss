@@ -1,61 +1,201 @@
-.hud {
-  margin-bottom: 10rpx;
+/* 时间线：自定义导航栏 + 总结卡 + 按天卡片 + 长按拖动 v2 + 落点确认面板。
+   颜色全走 app.wxss 的 tokens（深色自适应）。 */
+
+/* ---------- ① 自定义导航栏 ---------- */
+
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--bg);
 }
 
-.now {
+.nav-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* 左：我的（给中线的标题让出对称的位置感，右侧靠胶囊留白约束） */
+.nav-left {
+  position: relative;
+  z-index: 2;
+  margin-left: 24rpx;
+  padding: 6rpx 22rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2, var(--line));
+  color: var(--ink-2);
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.nav-press {
+  opacity: 0.7;
+}
+
+/* 中：行程名居中、单行、字号由页面按长度给（max-width 让长名字出省略号） */
+.nav-title {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- ② 总结卡 ---------- */
+
+.sum-card {
   background: var(--card);
   border-radius: var(--radius);
-  padding: 26rpx 28rpx;
-  border-left: 8rpx solid var(--accent);
+  padding: 24rpx 26rpx;
   box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
 }
 
-.now.tone-active {
-  border-left-color: var(--accent);
+.sum-top {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-wrap: wrap;
 }
 
-.now.tone-done {
-  border-left-color: var(--ok);
-}
-
-.now.tone-upcoming {
-  border-left-color: var(--accent);
-}
-
-.now-label {
-  font-size: 24rpx;
+.sum-status {
+  flex: none;
+  padding: 2rpx 16rpx;
+  border-radius: 999rpx;
+  background: var(--accent-soft);
   color: var(--accent);
+  font-size: 23rpx;
   font-weight: 600;
 }
 
-.now.tone-done .now-label {
+.sum-status.tone-done {
+  background: rgba(39, 174, 96, 0.12);
   color: var(--ok);
 }
 
-.now-title {
-  margin-top: 8rpx;
-  font-size: 36rpx;
-  font-weight: 700;
+.sum-dates {
+  font-size: 23rpx;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
-.now-sub {
+/* 前置胶囊：点开原有明细面板（清单可勾选 + 编辑） */
+.prep-chip {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 6rpx 18rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2, var(--line));
+  color: var(--ink-2);
+  font-size: 23rpx;
+}
+
+.prep-chip.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.prep-chip.ok {
+  color: var(--ok);
+}
+
+.prep-ic {
+  width: 26rpx;
+  height: 26rpx;
+  flex: none;
+}
+
+.sum-title {
+  margin-top: 16rpx;
+  font-size: 40rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.sum-sub {
   margin-top: 6rpx;
   font-size: 26rpx;
   color: var(--ink-2);
 }
 
-.flags {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  margin-top: 10rpx;
+/* 整体进度：已完成项数 / 总项数 */
+.sum-bar {
+  margin-top: 18rpx;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2, var(--line));
+  overflow: hidden;
 }
 
-.flag-link {
-  margin-left: auto;
-  padding: 4rpx 8rpx;
-  font-size: 24rpx;
-  color: var(--accent);
+.sum-fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: var(--accent);
+}
+
+.sum-bar-note {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 三格统计：完成 x/y · 已花（带预算小字/超支红）· 照片 n */
+.sum-stats {
+  display: flex;
+  margin-top: 16rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.sum-stat {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  padding: 6rpx 4rpx;
+  border-radius: 16rpx;
+}
+
+.sum-stat + .sum-stat {
+  border-left: 1rpx solid var(--line);
+  border-radius: 0;
+}
+
+.sum-stat.on {
+  background: var(--accent-soft);
+  border-radius: 16rpx;
+}
+
+.ss-num {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ss-num.danger {
+  color: var(--danger);
+}
+
+.ss-label {
+  display: block;
+  margin-top: 2rpx;
+  font-size: 21rpx;
+  color: var(--ink-3);
+}
+
+.sum-stat.over .ss-label {
+  color: var(--danger);
 }
 
 .flag {
@@ -72,15 +212,17 @@
   color: var(--danger);
 }
 
+/* ---------- 天分组 ---------- */
+
 .day {
-  margin-top: 28rpx;
+  margin-top: 26rpx;
 }
 
 .day-mark {
   display: flex;
   align-items: baseline;
   gap: 16rpx;
-  padding: 0 4rpx 14rpx;
+  padding: 0 4rpx 12rpx;
 }
 
 .dm-date {
@@ -112,19 +254,21 @@
   text-align: center;
 }
 
+/* ---------- ③ 行程卡：时间列收窄、卡片内边距收紧，内容区更宽 ---------- */
+
 .node {
   display: flex;
-  gap: 16rpx;
-  margin-bottom: 18rpx;
+  gap: 14rpx;
+  margin-bottom: 16rpx;
 }
 
 .node-time {
-  width: 118rpx;
+  width: 76rpx;
   flex: none;
   text-align: right;
-  padding-top: 22rpx;
+  padding-top: 20rpx;
   color: var(--ink-3);
-  font-size: 26rpx;
+  font-size: 24rpx;
   font-variant-numeric: tabular-nums;
 }
 
@@ -134,7 +278,7 @@
   background: var(--card);
   border-radius: var(--radius);
   border-left: 8rpx solid var(--line);
-  padding: 22rpx 26rpx;
+  padding: 20rpx 22rpx;
   box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
 }
 
@@ -142,20 +286,15 @@
   box-shadow: 0 0 0 2rpx var(--accent-soft), 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
 }
 
+/* ④ 完成不再划线：整卡略淡 + 类型行右侧的绿色小徽章（.done-badge） */
 .node.done .node-card {
-  opacity: 0.72;
+  opacity: 0.78;
 }
 
 .node-meta {
   display: flex;
   align-items: center;
   gap: 10rpx;
-}
-
-.type-dot {
-  width: 14rpx;
-  height: 14rpx;
-  border-radius: 50%;
 }
 
 /* 类型图标：由 core/glyphs 生成 data URI（platform/wx/icons.js） */
@@ -177,8 +316,25 @@
   font-weight: 600;
 }
 
-.node-range {
+.node-right {
   margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+}
+
+.done-badge {
+  flex: none;
+  padding: 2rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(39, 174, 96, 0.12);
+  color: var(--ok);
+  font-size: 22rpx;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.node-range {
   font-size: 24rpx;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
@@ -195,6 +351,15 @@
   font-size: 26rpx;
   color: var(--ink-2);
 }
+
+.node-spend {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 待办清单（勾掉的条目保留划线，那是清单内部的事） ---------- */
 
 .checks {
   margin-top: 12rpx;
@@ -232,6 +397,7 @@
 .tail {
   margin: 30rpx 0 10rpx;
   text-align: center;
+  font-size: 24rpx;
 }
 
 .loading {
@@ -255,8 +421,7 @@
   margin-top: 12rpx;
 }
 
-/* 路径没到时就这块底色撑住版面，图到了直接换 src，不引起跳动。
-   app.wxss 还没有 --surface-2 变量，退回 --line（深浅两套都有值）当占位色 */
+/* 路径没到时就这块底色撑住版面，图到了直接换 src，不引起跳动 */
 .shot-thumb {
   width: 120rpx;
   height: 120rpx;
@@ -291,7 +456,22 @@
   flex: none;
 }
 
-/* 随手记（散照片）：不属于任何一天，收在时间线末尾 */
+.act-btn.on-accent {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.act-btn.on-ok {
+  background: var(--ok);
+  color: #ffffff;
+}
+
+.act-btn.done-chip {
+  background: rgba(39, 174, 96, 0.12);
+  color: var(--ok);
+}
+
+/* 随手记（散照片/散账）：不属于任何一天，收在时间线末尾 */
 .loose {
   margin-top: 28rpx;
 }
@@ -307,96 +487,12 @@
   margin-top: 0;
 }
 
-/* ---------- Deck：前置 / 钱 两格 ---------- */
+/* ---------- 总结卡展开的明细面板（前置 / 钱） ---------- */
 
-.segs {
-  display: flex;
-  gap: 14rpx;
-  margin-top: 14rpx;
-}
-
-.seg {
-  flex: 1;
-  min-width: 0;
-  background: var(--card);
-  border-radius: 20rpx;
-  padding: 18rpx 22rpx;
-  border: 2rpx solid transparent;
-  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
-}
-
-.seg.open {
-  border-color: var(--accent-soft);
-}
-
-.seg-l1 {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-}
-
-.seg-ic {
-  width: 28rpx;
-  height: 28rpx;
-  flex: none;
-}
-
-.seg-label {
-  font-size: 24rpx;
-  color: var(--ink-2);
-}
-
-.seg-num {
-  margin-left: auto;
-  font-size: 26rpx;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.seg.ok .seg-num {
-  color: var(--ok);
-}
-
-.seg-num.danger {
-  color: var(--danger);
-}
-
-.seg-sub {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 22rpx;
-  color: var(--ink-3);
-}
-
-.bar {
-  margin-top: 10rpx;
-  height: 10rpx;
-  border-radius: 999rpx;
-  background: var(--surface-2, var(--line));
-  overflow: hidden;
-}
-
-.bar-fill {
-  height: 100%;
-  border-radius: 999rpx;
-  background: var(--accent);
-}
-
-.seg.ok .bar-fill {
-  background: var(--ok);
-}
-
-.seg.over .bar-fill {
-  background: var(--danger);
-}
-
-/* Deck 展开的明细面板 */
 .panel {
-  margin-top: 14rpx;
-  background: var(--card);
-  border-radius: var(--radius);
-  padding: 22rpx 26rpx;
-  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+  margin-top: 16rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid var(--line);
 }
 
 .panel-head {
@@ -528,37 +624,7 @@
   padding: 4rpx 8rpx;
 }
 
-/* ---------- 卡片头 / 账目行 / 打卡 ---------- */
-
-.node-head {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-}
-
-.node-meta {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-}
-
-.node-right {
-  margin-left: auto;
-  display: flex;
-  align-items: baseline;
-  gap: 12rpx;
-}
-
-.node-right .node-range {
-  margin-left: 0;
-}
-
-.node-spend {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: var(--ink-2);
-  font-variant-numeric: tabular-nums;
-}
+/* ---------- 卡片里的账目行 ---------- */
 
 .money {
   margin-top: 12rpx;
@@ -592,25 +658,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-.act-btn.on-accent {
-  background: var(--accent);
-  color: #ffffff;
-}
-
-.act-btn.on-ok {
-  background: var(--ok);
-  color: #ffffff;
-}
-
-.act-btn.done-chip {
-  background: rgba(39, 174, 96, 0.12);
-  color: var(--ok);
-}
-
 /* ---------- 每天的「加一项」与右下角快捷入口 ---------- */
 
 .day-add {
-  margin: -6rpx 0 18rpx 134rpx;
+  margin: -6rpx 0 18rpx 90rpx; /* 让开收窄后的时间列（76rpx + 14rpx 间距） */
   padding: 12rpx 0;
   font-size: 25rpx;
   color: var(--ink-3);
@@ -636,12 +687,13 @@
   opacity: 0.85;
 }
 
-/* ---------- 长按拖动排序 ---------- */
+/* ---------- ⑤ 长按拖动 v2：迷你卡 + 虚线占位 ---------- */
 
-/* 页面本身不再滚：内容整体交给 scroll-view，拖动时锁滚动、自己控制 scrollTop */
+/* 页面本身不再滚：内容整体交给 scroll-view，拖动/确认面板时锁滚动、自己控制 scrollTop */
 .timeline {
-  padding: 0;
+  box-sizing: border-box;
   height: 100vh;
+  padding: 0;
   overflow: hidden;
 }
 
@@ -650,27 +702,24 @@
 }
 
 .scroll-inner {
-  padding: 24rpx;
+  padding: 22rpx;
   padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
 }
 
-/* 被捏起来的卡片：放大、抬阴影、半透明，随手指平移（transform 由行内样式给） */
+/* 被捏起来的原卡不再放大跟手：原地留虚线框，视觉交给 fixed 的迷你卡 */
 .node.dragging {
   position: relative;
   z-index: 10;
 }
 
 .node.dragging .node-card {
-  position: relative;
-  z-index: 2;
-  box-shadow: 0 0 0 2rpx var(--accent-soft), 0 18rpx 48rpx rgba(16, 24, 40, 0.25);
-  opacity: 0.9;
+  visibility: hidden;
 }
 
-/* 原位占位：卡片走了，留一条虚线框告诉用户它从哪儿来 */
+/* 原位占位：迷你卡跟手走了，留一条虚线框告诉用户它从哪儿来 */
 .drag-ghost {
   position: absolute;
-  left: 134rpx; /* 让开左边的时间列（118rpx + 16rpx 间距） */
+  left: 90rpx; /* 让开收窄后的时间列（76rpx + 14rpx 间距） */
   right: 0;
   top: 0;
   bottom: 0;
@@ -680,11 +729,51 @@
   opacity: 0.45;
 }
 
+/* 迷你拖拽卡：一条小卡，fixed 跟着手指纵向走（top 由行内样式给） */
+.drag-card {
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 12rpx 20rpx;
+  background: var(--card);
+  border-radius: 18rpx;
+  border-left: 6rpx solid var(--accent);
+  box-shadow: 0 10rpx 30rpx rgba(16, 24, 40, 0.28);
+  pointer-events: none;
+}
+
+.drag-ic {
+  width: 30rpx;
+  height: 30rpx;
+  flex: none;
+}
+
+.drag-time {
+  flex: none;
+  font-size: 24rpx;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.drag-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 27rpx;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* 插入指示线：fixed 在视口里，跟着落点上下走 */
 .drop-line {
   position: fixed;
-  left: 28rpx;
-  right: 28rpx;
+  left: 26rpx;
+  right: 26rpx;
   height: 6rpx;
   margin-top: -3rpx;
   border-radius: 999rpx;
@@ -692,4 +781,132 @@
   box-shadow: 0 0 0 6rpx var(--accent-soft);
   z-index: 40;
   pointer-events: none;
+}
+
+/* ---------- ⑥ 落点确认面板 ---------- */
+
+.drop-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 60;
+}
+
+.drop-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  background: var(--card);
+  border-radius: 28rpx 28rpx 0 0;
+  padding: 26rpx 26rpx calc(26rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -8rpx 32rpx rgba(16, 24, 40, 0.2);
+}
+
+.ds-head {
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.ds-day {
+  margin-top: 8rpx;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.ds-list {
+  max-height: 46vh;
+  margin-top: 14rpx;
+}
+
+.drop-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 16rpx;
+}
+
+/* 被拖项高亮：放到哪儿一眼可见 */
+.drop-row.on {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2rpx var(--accent);
+}
+
+.drop-ic {
+  width: 30rpx;
+  height: 30rpx;
+  flex: none;
+}
+
+.drop-time {
+  width: 96rpx;
+  flex: none;
+  font-size: 24rpx;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.drop-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 27rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 试算顺延了时间的项：一个小标记 */
+.time-moved {
+  flex: none;
+  padding: 2rpx 12rpx;
+  border-radius: 999rpx;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 20rpx;
+}
+
+.ds-note {
+  margin-top: 10rpx;
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+.ds-acts {
+  display: flex;
+  gap: 18rpx;
+  margin-top: 20rpx;
+}
+
+.drop-cancel {
+  flex: 1;
+  padding: 20rpx 0;
+  border-radius: 20rpx;
+  background: var(--surface-2, var(--line));
+  color: var(--ink-2);
+  font-size: 30rpx;
+  text-align: center;
+}
+
+.drop-ok {
+  flex: 2;
+  padding: 20rpx 0;
+  border-radius: 20rpx;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 30rpx;
+  font-weight: 600;
+  text-align: center;
+}
+
+.drop-ok.busy {
+  opacity: 0.6;
+}
+
+.ds-press {
+  opacity: 0.85;
 }

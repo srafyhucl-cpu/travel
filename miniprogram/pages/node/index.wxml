@@ -106,13 +106,7 @@
     >{{editing ? '保存' : '添加'}}</button>
     <view wx:if="{{missing}}" class="req-missing">还差：{{missing}}</view>
 
-    <block wx:if="{{editing}}">
-      <view class="move-row">
-        <view class="move-btn" hover-class="pill-press" data-dir="-1" bindtap="onMove">↑ 上移一位</view>
-        <view class="move-btn" hover-class="pill-press" data-dir="1" bindtap="onMove">↓ 下移一位</view>
-      </view>
-      <button class="btn-danger" hover-class="btn-press" bindtap="onDelete">删除这一项</button>
-    </block>
+    <button wx:if="{{editing}}" class="btn-danger" hover-class="btn-press" bindtap="onDelete">删除这一项</button>
   </view>
 
   <view wx:else class="loading">

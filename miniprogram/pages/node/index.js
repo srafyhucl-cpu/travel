@@ -18,13 +18,6 @@ function toTypePills(vocab, current) {
   });
 }
 
-/** 同一天里按 sort_order 排好的节点（上移/下移要用） */
-function dayList(data, date) {
-  return (data.nodes || [])
-    .filter((n) => n.date === date)
-    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-}
-
 Page({
   data: {
     ready: false,
@@ -129,29 +122,7 @@ Page({
     this.setData({ checklist: [...this.data.checklist, item], focusId: item.id });
   },
 
-  /* ------------------------------ 移动 / 删除 ------------------------------ */
-
-  /** 上移/下移一位：同一批排序里的相邻位置（跨天请改日期） */
-  async onMove(e) {
-    const dir = Number(e.currentTarget.dataset.dir);
-    const data = getState().data;
-    if (!data || !this.nodeId) return;
-    const list = dayList(data, this.data.date);
-    const i = list.findIndex((n) => n.id === this.nodeId);
-    if (i < 0) return;
-    const target = dir < 0 ? list[i - 1] : list[i + 2];
-    if (dir < 0 && !target) return wx.showToast({ title: '已经是第一个', icon: 'none' });
-    if (dir > 0 && i >= list.length - 1) return wx.showToast({ title: '已经是最后一个', icon: 'none' });
-    try {
-      await actions.move({
-        nodeId: this.nodeId,
-        toDate: this.data.date,
-        beforeNodeId: target ? target.id : null,
-      });
-    } catch {
-      /* store 已经弹过提示（比如没填时间） */
-    }
-  },
+  /* ------------------------------ 删除 ------------------------------ */
 
   onDelete() {
     wx.showModal({
@@ -194,8 +165,13 @@ Page({
     };
     this.busy = true;
     try {
-      if (this.nodeId) await actions.patchNode(this.nodeId, payload);
-      else await actions.createNode(payload);
+      if (this.nodeId) {
+        await actions.patchNode(this.nodeId, payload);
+      } else {
+        const created = await actions.createNode(payload);
+        // 新建后让时间线滚到这张卡（时间线 onShow 读这个 key）
+        if (created?.id) wx.setStorageSync('travel.scrollTo', created.id);
+      }
       this.back();
     } catch {
       /* store 已经弹过提示；留着表单让用户改完重试 */
