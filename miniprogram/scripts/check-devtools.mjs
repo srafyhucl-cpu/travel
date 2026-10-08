@@ -287,6 +287,21 @@ async function nudgeRefresh(mp) {
   }
 }
 
+/** 等某个元素出现（面板/路由出现有延迟） */
+async function waitForSelector(mp, selector, tries = 16, gap = 500) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const page = await mp.currentPage();
+      const el = await page.$(selector);
+      if (el) return el;
+    } catch {
+      /* 切换中 */
+    }
+    await sleep(gap);
+  }
+  return null;
+}
+
 /** 等栈顶页变成期望的页面：路由切换比 sleep 慢、currentPage 还可能短暂滞后（新版 IDE） */
 async function waitPage(mp, expectPath, tries = 12, gap = 500) {
   for (let i = 0; i < tries; i++) {
@@ -810,39 +825,8 @@ async function runLocalFlow(mp) {
   }
 
   {
-    // 上移一位：找一天里 ≥2 项、且第二项带起止时间的
-    const snap = await snapshotInApp(mp, LOCAL_BASE);
-    const byDate = new Map();
-    for (const n of snap.data?.nodes || []) {
-      if (!byDate.has(n.date)) byDate.set(n.date, []);
-      byDate.get(n.date).push(n);
-    }
-    let day = null;
-    for (const list of byDate.values()) {
-      list.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-      if (list.length >= 2 && list[1].start_time && list[1].end_time) {
-        day = list;
-        break;
-      }
-    }
-    check('找到可移动的节点（同天 ≥2 项且有起止时间）', !!day, day ? `${day.length} 项` : '没有');
-    if (day) {
-      const [a, b] = day;
-      await mp.reLaunch(`/pages/node/index?id=${encodeURIComponent(b.id)}`);
-      await sleep(1800);
-      const page = await mp.currentPage();
-      const upBtn = await page.$('.move-btn');
-      if (upBtn) await upBtn.tap();
-      await sleep(3000);
-      const after = await snapshotInApp(mp, LOCAL_BASE);
-      const order = (after.data?.nodes || [])
-        .filter((n) => n.date === b.date)
-        .sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0))
-        .map((n) => n.id);
-      check('上移一位生效', order[0] === b.id && order[1] === a.id, `前两位=${order.slice(0, 2).join(', ')}`);
-    } else {
-      check('上移一位生效', false, '前置条件不满足，跳过');
-    }
+    // 上移/下移按钮已移除（排序统一走时间线长按拖动，见下一节）——这里只留个提示
+    console.log('  · 编辑页的上移/下移已移除，排序由拖动链路覆盖');
   }
 
   // —— 拖动排序链路：长按卡片拖到前一张上沿，松手后顺序变化；另有取消与「没时间不起拖」 ——
@@ -887,54 +871,100 @@ async function runLocalFlow(mp) {
     }
     check('拖动：找到可拖的相邻两项', !!pair, pair ? `b=${pair.b.title}` : '没有');
     if (pair) {
-      const { a, b, ia, ib, ra, rb } = pair;
-      const elB = els[ib];
+      const { a, b, ib, ra, rb } = pair;
       const cx = Math.round(ra.left + ra.w / 2);
       const cy = Math.round(rb.top + rb.h / 2);
       const ty = Math.max(140, Math.round(ra.top - 8));
       const touch = (x, y) => ({ pageX: x, pageY: y, clientX: x, clientY: y, identifier: 1 });
+      const dayOrder = async () => {
+        const s = await snapshotInApp(mp, LOCAL_BASE);
+        return (s.data?.nodes || [])
+          .filter((n) => n.date === b.date)
+          .sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0))
+          .map((n) => n.id)
+          .join(',');
+      };
 
-      await elB.touchstart({ touches: [touch(cx, cy)] });
+      // —— 第一次：拖上去 → 落点确认面板 → 取消（顺序不变、不落库） ——
+      const beforeOrder = await dayOrder();
+      await els[ib].touchstart({ touches: [touch(cx, cy)] });
       await sleep(500); // 让 350ms 的长按判定过
       const mid = await page.data();
       check('拖动：长按进入拖动模式', mid?.dragging === true && mid?.dragId === b.id, `dragging=${mid?.dragging} dragId命中=${mid?.dragId === b.id}`);
-
-      await elB.touchmove({ touches: [touch(cx, ty)] });
+      await els[ib].touchmove({ touches: [touch(cx, ty)] });
       await sleep(150);
-      await elB.touchend({ changedTouches: [touch(cx, ty)] });
-      await sleep(3500); // move 请求 + store 刷新
+      await els[ib].touchend({ changedTouches: [touch(cx, ty)] });
 
-      const after = await snapshotInApp(mp, LOCAL_BASE);
-      const order = (after.data?.nodes || [])
-        .filter((n) => n.date === b.date)
-        .sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0))
-        .map((n) => n.id);
-      const posA = order.indexOf(a.id);
-      const posB = order.indexOf(b.id);
-      check(
-        '拖动：松手后 b 排到 a 前面',
-        posB >= 0 && posA >= 0 && posB === posA - 1,
-        `顺序=${order.map((id) => (id === a.id ? 'a' : id === b.id ? 'b' : '·')).join('')}`
-      );
+      const sheet = await waitForSelector(mp, '.drop-sheet', 24, 500);
+      check('拖动：松手弹出落点确认', !!sheet, sheet ? 'ok' : '（等不到 .drop-sheet）');
+      if (sheet) {
+        const rows = await sheet.$$('.drop-row');
+        const onRow = await sheet.$('.drop-row.on');
+        check('确认面板：新顺序列表 + 被拖项高亮', rows.length >= 2 && !!onRow, `rows=${rows.length}`);
+        const cancelBtn = await sheet.$('.drop-cancel');
+        if (cancelBtn) await cancelBtn.tap();
+        await sleep(1500);
+        const orderAfterCancel = await dayOrder();
+        const sheetGone = await (await mp.currentPage()).$('.drop-sheet');
+        check('拖动：取消后不弹面板、顺序不变', !sheetGone && orderAfterCancel === beforeOrder, `面板关=${!sheetGone} ${orderAfterCancel === beforeOrder ? '顺序未变' : '顺序被改了'}`);
+      } else {
+        check('确认面板：新顺序列表 + 被拖项高亮', false, '跳过');
+        check('拖动：取消后不弹面板、顺序不变', false, '跳过');
+      }
 
-      // 取消：长按后不移动就松手 → 不发请求、顺序不变
-      const before = order.join(',');
+      // —— 第二次：同样的手势 → 确认放入（顺序变化） ——
       const els2 = await page.$$('.node');
       const flat2 = ((await page.data())?.days || []).flatMap((d) => d.nodes || []);
-      const elB2 = els2[flat2.findIndex((n) => n.id === b.id)] || elB;
-      await elB2.longpress();
-      await sleep(1500);
-      const afterCancel = await snapshotInApp(mp, LOCAL_BASE);
-      const order2 = (afterCancel.data?.nodes || [])
-        .filter((n) => n.date === b.date)
-        .sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0))
-        .map((n) => n.id)
-        .join(',');
-      check('拖动：原地松手不算移动', order2 === before, `${order2 === before ? '顺序未变' : '顺序被改了'}`);
+      const rects2 = await rectsOfElements(els2);
+      const idxA2 = flat2.findIndex((n) => n.id === a.id);
+      const idxB2 = flat2.findIndex((n) => n.id === b.id);
+      const elB2 = els2[idxB2];
+      if (elB2 && rects2[idxB2] && rects2[idxA2]) {
+        const cx2 = Math.round(rects2[idxB2].left + rects2[idxB2].w / 2);
+        const cy2 = Math.round(rects2[idxB2].top + rects2[idxB2].h / 2);
+        const ty2 = Math.max(140, Math.round(rects2[idxA2].top - 8));
+        await elB2.touchstart({ touches: [touch(cx2, cy2)] });
+        await sleep(500);
+        await elB2.touchmove({ touches: [touch(cx2, ty2)] });
+        await sleep(150);
+        await elB2.touchend({ changedTouches: [touch(cx2, ty2)] });
+        const sheet2 = await waitForSelector(mp, '.drop-sheet', 24, 500);
+        const okBtn = sheet2 ? await sheet2.$('.drop-ok') : null;
+        check('拖动：确认面板可放入', !!okBtn, okBtn ? 'ok' : '（没有 .drop-ok）');
+        if (okBtn) await okBtn.tap();
+        await sleep(4000); // move 请求 + store 刷新
+
+        const list = (await dayOrder()).split(',');
+        const posA = list.indexOf(a.id);
+        const posB = list.indexOf(b.id);
+        check(
+          '拖动：确认后 b 排到 a 前面',
+          posB >= 0 && posA >= 0 && posB === posA - 1,
+          `顺序=${list.map((id) => (id === a.id ? 'a' : id === b.id ? 'b' : '·')).join('')}`
+        );
+      } else {
+        check('拖动：确认面板可放入', false, '重新取卡片失败，跳过');
+        check('拖动：确认后 b 排到 a 前面', false, '跳过');
+      }
+
+      // —— 原地松手：不弹面板、顺序不变 ——
+      const before3 = await dayOrder();
+      const els3 = await page.$$('.node');
+      const flat3 = ((await page.data())?.days || []).flatMap((d) => d.nodes || []);
+      const elB3 = els3[flat3.findIndex((n) => n.id === b.id)] || elB2;
+      if (elB3) await elB3.longpress();
+      await sleep(1800);
+      const sheet3 = await (await mp.currentPage()).$('.drop-sheet');
+      const after3 = await dayOrder();
+      check('拖动：原地松手不弹面板、顺序不变', !sheet3 && after3 === before3, `面板=${!!sheet3} ${after3 === before3 ? '顺序未变' : '顺序被改了'}`);
     } else {
       check('拖动：长按进入拖动模式', false, '前置条件不满足，跳过');
-      check('拖动：松手后 b 排到 a 前面', false, '跳过');
-      check('拖动：原地松手不算移动', false, '跳过');
+      check('拖动：松手弹出落点确认', false, '跳过');
+      check('确认面板：新顺序列表 + 被拖项高亮', false, '跳过');
+      check('拖动：取消后不弹面板、顺序不变', false, '跳过');
+      check('拖动：确认面板可放入', false, '跳过');
+      check('拖动：确认后 b 排到 a 前面', false, '跳过');
+      check('拖动：原地松手不弹面板、顺序不变', false, '跳过');
     }
 
     // 没有起止时间的卡：长按不起拖（服务器也不收这种移动）
