@@ -86,6 +86,8 @@ export function createApi(platform) {
     setChecklistItem: (nodeId, itemId, done, text) => post(`/api/nodes/${nodeId}/checklist/${itemId}`, { done, text }),
     deleteNode: (id) => del(`/api/nodes/${id}`),
     move: (payload) => post('/api/nodes/move', payload),
+    // 试算：只读，不改数据；不排队（离线时直接失败，确认页自己兜底）
+    movePreview: (payload) => request('POST', '/api/nodes/move-preview', payload, { queueable: false }),
 
     /* ---- 打卡 ---- */
     checkin: (nodeId, action, at) => post('/api/checkins', { nodeId, action, at }),

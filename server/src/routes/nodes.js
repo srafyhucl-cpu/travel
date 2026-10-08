@@ -80,58 +80,62 @@ function orderedRows(tripId) {
 }
 
 /**
- * 插入后重排时间：从 fromDate 开始，每天从当天原本最早的开始时间起步，
- * 按当前顺序依次往后接。每一项都保持自己的时长，且永远不会比原计划更早。
- * 哪天挤不进 24 小时就停在那儿，剩下的保持原样，并报个数回去。
+ * 纯计算：一天按当前顺序「顺延」后的时间（不落库）。
+ *   · 从当天原本最早的开始时间起步，依次往后接，每项保持自己的时长；
+ *   · 被拖过来的那一项（movedId）可以提前，好落进它的新位置；
+ *   · 其它项不会比原计划更早 —— 航班、火车这种固定时间的项不该被压实提前；
+ *   · 碰到没有排期的项，它后面的接不上、保持原样；挤不进 24 小时就停在那儿。
+ * 返回 Map<id,{start_time,end_time,changed}> 和 overflow 数。
  */
-function recascade(tripId, fromDate) {
-  const rows = orderedRows(tripId);
-  const upd = db.prepare('UPDATE nodes SET start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND trip_id = ?');
-  const now = nowISO();
-  let changed = 0;
+function planDayTimes(dayRows, movedId) {
+  let cursor = anchorOf(dayRows);
+  const out = new Map();
   let overflow = 0;
-  let curDate = null;
-  let cursor = null;
-  let halted = false;
-
-  const tx = db.transaction(() => {
-    for (const r of rows) {
-      if (r.date < fromDate) continue;
-
-      if (r.date !== curDate) {
-        curDate = r.date;
-        cursor = anchorOf(rows.filter((x) => x.date === r.date));
-        halted = false;
-      }
-
-      const span = spanOf(r);
-      const own = timeToMinutes(r.start_time);
-      if (span === null || own === null) {
-        cursor = null; // 碰到没排期的，它后面的接不上，保持原样
-        continue;
-      }
-      if (cursor === null || halted) {
-        if (!halted) cursor = own + span;
-        continue;
-      }
-
-      const s = Math.max(cursor, own);
-      if (s >= 1440) {
-        overflow++;
-        halted = true;
-        continue;
-      }
-      const e = s + span;
-      const curEnd = timeToMinutes(r.end_time);
-      if (s !== own || curEnd !== e) {
-        upd.run(minutesToTime(s), minutesToTime(e), now, r.id, tripId);
-        changed++;
-      }
-      cursor = e;
+  for (const r of dayRows) {
+    const span = spanOf(r);
+    const own = timeToMinutes(r.start_time);
+    if (span === null || own === null) {
+      cursor = null; // 碰到没排期的，它后面的接不上，保持原样
+      continue;
     }
-  });
-  tx();
-  return { changed, overflow };
+    if (cursor === null) continue;
+    const s = r.id === movedId ? cursor : Math.max(cursor, own);
+    if (s >= 1440) {
+      overflow += 1;
+      break;
+    }
+    const e = s + span;
+    out.set(r.id, {
+      start_time: minutesToTime(s),
+      end_time: minutesToTime(e),
+      changed: s !== own || timeToMinutes(r.end_time) !== e,
+    });
+    cursor = e;
+  }
+  return { times: out, overflow };
+}
+
+/** 把 node 插到 toDate 这天、beforeNodeId 前面，返回新的全局顺序（不落库） */
+function planMoveOrder(tripId, node, toDate, beforeNodeIdRaw) {
+  const beforeId = beforeNodeIdRaw ? String(beforeNodeIdRaw) : null;
+  const all = orderedRows(tripId);
+  const order0 = all.map((r) => r.id).join(',');
+  const rows = all.filter((r) => r.id !== node.id);
+
+  let at = beforeId ? rows.findIndex((r) => r.id === beforeId) : -1;
+  /*
+   * 「放回它自己前面那个空位」就是放回原位，不是落点丢了。
+   * 手指拖出去又拖回来、或者只是往上挪了一点点，都会正好命中这里 ——
+   * 以前一律报 400，在手机上就表现为「怎么都放不下去」。
+   */
+  if (at < 0 && beforeId === node.id) at = all.findIndex((r) => r.id === node.id);
+  if (at < 0) {
+    if (beforeId) return { error: 'bad_target' };
+    at = rows.length;
+  }
+
+  rows.splice(at, 0, { ...node, date: toDate });
+  return { rows, moved: rows.map((r) => r.id).join(',') !== order0 };
 }
 
 /** 某天的起步时间：当天所有有时间的节点里最早的那个 */
@@ -336,40 +340,72 @@ router.post('/move', (req, res) => {
     return res.status(422).json({ error: 'need_time', message: '这一项还没有时间，先填上开始和结束时间再拖' });
   }
 
-  const beforeId = req.body?.beforeNodeId ? String(req.body.beforeNodeId) : null;
-  const all = orderedRows(tripId);
-  const order0 = all.map((r) => r.id).join(',');
-  const rows = all.filter((r) => r.id !== node.id);
+  const plan = planMoveOrder(tripId, node, toDate, req.body?.beforeNodeId);
+  if (plan.error === 'bad_target') return res.status(400).json({ error: 'bad_target', message: '落点已经不存在了' });
 
-  let at = beforeId ? rows.findIndex((r) => r.id === beforeId) : -1;
-  /*
-   * 「放回它自己前面那个空位」就是放回原位，不是落点丢了。
-   * 手指拖出去又拖回来、或者只是往上挪了一点点，都会正好命中这里 ——
-   * 以前一律报 400，在手机上就表现为「怎么都放不下去」。
-   */
-  if (at < 0 && beforeId === node.id) at = all.findIndex((r) => r.id === node.id);
-  if (at < 0) {
-    if (beforeId) return res.status(400).json({ error: 'bad_target', message: '落点已经不存在了' });
-    at = rows.length;
-  }
-  rows.splice(at, 0, { ...node, date: toDate });
+  // 时间只重排「下手的那一天」：源天的时间保持不动（不早于原计划的原则）
+  const dayRows = plan.rows.filter((r) => r.date === toDate);
+  const { times, overflow } = planDayTimes(dayRows, node.id);
 
-  const upd = db.prepare('UPDATE nodes SET sort_order = ?, date = ?, updated_at = ? WHERE id = ? AND trip_id = ?');
+  const updSort = db.prepare('UPDATE nodes SET sort_order = ?, date = ?, updated_at = ? WHERE id = ? AND trip_id = ?');
+  const updTime = db.prepare('UPDATE nodes SET start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND trip_id = ?');
   const now = nowISO();
+  let changed = 0;
   const tx = db.transaction(() => {
-    rows.forEach((r, i) => upd.run(i * 10, r.date, now, r.id, tripId));
+    plan.rows.forEach((r, i) => updSort.run(i * 10, r.date, now, r.id, tripId));
+    for (const [id, t] of times) {
+      if (!t.changed) continue;
+      updTime.run(t.start_time, t.end_time, now, id, tripId);
+      changed += 1;
+    }
   });
   tx();
 
   expandTripRange(tripId, toDate);
-  const result = recascade(tripId, toDate < node.date ? toDate : node.date);
-
   broadcast(tripId, { type: 'nodes' });
   // 顺序到底变没变，和时间有没有跟着挪是两回事 —— 放回原位时后者是 0，
   // 但前端得知道「这一下等于没动」，不然用户以为又是没放进去
-  const moved = rows.map((r) => r.id).join(',') !== order0;
+  res.json({ ok: true, date: toDate, moved: plan.moved, changed, overflow });
+});
 
-  res.json({ ok: true, date: toDate, moved, ...result });
+/** 试算：同样的移动，算出目标天重排后的顺序与时间，不落库（确认页用） */
+router.post('/move-preview', (req, res) => {
+  const tripId = req.auth.tid;
+  const node = getNode(String(req.body?.nodeId || ''), tripId);
+  if (!node) return res.status(404).json({ error: 'not_found' });
+
+  const toDate = String(req.body?.toDate || node.date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(toDate)) return res.status(400).json({ error: 'bad_date' });
+
+  if (spanOf(node) === null) {
+    return res.status(422).json({ error: 'need_time', message: '这一项还没有时间，先填上开始和结束时间再拖' });
+  }
+
+  const plan = planMoveOrder(tripId, node, toDate, req.body?.beforeNodeId);
+  if (plan.error === 'bad_target') return res.status(400).json({ error: 'bad_target', message: '落点已经不存在了' });
+
+  const dayRows = plan.rows.filter((r) => r.date === toDate);
+  const { times, overflow } = planDayTimes(dayRows, node.id);
+  res.json({
+    ok: true,
+    dry: true,
+    date: toDate,
+    moved: plan.moved,
+    overflow,
+    day: {
+      date: toDate,
+      nodes: dayRows.map((r) => {
+        const t = times.get(r.id);
+        return {
+          id: r.id,
+          title: r.title,
+          start_time: t ? t.start_time : r.start_time,
+          end_time: t ? t.end_time : r.end_time,
+          time_changed: !!(t && t.changed),
+        };
+      }),
+    },
+  });
 });
 
 /** 整天顺延：把 fromDate 及之后的每一项整体挪 days 天，顺序不变 */

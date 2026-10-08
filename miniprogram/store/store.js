@@ -294,6 +294,8 @@ export const actions = {
   patchNode: (id, payload) => run(() => api.patchNode(id, payload)),
   deleteNode: (id) => run(() => api.deleteNode(id)),
   move: (payload) => run(() => api.move(payload)),
+  // 拖动确认页的试算：不改数据，所以不走 run()（不自动刷新、不全局 toast）
+  previewMove: (payload) => api.movePreview(payload),
 
   checkin: (nodeId, action) => run(() => api.checkin(nodeId, action)),
 
