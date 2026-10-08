@@ -144,6 +144,12 @@ console.log('\n== 打卡 ==');
   const node = snap.json.nodes.find((x) => x.id === nodeIds[1]);
   check('节点状态变 done', node.status === 'done', node.status);
   check('打卡记录 2 条', snap.json.checkins.length === 2, String(snap.json.checkins.length));
+  const meMember = snap.json.members.find((m) => m.name === '我');
+  check(
+    '打卡归属落在打卡人头上',
+    snap.json.checkins.every((c) => c.member_id === meMember.id),
+    JSON.stringify(snap.json.checkins.map((c) => c.member_id))
+  );
 }
 
 console.log('\n== 预算与消费 ==');
@@ -190,6 +196,10 @@ let photoId = '';
 
   const bad = await api('GET', `/api/photos/${photoId}/file?variant=huge`);
   check('非法变体被拒', bad.status === 400, String(bad.status));
+
+  const snap = await api('GET', '/api/trip/snapshot');
+  const meMember = snap.json.members.find((m) => m.name === '我');
+  check('照片带上传者', snap.json.photos[0]?.member_id === meMember.id, String(snap.json.photos[0]?.member_id));
 }
 
 console.log('\n== 快照 ==');

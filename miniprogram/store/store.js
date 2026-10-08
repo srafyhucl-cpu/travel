@@ -8,6 +8,7 @@
 import { api, flushQueue, onAuthFailure } from './api.js';
 import { platform } from '../platform/index.js';
 import { normalizeSnapshot } from '../core/checklist.js';
+import { computeAchievements } from '../core/achievements.js';
 
 const listeners = new Set();
 
@@ -132,6 +133,39 @@ function startClock() {
   }, 30000); // 每 30 秒刷新一次"现在"，够用且不费电
 }
 
+/* ------------------------------ 成就 ------------------------------ */
+
+/*
+ * 解锁庆祝：和本机已读记录对比，新解锁的合并成一条 toast。
+ * 第一次跑（还没有记录）只登记不弹 —— 升级时一口气解锁十几个不是惊喜是噪音。
+ * 成就是锦上添花，任何失败都咽掉，别影响同步主流程。
+ */
+async function celebrateAchievements(data) {
+  try {
+    const achv = computeAchievements(data);
+    const meId = data.meId || data.members?.find((m) => m.name === data.me)?.id || null;
+    const mine = [...achv.team, ...(achv.byMember[meId] || [])];
+    const doneIds = mine.filter((b) => b.done).map((b) => b.id);
+
+    const meta = await platform.storage.loadMeta('achvSeen');
+    if (!meta || !Array.isArray(meta.ids)) {
+      await platform.storage.saveMeta('achvSeen', { ids: doneIds });
+      return;
+    }
+    const seen = new Set(meta.ids);
+    const fresh = mine.filter((b) => b.done && !seen.has(b.id));
+    const merged = [...new Set([...meta.ids, ...doneIds])];
+    if (merged.length !== meta.ids.length) await platform.storage.saveMeta('achvSeen', { ids: merged });
+    if (fresh.length) {
+      const names = fresh.slice(0, 3).map((b) => b.title).join('、');
+      // 延后一点：先让刚触发的操作提示（如"已上传 2 张照片"）说完，再庆祝
+      setTimeout(() => toast(`解锁成就：${names}${fresh.length > 3 ? ' 等' : ''}`, 'success'), 1800);
+    }
+  } catch {
+    /* 忽略 */
+  }
+}
+
 /* ------------------------------ 拉数据 ------------------------------ */
 
 export async function refresh({ quiet = false } = {}) {
@@ -142,6 +176,7 @@ export async function refresh({ quiet = false } = {}) {
     set({ data, phase: 'ready', syncing: false, error: null });
     // 改过名之后，登录页预填也要跟着换成新名字，否则下次会被认成另一个人
     if (data?.me) platform.session.setMemberName(data.me);
+    await celebrateAchievements(data);
     if (data?.trip?.id) await platform.storage.saveSnapshot(data.trip.id, data);
   } catch (e) {
     if (e.status === 0) {

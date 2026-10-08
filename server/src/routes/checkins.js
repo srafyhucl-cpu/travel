@@ -1,6 +1,6 @@
 import express from 'express';
 import { db, nowISO, uid } from '../db.js';
-import { requireAuth } from '../auth.js';
+import { memberIdOf, requireAuth } from '../auth.js';
 import { broadcast } from '../events.js';
 
 const router = express.Router();
@@ -24,11 +24,11 @@ router.post('/', (req, res) => {
   if (!node) return res.status(404).json({ error: 'not_found', message: '行程项不存在' });
 
   const at = req.body?.at && !Number.isNaN(Date.parse(req.body.at)) ? new Date(req.body.at).toISOString() : nowISO();
-  const row = { id: uid(), trip_id: tripId, node_id: nodeId, action, at_time: at, created_at: nowISO() };
+  const row = { id: uid(), trip_id: tripId, node_id: nodeId, member_id: memberIdOf(req), action, at_time: at, created_at: nowISO() };
 
   const tx = db.transaction(() => {
     db.prepare(
-      'INSERT INTO checkins (id, trip_id, node_id, action, at_time, created_at) VALUES (@id, @trip_id, @node_id, @action, @at_time, @created_at)'
+      'INSERT INTO checkins (id, trip_id, node_id, member_id, action, at_time, created_at) VALUES (@id, @trip_id, @node_id, @member_id, @action, @at_time, @created_at)'
     ).run(row);
 
     if (action === 'done') {

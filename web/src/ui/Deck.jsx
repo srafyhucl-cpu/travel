@@ -191,7 +191,7 @@ export default function Deck({ clock, vocab, budget, members, me, modules, onEdi
                         </span>
                         <span className="grow small strong truncate">
                           {p.name}
-                          {me === p.name && <span className="me-tag">我</span>}
+                          {me === p.name && p.name !== '我' && <span className="me-tag">我</span>}
                         </span>
                         <span className="small mono-num">{formatMoney(p.paid)}</span>
                       </div>

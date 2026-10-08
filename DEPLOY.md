@@ -163,6 +163,9 @@ node scripts\check-platform.mjs   # 不用开发者工具，先在 Node 里把 p
 - **深色主题的挂载点是 `<html data-theme>`**（`styles/tokens.css` 里两套 token）。
   首屏前置脚本在 `index.html`，「跟随系统」的解析在 `ui/theme.js`——改主题逻辑时两处都要动。
   海报/长图是给相册看的图片，固定浅色，不跟主题。
+- **打卡/照片的 `member_id`** 是成就的个人归属依据：新写入从 token 的 `mid` 落，
+  老数据启动时追认给「创建者」（最早加入的成员）。换 token 格式（auth.js 的
+  signToken）时别忘了继续带 `mid`，否则归属会退化成按名字反查。
 - **照片派生图。** `data/photos/derived/` 里是服务端生成的缩略图（320）与展示图（2048，
   HEIC 也在这里转成 JPEG）；原图永远不动，删除照片会连派生一起删。改过派生参数
   （尺寸/质量）要清掉 `derived/` 重新生成；存量照片预热：`node src/tools/warm-derivatives.js`

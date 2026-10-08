@@ -1,9 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useStore } from './useStore.js';
 import { backupUrl, icsUrl, templateUrl } from '../store/api.js';
 import { actions, askConfirm, toast } from '../store/store.js';
 import { platform } from '../platform/index.js';
 import { getThemeMode, setThemeMode } from './theme.js';
+import { computeAchievements } from '../core/achievements.js';
+import Achievements from './Achievements.jsx';
 import { Icon, Glyph, Sheet, Field, Input, Empty } from './bits.jsx';
 import { DateField } from './pickers.jsx';
 import { PICKABLE } from '../core/glyphs.js';
@@ -19,6 +21,20 @@ export default function Settings({ embedded, onOpenPoster }) {
   const [themeMode, setThemeModeState] = useState(() => getThemeMode());
   const [importDraft, setImportDraft] = useState(null); // { template, fileName }
   const importRef = useRef(null);
+
+  /** 成就解锁数：入口的副标题用；徽章明细在弹层里现算 */
+  const achvCounts = useMemo(() => {
+    if (!data) return null;
+    const achv = computeAchievements(data);
+    const meId = data.meId || achv.memberList.find((m) => m.name === data.me)?.id;
+    const mine = achv.byMember[meId] || [];
+    return {
+      mine: mine.filter((b) => b.done).length,
+      mineTotal: mine.length,
+      team: achv.team.filter((b) => b.done).length,
+      teamTotal: achv.team.length,
+    };
+  }, [data]);
 
   /** 选了模板文件：解析 + 粗验格式，之后交给弹层确认怎么铺 */
   async function pickTemplate(ev) {
@@ -116,7 +132,7 @@ export default function Settings({ embedded, onOpenPoster }) {
               </span>
               <span className="grow small strong">
                 {m.name}
-                {m.name === me && <span className="me-tag">我</span>}
+                {m.name === me && m.name !== '我' && <span className="me-tag">我</span>}
               </span>
             </div>
           ))}
@@ -261,6 +277,27 @@ export default function Settings({ embedded, onOpenPoster }) {
           </div>
         </div>
 
+        {/* 成就 */}
+        <div className="section-title">成就</div>
+        <div className="card-flat">
+          <button
+            className="cat-row"
+            style={{ width: '100%', textAlign: 'left', background: 'none', border: 0 }}
+            onClick={() => setSheet('achv')}
+          >
+            <Icon name="sparkle" size={19} />
+            <div className="grow">
+              <div className="small strong">旅行成就</div>
+              <div className="tiny dim">
+                {achvCounts
+                  ? `我的 ${achvCounts.mine}/${achvCounts.mineTotal} · 全队 ${achvCounts.team}/${achvCounts.teamTotal}`
+                  : '从行程、打卡、照片和记账里自动算'}
+              </div>
+            </div>
+            <Icon name="chevron" size={16} />
+          </button>
+        </div>
+
         <div className="section-title">账号</div>
         <div className="card-flat">
           <button
@@ -287,6 +324,7 @@ export default function Settings({ embedded, onOpenPoster }) {
       {sheet === 'members' && <MemberEditor members={members} onClose={() => setSheet(null)} />}
       {sheet === 'pass' && <PassphraseEditor onClose={() => setSheet(null)} />}
       {sheet === 'vocab' && <VocabManager vocab={vocab} onClose={() => setSheet(null)} />}
+      {sheet === 'achv' && <Achievements onClose={() => setSheet(null)} />}
       {addingVocab && <VocabCreator kind={addingVocab} onClose={() => setAddingVocab(null)} />}
       {importDraft && <TemplateImportSheet draft={importDraft} trip={trip} onClose={() => setImportDraft(null)} />}
     </>

@@ -70,7 +70,7 @@ export default function ExpenseEditor({ draft, vocab, members, me, nodes, onClos
                   onClick={() => setForm((f) => ({ ...f, payer: m.name }))}
                 >
                   {m.name}
-                  {m.name === me && <span className="me-tag">我</span>}
+                  {m.name === me && m.name !== '我' && <span className="me-tag">我</span>}
                 </button>
               ))}
             </div>

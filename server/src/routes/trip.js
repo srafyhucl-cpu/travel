@@ -78,7 +78,7 @@ router.get('/snapshot', (req, res) => {
     .map((e) => ({ ...e, participants: parseJSON(e.participants, members.map((m) => m.name)) }));
   const checkins = db.prepare('SELECT * FROM checkins WHERE trip_id = ? ORDER BY at_time').all(tripId);
   const photos = db
-    .prepare('SELECT id, node_id, filename, mime, size, width, height, caption, taken_at, created_at FROM photos WHERE trip_id = ? ORDER BY created_at DESC')
+    .prepare('SELECT id, node_id, member_id, filename, mime, size, width, height, caption, taken_at, created_at FROM photos WHERE trip_id = ? ORDER BY created_at DESC')
     .all(tripId);
 
   // 按日期分组，并补出没有行程的日子（空白日也要显示，不然"第几天"会错位）

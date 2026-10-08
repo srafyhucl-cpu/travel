@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { db, nowISO, uid, PHOTO_DIR } from '../db.js';
-import { requireAuth } from '../auth.js';
+import { memberIdOf, requireAuth } from '../auth.js';
 import { broadcast } from '../events.js';
 import { ensureDerivative, isVariant, removeDerivatives, warmPhoto } from '../derivatives.js';
 
@@ -70,7 +70,7 @@ router.use(requireAuth);
 router.get('/', (req, res) => {
   res.json(
     db
-      .prepare('SELECT id, node_id, filename, mime, size, width, height, caption, taken_at, created_at FROM photos WHERE trip_id = ? ORDER BY created_at DESC')
+      .prepare('SELECT id, node_id, member_id, filename, mime, size, width, height, caption, taken_at, created_at FROM photos WHERE trip_id = ? ORDER BY created_at DESC')
       .all(req.auth.tid)
   );
 });
@@ -97,10 +97,11 @@ router.post('/', upload.array('photos', 12), (req, res) => {
   const caption = req.body?.caption ? String(req.body.caption).slice(0, 200) : null;
 
   const ins = db.prepare(
-    `INSERT INTO photos (id, trip_id, node_id, filename, mime, size, width, height, caption, taken_at, created_at)
-     VALUES (@id, @trip_id, @node_id, @filename, @mime, @size, @width, @height, @caption, @taken_at, @created_at)`
+    `INSERT INTO photos (id, trip_id, node_id, member_id, filename, mime, size, width, height, caption, taken_at, created_at)
+     VALUES (@id, @trip_id, @node_id, @member_id, @filename, @mime, @size, @width, @height, @caption, @taken_at, @created_at)`
   );
 
+  const uploaderId = memberIdOf(req);
   const rows = [];
   const tx = db.transaction(() => {
     for (const f of files) {
@@ -108,6 +109,7 @@ router.post('/', upload.array('photos', 12), (req, res) => {
         id: uid(),
         trip_id: tripId,
         node_id: nodeId,
+        member_id: uploaderId,
         filename: f.filename,
         mime: f.mimetype,
         size: f.size,
@@ -180,7 +182,7 @@ router.patch('/:id', (req, res) => {
 
   db.prepare('UPDATE photos SET caption = ?, node_id = ? WHERE id = ?').run(caption, nodeId, photo.id);
   broadcast(tripId, { type: 'photos' });
-  res.json(db.prepare('SELECT id, node_id, filename, mime, size, width, height, caption, taken_at, created_at FROM photos WHERE id = ?').get(photo.id));
+  res.json(db.prepare('SELECT id, node_id, member_id, filename, mime, size, width, height, caption, taken_at, created_at FROM photos WHERE id = ?').get(photo.id));
 });
 
 router.delete('/:id', (req, res) => {

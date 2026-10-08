@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS checkins (
   id         TEXT PRIMARY KEY,
   trip_id    TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   node_id    TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  member_id  TEXT,
   action     TEXT NOT NULL,
   at_time    TEXT NOT NULL,
   created_at TEXT NOT NULL
@@ -113,6 +114,7 @@ CREATE TABLE IF NOT EXISTS photos (
   id         TEXT PRIMARY KEY,
   trip_id    TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   node_id    TEXT REFERENCES nodes(id) ON DELETE SET NULL,
+  member_id  TEXT,
   filename   TEXT NOT NULL,
   mime       TEXT NOT NULL,
   size       INTEGER NOT NULL,
@@ -173,6 +175,28 @@ ensureColumn('vocab', 'created_at', "TEXT NOT NULL DEFAULT ''");
 // 「首页模块」标记：打了这个标的那条会搬进顶部常驻块（前置准备），时间线上不再重复。
 // 同一趟只留一个，写入时服务端会把别处的标记收掉。
 ensureColumn('nodes', 'role', 'TEXT');
+
+// 成就归属：打卡和照片是谁做的。新写入从 token 的 mid 落；老数据启动时追认。
+ensureColumn('checkins', 'member_id', 'TEXT');
+ensureColumn('photos', 'member_id', 'TEXT');
+{
+  /*
+   * 老数据追认给「创建者」——该旅行最早加入的成员（通常就是“我”）。
+   * 幂等：只填 NULL，每次启动兜一遍；追认在一次事务里做完。
+   */
+  const fill = (table) => {
+    db.prepare(
+      `UPDATE ${table}
+          SET member_id = (SELECT id FROM members WHERE trip_id = ${table}.trip_id ORDER BY created_at LIMIT 1)
+        WHERE member_id IS NULL`
+    ).run();
+  };
+  const tx = db.transaction(() => {
+    fill('checkins');
+    fill('photos');
+  });
+  tx();
+}
 
 /*
 * 默认词汇表。这里是「出厂设置」，用户可以在 App 里随时增删改，

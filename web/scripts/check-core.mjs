@@ -12,6 +12,7 @@ import { normalizeItems, normalizeSnapshot, progress, CHECKLIST_MAX } from '../s
 import { computeBudget } from '../src/core/budget.js';
 import { computeNow } from '../src/core/timeline.js';
 import { buildLongImageModel, pickPhotosByNode } from '../src/core/vlog-model.js';
+import { computeAchievements } from '../src/core/achievements.js';
 
 let failures = 0;
 
@@ -124,6 +125,54 @@ console.log('\n== vlog-model ==');
   eq('单节点最多 2 张', picks.get('n1').length, 2);
   const total = [...picks.values()].reduce((s, v) => s + v.length, 0);
   ok('整趟最多 6 张', total === 6, `实际 ${total} 张`);
+}
+
+console.log('\n== achievements ==');
+{
+  // 用本地时间构造 ISO，早起鸟（7 点前）在任何时区都能稳定验证
+  const mk = (y, m, d, h) => new Date(y, m - 1, d, h).toISOString();
+  const data = {
+    trip: { start_date: '2026-10-01', end_date: '2026-10-03' },
+    members: [
+      { id: 'm1', name: '我', created_at: mk(2026, 9, 20, 10) },
+      { id: 'm2', name: '同伴', created_at: mk(2026, 9, 21, 10) },
+    ],
+    nodes: [
+      { id: 'n1', date: '2026-10-01', status: 'done', checklist: [{ id: 'c1', text: '充电宝', done: true, done_at: mk(2026, 9, 30, 20) }] },
+      { id: 'n2', date: '2026-10-01', status: 'done', checklist: [] },
+      { id: 'n3', date: '2026-10-02', status: 'planned', role: 'module', checklist: [{ id: 'c2', text: '订票', done: false, done_at: null }] },
+    ],
+    checkins: [
+      { id: 'k1', node_id: 'n1', member_id: 'm1', action: 'done', at_time: mk(2026, 10, 1, 6) },
+      { id: 'k2', node_id: 'n2', member_id: 'm2', action: 'done', at_time: mk(2026, 10, 1, 20) },
+      { id: 'k3', node_id: 'n1', member_id: 'm2', action: 'arrived', at_time: mk(2026, 10, 1, 9) },
+    ],
+    photos: [
+      { id: 'p1', member_id: 'm1', created_at: mk(2026, 10, 1, 12) },
+      { id: 'p2', member_id: 'm1', created_at: mk(2026, 10, 2, 12) },
+    ],
+    expenses: [{ id: 'e1', amount: 100, payer: '我', category: 'food' }],
+    budgets: [{ id: 'b1', planned_amount: 500 }],
+  };
+
+  const a = computeAchievements(data, new Date(2026, 9, 5, 12));
+  const find = (list, id) => list.find((b) => b.id === id);
+
+  eq('个人：早起鸟解锁（本地 6 点打卡）', find(a.byMember.m1, 'me-early').done, true);
+  eq('个人：第一张照片解锁', find(a.byMember.m1, 'me-photo-1').done, true);
+  eq('个人：十张照片带进度', find(a.byMember.m1, 'me-photo-10').progress, { done: 2, total: 10 });
+  eq('个人：同伴没有照片', find(a.byMember.m2, 'me-photo-1').done, false);
+  eq('个人：同伴完成 1 项（五子登科进度）', find(a.byMember.m2, 'me-done-5').progress.done, 1);
+  eq('个人：同伴到过 1 站（进度）', find(a.byMember.m2, 'me-stations-3').progress, { done: 1, total: 3 });
+  eq('个人：解锁时间取首条打卡', find(a.byMember.m1, 'me-first-checkin').at, mk(2026, 10, 1, 6));
+
+  eq('全队：完美一天解锁', find(a.team, 'team-perfect-day').done, true);
+  eq('全队：结伴同行解锁', find(a.team, 'team-companion').done, true);
+  eq('全队：一个不落未解锁（还有一条待办）', find(a.team, 'team-checklist').done, false);
+  eq('全队：准备就绪未解锁', find(a.team, 'team-prep').done, false);
+  eq('全队：全部完成未解锁（3 项完成 2）', find(a.team, 'team-all').done, false);
+  eq('全队：量入为出在结束后判定', find(a.team, 'team-budget').done, true);
+  eq('全队：旅行中不判量入为出', find(computeAchievements(data, new Date(2026, 9, 2, 12)).team, 'team-budget').done, false);
 }
 
 console.log(failures ? `\n${failures} 项失败 ❌\n` : '\n全部通过 ✅\n');

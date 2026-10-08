@@ -147,7 +147,22 @@ await t.shot('打开落在现在这格');
   t.check('导入成功提示', tplToast.includes('已导入 1 项'), tplToast);
   await h.sleep(700);
 
-  /* 4.2 改名之后「我」还认得出来。
+  /*
+   * 4.2 成就页：入口显示计数、弹层能开、徽章网格渲染。
+   * 徽章条件本身由 check:core 覆盖，这里只验 UI 链路。
+   */
+  t.check('有成就入口', (await page.locator('.sheet button:has-text("旅行成就")').count()) > 0);
+  await page.locator('.sheet button:has-text("旅行成就")').click();
+  await page.waitForSelector('.ach-grid .ach-card', { timeout: 8000 });
+  const achCount = await page.locator('.ach-card').count();
+  const achText = await page.locator('.sheet').last().innerText();
+  t.check('成就页有徽章与解锁数', achCount >= 8 && achText.includes('已解锁'), `${achCount} 枚`);
+  await h.sleep(500); // 等弹层淡入跑完再截
+  await t.shot('成就');
+  await page.keyboard.press('Escape');
+  await h.sleep(500);
+
+  /* 4.3 改名之后「我」还认得出来。
    * token 里存的是登录时的旧名字，快照得靠 meId 反查成员表才能对上；
    * 只按名字认「我」的实现，这一步标签会消失。
    */

@@ -88,4 +88,21 @@ export function touchKey(keyId) {
   db.prepare('UPDATE trip_keys SET last_used_at = ? WHERE id = ?').run(nowISO(), keyId);
 }
 
+/**
+ * 请求属于哪个成员：token 里的 mid 优先（验一下确实在这趟旅行里），
+ * 老 token 没 mid 的按名字反查；都认不出来就返回 null
+ * （启动时的追认逻辑会把 null 的行填给创建者，见 db.js）。
+ */
+export function memberIdOf(req) {
+  const auth = req.auth || {};
+  if (auth.mid && db.prepare('SELECT 1 FROM members WHERE id = ? AND trip_id = ?').get(auth.mid, auth.tid)) {
+    return auth.mid;
+  }
+  if (auth.name) {
+    const m = db.prepare('SELECT id FROM members WHERE trip_id = ? AND name = ?').get(auth.tid, auth.name);
+    if (m) return m.id;
+  }
+  return null;
+}
+
 export { uid };

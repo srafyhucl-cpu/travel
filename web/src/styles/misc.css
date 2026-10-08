@@ -628,3 +628,51 @@ body.is-dragging {
 :root[data-theme='dark'] .soft-chip {
   background: color-mix(in srgb, currentColor 16%, transparent) !important;
 }
+
+/* ------------------------------ 成就 ------------------------------ */
+
+.ach-sum {
+  margin: 2px 2px 4px;
+}
+
+.ach-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ach-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 12px 10px;
+}
+
+.ach-card.locked {
+  opacity: 0.62;
+}
+
+.ach-ic {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.ach-at {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ok);
+}
+
+.ach-prog {
+  margin-top: 4px;
+  text-align: right;
+}
