@@ -54,7 +54,7 @@ function toExpRow(e, vocab) {
   };
 }
 
-function toCard(n, vocab, currentId, expRows) {
+function toCard(n, vocab, currentId, expRows, moduleId) {
   const meta = typeMeta(vocab, n.type);
   const spent = expRows.reduce((s, e) => s + (Number(e.rawAmount) || 0), 0);
   return {
@@ -73,6 +73,8 @@ function toCard(n, vocab, currentId, expRows) {
     doneAt: n.isDone ? hhmm(n.actual_end) : '',
     current: n.id === currentId ? 1 : 0,
     checklist: (n.checklist || []).map((c) => ({ id: c.id, text: c.text, done: c.done ? 1 : 0 })),
+    // 被顶栏「前置」收编的那个模块：待办只在 Deck 里出现，卡片上不再重复一份
+    hideChecks: moduleId && n.id === moduleId ? 1 : 0,
     money: expRows,
     spend: spent > 0 ? formatMoney(spent) : '',
   };
@@ -117,22 +119,6 @@ function buildView(s) {
     }
   }
 
-  const days = clock.allDates.map((d) => {
-    const list = byDate.get(d) || [];
-    return {
-      date: d,
-      label: formatDate(d),
-      rel: relativeDay(d, s.now),
-      isToday: d === clock.today,
-      done: list.filter((n) => n.isDone).length,
-      total: list.length,
-      nodes: list.map((n) => {
-        const rows = (expByNode.get(n.id) || []).map((e) => ({ ...toExpRow(e, data.vocab), rawAmount: e.amount }));
-        return { ...toCard(n, data.vocab, clock.currentNode?.id, rows), photos: byNode.get(n.id) || [] };
-      }),
-    };
-  });
-
   /* 前置模块：role === 'module' 的那一项，在「现在」卡下面单独露一份进度 */
   const module = (data.nodes || []).find((n) => n.role === 'module') || null;
   let moduleView = null;
@@ -150,6 +136,22 @@ function buildView(s) {
       checks: (module.checklist || []).map((c) => ({ id: c.id, text: c.text, done: c.done ? 1 : 0 })),
     };
   }
+
+  const days = clock.allDates.map((d) => {
+    const list = byDate.get(d) || [];
+    return {
+      date: d,
+      label: formatDate(d),
+      rel: relativeDay(d, s.now),
+      isToday: d === clock.today,
+      done: list.filter((n) => n.isDone).length,
+      total: list.length,
+      nodes: list.map((n) => {
+        const rows = (expByNode.get(n.id) || []).map((e) => ({ ...toExpRow(e, data.vocab), rawAmount: e.amount }));
+        return { ...toCard(n, data.vocab, clock.currentNode?.id, rows, module?.id), photos: byNode.get(n.id) || [] };
+      }),
+    };
+  });
 
   /* 钱：总预算对照（core/budget 与 Web 同一份逻辑） */
   const b = computeBudget({ budgets: data.budgets, expenses: data.expenses });

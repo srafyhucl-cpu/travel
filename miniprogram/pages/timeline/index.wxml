@@ -134,7 +134,7 @@
             />
           </view>
 
-          <view wx:if="{{n.checklist.length}}" class="checks">
+          <view wx:if="{{n.checklist.length && !n.hideChecks}}" class="checks">
             <view
               wx:for="{{n.checklist}}"
               wx:for-item="c"
