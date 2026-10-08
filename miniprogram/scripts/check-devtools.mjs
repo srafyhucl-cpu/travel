@@ -6,7 +6,7 @@
  *   默认（只读，打生产）：
  *     PASS=你的口令 node scripts/check-devtools.mjs
  *     - 先连已开着的自动化桥（ws://127.0.0.1:9420），连不上再让 automator 拉起；
- *     - 等 3 秒；如果落在登录页，用 PASS +「龙哥」登录后点「进入这趟旅行」；
+ *     - 等 3 秒；确认会话真能打通生产（必要时用 PASS +「龙哥」登录，只登录不建成员）；
  *     - 断言：当前页是行程页、data.ready === true、days.length > 0；
  *     - 全程收集 console(type=error) 与 exception，有报错或断言失败 → 退出码 1。
  *     ★ 默认模式只能用「龙哥」：生产库用「我」会凭空多出一个空壳成员（历史教训）。
@@ -16,7 +16,10 @@
  *     - 把 server/data 整份复制到临时目录，另起 7042 端口的后端；
  *     - 小程序里把 travel.base 指向它，登录随便建成员（副本库）；
  *     - 行程页断言同上；再验证照片数据层：上传 1×1 PNG → 快照 photos +1 →
- *       删除 → 数量复原 → 清掉 travel.base（App 下次启动回生产）；
+ *       删除 → 数量复原；再跑「记一笔」链路（临时库账目 +1 → 自动回时间线）；
+ *     - 若 scripts/fixtures/ 里有 HEIC 样本（或设 HEIC_SAMPLE=<路径>），
+ *       追加 HEIC 全链路：上传 → 类型按魔数归一 → 服务端派生 JPEG → 缩略图渲染；
+ *     - 跑完还原你原来的会话与 base（IDE 里重启小程序即回原会话）；
  *     - 结束时关掉临时后端、删掉临时数据；真库一个字节都不动。
  *
  * 环境变量：CLI_PATH 覆盖 cli.bat 路径；PROJECT 覆盖小程序工程路径。
@@ -46,11 +49,25 @@ const WS_PORT = 9420;
 const WS_ENDPOINT = `ws://127.0.0.1:${WS_PORT}`;
 const LOCAL_PORT = 7042;
 const LOCAL_BASE = `http://127.0.0.1:${LOCAL_PORT}`;
+const PROD_BASE = 'https://travel.hclstudio.cn'; // 和 platform/wx/net.js 里的生产地址一致
 const LOCAL = process.argv.includes('--local');
 
 // 上传用：1×1 的合法 PNG（服务端要过魔数校验，大小无所谓）
 const TINY_PNG_B64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+// HEIC 全链路验证用的样本：版权原因不入库，放一张到 fixtures/（或 HEIC_SAMPLE 指路径）
+const FIXTURES_DIR = path.join(HERE, 'fixtures');
+function findHeicSample() {
+  if (process.env.HEIC_SAMPLE && fs.existsSync(process.env.HEIC_SAMPLE)) return process.env.HEIC_SAMPLE;
+  try {
+    const hit = fs.readdirSync(FIXTURES_DIR).find((f) => /\.hei[cf]$/i.test(f));
+    if (hit) return path.join(FIXTURES_DIR, hit);
+  } catch {
+    /* 目录不存在就跳过 */
+  }
+  return null;
+}
 
 const PASS = process.env.PASS;
 if (!PASS) {
@@ -72,6 +89,8 @@ try {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let failures = 0;
+/** runLocalFlow 登记的收尾动作：无论跑成还是炸了，都把小程序存储还回去 */
+let localRestore = null;
 function check(name, ok, detail = '') {
   console.log(`  ${ok ? '✓' : '✗'} ${name}${detail ? `  —— ${detail}` : ''}`);
   if (!ok) failures += 1;
@@ -197,21 +216,88 @@ function photoCountOf(data) {
 }
 
 /**
- * 轮询等第一张缩略图拿到本地路径 —— fillThumbs 是异步逐张补的。
+ * 轮询等缩略图拿到本地路径 —— fillThumbs 是异步逐张补的。
  * 这条断言抓过真问题：files 导入缝隙会让有照片的页面在渲染时直接抛错。
+ * needle 非空时只认 src 里带这段文字的那张（本地文件名带照片 id，用来避免
+ * 抓到 store 里旧数据残留的缩略图 —— 它看起来"渲染成功"，其实张冠李戴）。
  */
-async function waitThumbSrc(page, tries = 12, gap = 800) {
+async function waitThumbSrc(page, tries = 12, gap = 800, needle = '') {
   let count = 0;
   for (let i = 0; i < tries; i++) {
     const els = await page.$$('.shot-thumb');
     count = els.length;
     for (const el of els) {
       const src = await el.attribute('src');
-      if (src) return { count, src };
+      if (src && (!needle || src.includes(needle))) return { count, src };
     }
     if (i < tries - 1) await sleep(gap);
   }
   return { count, src: '' };
+}
+
+/** 催一次 store 刷新（下拉刷新走 refresh；不依赖 20 秒轮询） */
+async function nudgeRefresh(mp) {
+  try {
+    const page = await mp.currentPage();
+    await page?.callMethod?.('onPullDownRefresh');
+  } catch {
+    /* 没有 callMethod 也不怕：后面的等待循环能兜住一次 20 秒轮询 */
+  }
+}
+
+/**
+ * 确保存储里的令牌真能打通 base —— 页面上可能是上一次会话/副本的旧数据，
+ * 「看到行程页」不等于会话有效。四种状态都会收敛：
+ *   · 已通 → 直接返回；
+ *   · 落在登录页 → 走一次真实 UI 登录；
+ *   · 有令牌但打不通 → 催 store 刷新，401 会把页面顶回登录页（下一轮走 UI 登录）；
+ *   · 没有令牌 → refresh 会直接早退、等不到 401，直接打登录接口写入会话。
+ */
+async function ensureSession(mp, { base, name, hint }) {
+  const snapOk = async () => {
+    try {
+      return (await snapshotInApp(mp, base)).status === 200;
+    } catch {
+      return false; // 连不上也算没对齐，交给循环和最后的断言
+    }
+  };
+  let ok = await snapOk();
+  let rawTried = 0;
+  for (let i = 0; !ok && i < 10; i++) {
+    const page = await mp.currentPage();
+    if (page?.path === 'pages/login/index') {
+      console.log(`在登录页：用口令 +「${name}」登录（${hint}）…`);
+      await loginOnPage(mp, name);
+      await sleep(5000);
+      ok = await snapOk();
+      break;
+    }
+    const hasToken = await mp.evaluate(() => !!wx.getStorageSync('travel.token'));
+    if (hasToken) {
+      await nudgeRefresh(mp);
+    } else if (rawTried < 2) {
+      rawTried += 1;
+      const raw = await rawLoginInApp(mp, base, PASS, name);
+      if (raw.status === 200 && raw.token) {
+        await mp.evaluate(
+          (s) => {
+            wx.setStorageSync('travel.token', s.token);
+            if (s.tripId) wx.setStorageSync('travel.tripId', s.tripId);
+            if (s.memberName) wx.setStorageSync('travel.memberName', s.memberName);
+          },
+          { token: raw.token, tripId: raw.tripId, memberName: raw.memberName }
+        );
+        console.log('  · 存储里没有令牌，已直接登录并写入会话');
+        await nudgeRefresh(mp); // 让 store 用新令牌把页面数据刷成这个库的
+      } else {
+        console.log(`  · 直接登录失败：status=${raw.status}${raw.error ? ` ${raw.error}` : ''}`);
+      }
+    }
+    await sleep(2500);
+    ok = await snapOk(); // 每轮收尾都重查一次（之前漏了这行：令牌写进去了也没人复查）
+    if (!ok) console.log(`  · 还没打通（第 ${i + 1} 轮），继续等`);
+  }
+  return ok;
 }
 
 /* ------------------------------ 控制台报错收集 ------------------------------ */
@@ -246,13 +332,14 @@ function snapshotInApp(mp, base) {
   );
 }
 
-function uploadTinyPng(mp, base, nodeId) {
+/** 把一段 base64 写进小程序用户目录并上传（wx.uploadFile 的真实链路） */
+function uploadBytesInApp(mp, base, { name, b64, nodeId }) {
   return mp.evaluate(
-    (b, b64, nid) =>
+    (b, o) =>
       new Promise((resolve) => {
-        const filePath = `${wx.env.USER_DATA_PATH}/wx-check.png`;
+        const filePath = `${wx.env.USER_DATA_PATH}/${o.name}`;
         try {
-          wx.getFileSystemManager().writeFileSync(filePath, b64, 'base64');
+          wx.getFileSystemManager().writeFileSync(filePath, o.b64, 'base64');
         } catch (e) {
           resolve({ status: 0, error: `writeFile: ${e.errMsg || e}` });
           return;
@@ -262,14 +349,63 @@ function uploadTinyPng(mp, base, nodeId) {
           filePath,
           name: 'photos',
           header: { Authorization: `Bearer ${wx.getStorageSync('travel.token')}` },
-          formData: { nodeId: String(nid) },
+          formData: { nodeId: String(o.nodeId) },
           success: (r) => resolve({ status: r.statusCode, data: r.data }),
           fail: (e) => resolve({ status: 0, error: `uploadFile: ${e.errMsg || e}` }),
         });
       }),
     base,
-    TINY_PNG_B64,
-    nodeId
+    { name, b64, nodeId }
+  );
+}
+
+/** 直接打登录接口拿会话（存储里没有令牌、等不到 401 顶回登录页时的兜底） */
+function rawLoginInApp(mp, base, passphrase, name) {
+  return mp.evaluate(
+    (b, p, n) =>
+      new Promise((resolve) => {
+        wx.request({
+          method: 'POST',
+          url: `${b}/api/auth/login`,
+          header: { 'content-type': 'application/json' },
+          data: { passphrase: p, name: n },
+          success: (r) =>
+            resolve({
+              status: r.statusCode,
+              token: r.data?.token || '',
+              tripId: r.data?.trip?.id || '',
+              memberName: r.data?.member?.name || '',
+            }),
+          fail: (e) => resolve({ status: 0, error: e.errMsg || 'request failed' }),
+        });
+      }),
+    base,
+    passphrase,
+    name
+  );
+}
+
+/** 请求某个变体，返回状态 / Content-Type / 字节数（验证服务端派生图） */
+function variantInApp(mp, base, photoId, variant) {
+  return mp.evaluate(
+    (b, pid, v) =>
+      new Promise((resolve) => {
+        wx.request({
+          url: `${b}/api/photos/${pid}/file?variant=${v}`,
+          responseType: 'arraybuffer',
+          header: { Authorization: `Bearer ${wx.getStorageSync('travel.token')}` },
+          success: (r) =>
+            resolve({
+              status: r.statusCode,
+              type: (r.header && (r.header['Content-Type'] || r.header['content-type'])) || '',
+              bytes: r.data ? r.data.byteLength || 0 : 0,
+            }),
+          fail: (e) => resolve({ status: 0, error: e.errMsg || 'request failed' }),
+        });
+      }),
+    base,
+    photoId,
+    variant
   );
 }
 
@@ -288,6 +424,20 @@ function deletePhotoInApp(mp, base, id) {
     base,
     id
   );
+}
+
+/** 把跑测试前存的会话与 base 写回去（正常收尾和中断兜底共用） */
+function restoreSessionInApp(mp, saved) {
+  return mp.evaluate((s) => {
+    if (s.base) wx.setStorageSync('travel.base', s.base);
+    else wx.removeStorageSync('travel.base');
+    if (s.token) wx.setStorageSync('travel.token', s.token);
+    else wx.removeStorageSync('travel.token');
+    if (s.tripId) wx.setStorageSync('travel.tripId', s.tripId);
+    else wx.removeStorageSync('travel.tripId');
+    if (s.memberName) wx.setStorageSync('travel.memberName', s.memberName);
+    else wx.removeStorageSync('travel.memberName');
+  }, saved);
 }
 
 /* ------------------------------ 临时后端 ------------------------------ */
@@ -383,13 +533,15 @@ async function runDefaultFlow(mp) {
   console.log('\n== 默认模式：只读打生产 ==');
   await sleep(3000); // 等首页编译 + 首屏渲染
 
-  let page = await mp.currentPage();
+  const page = await mp.currentPage();
   console.log(`当前页：${page?.path || '（读不到）'}`);
-  if (page?.path === 'pages/login/index') {
-    console.log('在登录页：用口令 +「龙哥」登录（只登录，不新建成员）…');
-    await loginOnPage(mp, '龙哥');
-    await sleep(5000); // 登录 + 拉快照 + reLaunch
-  }
+
+  // 会话防呆：页面上的数据可能是上一次 --local 留下的副本旧数据 —— 先确认
+  // 令牌真能打通生产，再往下断言（跑完 --local 会把会话还原成你原来的状态）
+  const ok = await ensureSession(mp, { base: PROD_BASE, name: '龙哥', hint: '只登录，不新建成员' });
+  check('会话有效（生产快照 200）', ok, ok ? '快照 200' : '没打通生产');
+  await nudgeRefresh(mp); // 把页面数据也刷成生产的，别让断言落在旧数据上
+  await sleep(1500);
 
   const t = await waitTimeline(mp);
   check('当前页是行程页 pages/timeline/index', t.page?.path === 'pages/timeline/index', t.page?.path || '（读不到）');
@@ -420,7 +572,20 @@ async function runLocalFlow(mp) {
     throw new Error(`当前页不是 travel 小程序（${p0?.path || '读不到页面'}）；--local 会写小程序存储，请先把本项目切到前台`);
   }
 
-  // 指向本机后端并回行程页（App 不重启；结尾会清掉 travel.base）。
+  // 先存下你原来的会话：本机开发库和生产库的密钥不同（各自的 pepper/secret），
+  // 切到本机后端后生产会话必然 401；跑完要原样还回去。
+  const saved = await mp.evaluate((localBase) => {
+    const b = wx.getStorageSync('travel.base') || '';
+    return {
+      base: b === localBase ? '' : b, // 上次中断可能漏下本机地址，当成没有
+      token: wx.getStorageSync('travel.token') || '',
+      tripId: wx.getStorageSync('travel.tripId') || '',
+      memberName: wx.getStorageSync('travel.memberName') || '',
+    };
+  }, LOCAL_BASE);
+  localRestore = () => restoreSessionInApp(mp, saved); // 中途炸了由 main 的 finally 兜底
+
+  // 指向本机后端并回行程页（App 不重启；结尾还原）。
   // 注意：reLaunch 不要塞进 evaluate —— 路由切换会拆掉小程序上下文，evaluate 的
   // 响应就此丢失（automator 侧表现为 "timeout waiting for automator response"）。
   // 用 SDK 自带的 reLaunch：它把 {url} 包好、等路由切换、再返回新页面。
@@ -428,14 +593,15 @@ async function runLocalFlow(mp) {
     wx.setStorageSync('travel.base', base);
   }, LOCAL_BASE);
   await mp.reLaunch('/pages/timeline/index');
-  await sleep(2000); // 给重定向/首拉快照留时间
+  await sleep(1500);
 
-  const page = await mp.currentPage();
-  if (page?.path === 'pages/login/index') {
-    console.log('在登录页：用副本库的口令 +「我」登录（副本库，随便建成员）…');
-    await loginOnPage(mp, '我');
-    await sleep(5000);
-  }
+  // 会话对齐：看到行程页不等于会话有效 —— 页面上可能还挂着上一次的旧数据
+  const sessionReady = await ensureSession(mp, { base: LOCAL_BASE, name: '我', hint: '副本库，随便建成员' });
+  check('会话已对齐到本机后端', sessionReady, sessionReady ? '快照 200' : '30 秒内没对齐');
+
+  // 对齐后再刷一次，确保页面数据也来自本机库（旧数据可能是上一次会话的）
+  await nudgeRefresh(mp);
+  await sleep(1500);
 
   const t = await waitTimeline(mp);
   check('当前页是行程页 pages/timeline/index', t.page?.path === 'pages/timeline/index', t.page?.path || '（读不到）');
@@ -452,7 +618,7 @@ async function runLocalFlow(mp) {
 
   let uploadedId = null;
   if (before.status === 200 && nodeId) {
-    const up = await uploadTinyPng(mp, LOCAL_BASE, nodeId);
+    const up = await uploadBytesInApp(mp, LOCAL_BASE, { name: 'wx-check.png', b64: TINY_PNG_B64, nodeId });
     const upData = parseMaybe(up.data);
     uploadedId = (Array.isArray(upData) ? upData[0]?.id : upData?.id) || null;
     check(
@@ -465,14 +631,16 @@ async function runLocalFlow(mp) {
   }
 
   if (uploadedId) {
+    await nudgeRefresh(mp); // 让 store 立刻看到新照片（不等 20 秒轮询）
     await mp.reLaunch('/pages/timeline/index');
-    await sleep(4000);
+    await sleep(1200);
 
-    // UI 层：新照片的缩略图要真的补出本地路径（files.url → fillThumbs → image src）
-    const localThumb = await waitThumbSrc(await mp.currentPage());
+    // UI 层：新照片的缩略图要真的补出本地路径（files.url → fillThumbs → image src），
+    // 且必须就是刚传的那张（src 带照片 id），旧数据的缩略图不算数
+    const localThumb = await waitThumbSrc(await mp.currentPage(), 25, 800, uploadedId);
     check(
       '时间线渲染出缩略图（本地路径）',
-      localThumb.count > 0 && !!localThumb.src,
+      !!localThumb.src,
       `thumbs=${localThumb.count} src=${(localThumb.src || '').slice(0, 60)}`
     );
 
@@ -493,6 +661,60 @@ async function runLocalFlow(mp) {
 
     const back = await snapshotInApp(mp, LOCAL_BASE);
     check('删除后 photos 回到原值', toCount(back.data?.photos) === beforeCount, `${afterPhotos.length} → ${toCount(back.data?.photos)}`);
+  }
+
+  // —— HEIC 链路（可选）：真样本走一遍 上传 → 类型归一 → 派生 JPEG → 缩略图渲染 ——
+  console.log('\n== HEIC 链路（可选：有样本才跑） ==');
+  const heicSample = findHeicSample();
+  if (!heicSample) {
+    console.log(`  · 没找到 HEIC 样本，跳过（放一张到 ${FIXTURES_DIR}，或设 HEIC_SAMPLE=<路径>）`);
+  } else {
+    const b64 = fs.readFileSync(heicSample).toString('base64');
+    console.log(`  · 样本：${path.basename(heicSample)}（${Math.round(b64.length / 1024)}KB base64）`);
+    const up = await uploadBytesInApp(mp, LOCAL_BASE, { name: 'check.heic', b64, nodeId });
+    const upData = parseMaybe(up.data);
+    const heicId = (Array.isArray(upData) ? upData[0]?.id : upData?.id) || null;
+    check(
+      'HEIC 上传',
+      (up.status === 200 || up.status === 201) && !!heicId,
+      `status=${up.status} id=${heicId || ''}${up.error ? ` error=${up.error}` : ''}`
+    );
+    if (heicId) {
+      // 类型必须按魔数归一到 image/heic（客户端给的 mimetype 不可信）
+      const snap = await snapshotInApp(mp, LOCAL_BASE);
+      const row = (snap.data?.photos || []).find((p) => p.id === heicId);
+      check('类型按魔数归一到 image/heic', row?.mime === 'image/heic', `mime=${row?.mime || '（没找到）'}`);
+
+      // 服务端派生：HEIC → JPEG
+      const thumb = await variantInApp(mp, LOCAL_BASE, heicId, 'thumb');
+      check(
+        'HEIC 派生缩略图是 JPEG',
+        thumb.status === 200 && /image\/jpeg/i.test(thumb.type) && thumb.bytes > 500,
+        `status=${thumb.status} type=${thumb.type} bytes=${thumb.bytes}`
+      );
+
+      // UI：缩略图真渲染（服务端转出的 JPEG 才能被 <image> 解码），
+      // 且必须命中 HEIC 这张 —— 上一次这条断言抓到的其实是旧数据的缩略图
+      await nudgeRefresh(mp);
+      await mp.reLaunch('/pages/timeline/index');
+      await sleep(1200);
+      const heicThumb = await waitThumbSrc(await mp.currentPage(), 25, 800, heicId);
+      check(
+        'HEIC 照片的缩略图渲染',
+        !!heicThumb.src,
+        `thumbs=${heicThumb.count} src=${(heicThumb.src || '').slice(0, 70)}`
+      );
+
+      const del = await deletePhotoInApp(mp, LOCAL_BASE, heicId);
+      check('HEIC 照片删除', del.status === 200, `status=${del.status}`);
+      await mp.reLaunch('/pages/timeline/index');
+      await sleep(1500);
+    } else {
+      check('类型按魔数归一到 image/heic', false, '上传失败，跳过');
+      check('HEIC 派生缩略图是 JPEG', false, '上传失败，跳过');
+      check('HEIC 照片的缩略图渲染', false, '上传失败，跳过');
+      check('HEIC 照片删除', false, '上传失败，跳过');
+    }
   }
 
   // —— 记一笔链路：进记账页 → 填金额 → 提交 → 临时库账目 +1 → 自动回时间线 ——
@@ -521,12 +743,15 @@ async function runLocalFlow(mp) {
     }
   }
 
-  // 收尾：让 App 下次启动回生产
-  await mp.evaluate(() => {
-    wx.removeStorageSync('travel.base');
-  });
-  const leftover = await mp.evaluate(() => wx.getStorageSync('travel.base') || '');
-  check('travel.base 已清掉（下次启动回生产）', leftover === '', String(leftover || '（空）'));
+  // 收尾：把跑测试前的会话与 base 原样还回去（IDE 里重启小程序即可回到原会话）
+  await restoreSessionInApp(mp, saved);
+  const restored = await mp.evaluate(() => ({
+    base: wx.getStorageSync('travel.base') || '',
+    token: wx.getStorageSync('travel.token') || '',
+  }));
+  check('travel.base 已还原', restored.base === saved.base, `base=${restored.base || '（空）'}`);
+  check('会话已还原', restored.token === saved.token, restored.token ? 'token 一致' : '保持未登录');
+  localRestore = null; // 正常收尾完成，不需要兜底了
 }
 
 /* ------------------------------ main ------------------------------ */
@@ -567,6 +792,15 @@ async function main() {
     console.error('脚本自己炸了：', e?.stack || e);
     return 2;
   } finally {
+    try {
+      if (localRestore) {
+        // 流程中途炸了：存储里可能还留着 travel.base / 副本会话，尽力还回去
+        await localRestore();
+        console.log('（中断兜底）小程序会话与 base 已还原');
+      }
+    } catch {
+      /* 连接可能已经断了，尽力而为 */
+    }
     try {
       if (mp) mp.disconnect(); // 只断开自动化连接，不 close —— 别把用户的 IDE 关掉
       if (mp) console.log('已断开自动化连接（IDE 窗口保持原样）');
