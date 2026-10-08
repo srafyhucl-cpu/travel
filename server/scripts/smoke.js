@@ -218,6 +218,21 @@ console.log('\n== 模板导出 ==');
   check('模板返回', r.status === 200);
   check('模板有 days', Array.isArray(r.json.days) && r.json.days.length === 2, JSON.stringify(r.json.days?.length));
   check('模板节点无 id', r.json.days[0].nodes.every((n) => !n.id));
+
+  // 把刚导出的模板再导回去，从行程首日开始铺
+  const imp = await api('POST', '/api/export/import-template', { template: r.json });
+  check('模板导入成功', imp.status === 200 && imp.json?.created === 2, JSON.stringify(imp.json));
+  const snap = await api('GET', '/api/trip/snapshot');
+  const imported = snap.json.nodes.filter((n) => n.title === r.json.days[0].nodes[0].title);
+  check('导入的节点在快照里', imported.length === 2, `${imported.length} 条（原有 1 条）`);
+}
+
+console.log('\n== 完整备份 ==');
+{
+  const r = await api('GET', '/api/export/backup');
+  check('备份返回', r.status === 200 && r.json?.kind === 'travel-backup', String(r.json?.kind));
+  check('备份含行程/消费/打卡', !!r.json?.trip && Array.isArray(r.json?.expenses) && Array.isArray(r.json?.checkins), Object.keys(r.json || {}).join(','));
+  check('坏模板被拒', (await api('POST', '/api/export/import-template', { template: { kind: 'nope' } })).status === 400);
 }
 
 console.log('\n== 鉴权 ==');

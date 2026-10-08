@@ -23,3 +23,6 @@ ses_*.json
 Thumbs.db
 .env
 .env.local
+
+# 视觉辅助（brainstorming）会话的临时状态与产物，不进库
+.superpowers/

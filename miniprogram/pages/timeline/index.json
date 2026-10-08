@@ -1,5 +1,5 @@
 {
   "enablePullDownRefresh": true,
-  "backgroundTextStyle": "dark",
+  "backgroundTextStyle": "@bgTxtStyle",
   "navigationBarTitleText": "旅行助手"
 }

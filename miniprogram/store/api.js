@@ -102,6 +102,9 @@ export function createApi(platform) {
     patchTrip: (payload) => patch('/api/trip/trip', payload),
     patchMember: (id, payload) => patch(`/api/trip/members/${id}`, payload),
 
+    /* ---- 导入 ---- */
+    importTemplate: (payload) => post('/api/export/import-template', payload),
+
     /* ---- 词汇表（行程类型 / 消费类别）---- */
     getVocab: () => get('/api/vocab'),
     addVocab: (payload) => post('/api/vocab', payload),
@@ -174,4 +177,8 @@ export function icsUrl() {
 
 export function templateUrl() {
   return platform.net.url('/api/export/template');
+}
+
+export function backupUrl() {
+  return platform.net.url('/api/export/backup');
 }

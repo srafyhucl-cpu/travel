@@ -116,10 +116,38 @@ await t.shot('打开落在现在这格');
   await h.sleep(800);
   const settingsLen = (await page.locator('.sheet').innerText()).length;
   t.check('设置页有内容', settingsLen > 50, `${settingsLen} 字`);
+  t.check(
+    '有导入与备份入口',
+    (await page.locator('.sheet button:has-text("导入行程模板")').count()) > 0 &&
+      (await page.locator('.sheet a:has-text("下载完整备份")').count()) > 0
+  );
   await t.shot('设置页');
 
   /*
-   * 4.1 改名之后「我」还认得出来。
+   * 4.1 导入行程模板：选文件 → 弹层确认天数/项数 → 真的导进去。
+   * 服务端的导入语义在 server smoke 里另有用例，这里走的是 UI 全链路。
+   */
+  const tpl = {
+    kind: 'travel-template',
+    version: 1,
+    days: [{ dayIndex: 0, nodes: [{ type: 'spot', title: '模板节', startTime: '10:00' }] }],
+  };
+  await page.locator('.sheet input[type="file"]').setInputFiles({
+    name: 'tpl.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(tpl)),
+  });
+  await page.waitForSelector('.sheet button:has-text("导入 1 项")', { timeout: 8000 });
+  const importText = await page.locator('.sheet').last().innerText();
+  t.check('导入弹层说得清（1 天 1 项）', importText.includes('共 1 天') && importText.includes('1 项行程'), importText.replace(/\n/g, ' | ').slice(0, 80));
+  await t.shot('导入模板');
+  await page.locator('.sheet button:has-text("导入 1 项")').click();
+  await page.waitForSelector('.toast.success', { timeout: 8000 });
+  const tplToast = await page.locator('.toast.success').innerText();
+  t.check('导入成功提示', tplToast.includes('已导入 1 项'), tplToast);
+  await h.sleep(700);
+
+  /* 4.2 改名之后「我」还认得出来。
    * token 里存的是登录时的旧名字，快照得靠 meId 反查成员表才能对上；
    * 只按名字认「我」的实现，这一步标签会消失。
    */

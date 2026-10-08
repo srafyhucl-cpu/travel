@@ -18,6 +18,23 @@ page {
   line-height: 1.5;
 }
 
+/* 深色模式：与 Web 的 tokens 同一套值（见 web/src/styles/tokens.css）。
+   app.json 里开了 darkmode + theme.json，导航栏/页面底色由微信按偏好自动切。 */
+@media (prefers-color-scheme: dark) {
+  page {
+    --bg: #0f1115;
+    --card: #171a20;
+    --ink: #e8eaef;
+    --ink-2: #a0a6b0;
+    --ink-3: #6e747e;
+    --line: rgba(255, 255, 255, 0.09);
+    --accent: #4b93f2;
+    --accent-soft: rgba(75, 147, 242, 0.16);
+    --ok: #3dbb70;
+    --danger: #ef6b60;
+  }
+}
+
 /* 小程序 button 自带一根边框，用伪元素画出来的，统一去掉 */
 button::after {
   border: none;
@@ -61,7 +78,7 @@ button::after {
 .field .input {
   height: 84rpx;
   padding: 0 24rpx;
-  background: #ffffff;
+  background: var(--card);
   border: 1rpx solid var(--line);
   border-radius: 20rpx;
   font-size: 30rpx;

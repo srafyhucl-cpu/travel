@@ -30,7 +30,7 @@
         <view class="node-time">{{n.time}}</view>
         <view class="node-card" style="border-left-color:{{n.typeColor}}">
           <view class="node-meta">
-            <view class="type-dot" style="background:{{n.typeColor}}"></view>
+            <image class="type-icon" src="{{n.icon}}" mode="aspectFit" />
             <text class="type-name" style="color:{{n.typeColor}}">{{n.typeLabel}}</text>
             <text wx:if="{{n.range}}" class="node-range">{{n.range}}</text>
           </view>

@@ -1,6 +1,7 @@
 import { actions, getState, refresh, subscribe } from '../../store/store.js';
 import { computeNow, decorate, groupByDate } from '../../core/timeline.js';
 import { formatDate, relativeDay, typeMeta } from '../../core/format.js';
+import { iconDataUri } from '../../platform/wx/icons.js';
 
 /** 「现在」卡：口径与 Web 的 Deck 一致，数据来自 core/timeline 的 computeNow */
 function nowCard(clock) {
@@ -35,6 +36,7 @@ function toCard(n, vocab, currentId) {
     typeLabel: meta.label,
     typeColor: meta.color,
     typeSoft: meta.soft,
+    icon: iconDataUri(meta.icon, meta.color),
     location: n.location || '',
     done: n.isDone ? 1 : 0,
     current: n.id === currentId ? 1 : 0,

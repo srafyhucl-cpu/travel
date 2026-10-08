@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { glyph, hasGlyph } from './glyphs.js';
+import { glyph, hasGlyph } from '../core/glyphs.js';
 
 /* ------------------------------ 图标 ------------------------------ */
 

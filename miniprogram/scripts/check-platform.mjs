@@ -85,6 +85,13 @@ const check = (name, cond, extra = '') => {
   await platform.queue.remove(seq);
   check('队列删除', (await platform.queue.size()) === 0);
 
+  const { iconDataUri } = await import('../platform/wx/icons.js');
+  const icon = iconDataUri('pin', '#F2994A');
+  check('图标 data URI 生成', icon.startsWith('data:image/svg+xml;base64,'), icon.slice(0, 42));
+  const svg = Buffer.from(icon.split(',')[1], 'base64').toString('utf8');
+  check('图标内容正确（颜色+图形）', svg.includes('#F2994A') && svg.includes('<path'), svg.slice(0, 70));
+  check('自写 base64 与标准一致', icon.split(',')[1] === Buffer.from(svg, 'utf8').toString('base64'));
+
   console.log('\n== 登录 + 快照（真实服务器） ==');
   const res = await actions.login(PASS, '我');
   check('登录成功', !!res?.token, res?.trip?.name || '');

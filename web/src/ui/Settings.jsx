@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useStore } from './useStore.js';
-import { icsUrl, templateUrl } from '../store/api.js';
+import { backupUrl, icsUrl, templateUrl } from '../store/api.js';
 import { actions, askConfirm, toast } from '../store/store.js';
 import { platform } from '../platform/index.js';
 import { getThemeMode, setThemeMode } from './theme.js';
 import { Icon, Glyph, Sheet, Field, Input, Empty } from './bits.jsx';
 import { DateField } from './pickers.jsx';
-import { PICKABLE } from './glyphs.js';
+import { PICKABLE } from '../core/glyphs.js';
 import { formatDate, daysBetween, todayStr, tintOf } from '../core/format.js';
 const MEMBER_COLORS = ['#2F80ED', '#E2574C', '#27AE60', '#F2994A', '#9B51E0', '#00897B', '#111827'];
 
@@ -17,6 +17,25 @@ export default function Settings({ embedded, onOpenPoster }) {
   const [sheet, setSheet] = useState(null); // 'trip' | 'members' | 'vocab' | null
   const [addingVocab, setAddingVocab] = useState(null); // 'node_type' | 'expense_category'
   const [themeMode, setThemeModeState] = useState(() => getThemeMode());
+  const [importDraft, setImportDraft] = useState(null); // { template, fileName }
+  const importRef = useRef(null);
+
+  /** 选了模板文件：解析 + 粗验格式，之后交给弹层确认怎么铺 */
+  async function pickTemplate(ev) {
+    const file = ev.target.files?.[0];
+    ev.target.value = '';
+    if (!file) return;
+    try {
+      const tpl = JSON.parse(await file.text());
+      if (!tpl || tpl.kind !== 'travel-template' || !Array.isArray(tpl.days)) {
+        toast('这不是本 App 导出的行程模板', 'warn');
+        return;
+      }
+      setImportDraft({ template: tpl, fileName: file.name });
+    } catch {
+      toast('文件读不出来，或者不是有效的 JSON', 'warn');
+    }
+  }
 
   if (!data) {
     return (
@@ -164,6 +183,35 @@ export default function Settings({ embedded, onOpenPoster }) {
           <button
             className="cat-row"
             style={{ width: '100%', textAlign: 'left', background: 'none', border: 0, borderBottom: '1px solid var(--line)' }}
+            onClick={() => importRef.current?.click()}
+          >
+            <Icon name="upload" size={19} />
+            <div className="grow">
+              <div className="small strong">导入行程模板</div>
+              <div className="tiny dim">选一个之前导出的 JSON，按天铺到当前行程（只新增）</div>
+            </div>
+            <Icon name="chevron" size={16} />
+          </button>
+          <input
+            ref={importRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={pickTemplate}
+          />
+
+          <a className="cat-row" href={backupUrl()} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <Icon name="download" size={19} />
+            <div className="grow">
+              <div className="small strong">下载完整备份</div>
+              <div className="tiny dim">行程 + 消费 + 打卡的 JSON 存档（不含照片本体）</div>
+            </div>
+            <Icon name="download" size={16} />
+          </a>
+
+          <button
+            className="cat-row"
+            style={{ width: '100%', textAlign: 'left', background: 'none', border: 0, borderBottom: '1px solid var(--line)' }}
             onClick={onOpenPoster}
           >
             <Icon name="sparkle" size={19} />
@@ -240,6 +288,7 @@ export default function Settings({ embedded, onOpenPoster }) {
       {sheet === 'pass' && <PassphraseEditor onClose={() => setSheet(null)} />}
       {sheet === 'vocab' && <VocabManager vocab={vocab} onClose={() => setSheet(null)} />}
       {addingVocab && <VocabCreator kind={addingVocab} onClose={() => setAddingVocab(null)} />}
+      {importDraft && <TemplateImportSheet draft={importDraft} trip={trip} onClose={() => setImportDraft(null)} />}
     </>
   );
 }
@@ -332,6 +381,48 @@ function MemberEditor({ members, onClose }) {
           }}
         >
           保存
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+/* ------------------------------ 导入模板 ------------------------------ */
+
+function TemplateImportSheet({ draft, trip, onClose }) {
+  const [startDate, setStartDate] = useState(trip.start_date || todayStr());
+  const [busy, setBusy] = useState(false);
+  const days = draft.template.days || [];
+  const total = days.reduce((s, d) => s + (d.nodes?.length || 0), 0);
+
+  return (
+    <Sheet title="导入行程模板" onClose={onClose}>
+      <div className="stack">
+        <div className="card-flat" style={{ padding: 14 }}>
+          <div className="small strong truncate">{draft.fileName}</div>
+          <div className="tiny dim" style={{ marginTop: 4 }}>
+            共 {days.length} 天 · {total} 项行程。只新增节点，不动已有内容。
+          </div>
+        </div>
+        <Field label="从哪一天开始铺" hint="模板的第 1 天对齐这一天，依次往后排">
+          <DateField value={startDate} onChange={setStartDate} />
+        </Field>
+        <button
+          className="btn primary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await actions.importTemplate({ template: draft.template, startDate });
+              onClose();
+            } catch {
+              /* store 已经弹过提示 */
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? '导入中…' : `导入 ${total} 项`}
         </button>
       </div>
     </Sheet>

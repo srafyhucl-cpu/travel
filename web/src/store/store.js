@@ -282,6 +282,15 @@ export const actions = {
   changePassphrase: (current, next) => run(() => api.changePassphrase({ current, next })),
 
   patchTrip: (payload) => run(() => api.patchTrip(payload)),
+
+  /** 导入行程模板：只新增节点，不动已有内容 */
+  importTemplate: (payload) =>
+    run(async () => {
+      const r = await api.importTemplate(payload);
+      toast(`已导入 ${r.created} 项`, 'success');
+      return r;
+    }),
+
   addVocab: (payload) => run(() => api.addVocab(payload)),
   patchVocab: (id, payload) => run(() => api.patchVocab(id, payload)),
   deleteVocab: (id) => run(() => api.deleteVocab(id)),

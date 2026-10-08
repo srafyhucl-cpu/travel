@@ -148,6 +148,20 @@
   border-radius: 50%;
 }
 
+/* 类型图标：由 core/glyphs 生成 data URI（platform/wx/icons.js） */
+.type-icon {
+  width: 30rpx;
+  height: 30rpx;
+  flex: none;
+}
+
+/* 深色下复选框的描边要提亮，不然跟卡片糊在一起 */
+@media (prefers-color-scheme: dark) {
+  .checkbox {
+    border-color: rgba(255, 255, 255, 0.35);
+  }
+}
+
 .type-name {
   font-size: 24rpx;
   font-weight: 600;

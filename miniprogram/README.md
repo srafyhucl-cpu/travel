@@ -43,6 +43,8 @@
 - 登录（真实调 `/api/auth/login`）
 - 行程一屏：本地快照秒开 → 拉最新；「现在」卡；按天分组；下拉刷新；
   勾选待办（真实写接口）；每 20 秒轮询近似实时
+- 深色模式：跟随系统（`app.json` darkmode + `theme.json`，WXSS 变量与 Web 同一套值）
+- 类型图标：与 Web 共用 `core/glyphs.js`，运行时生成 SVG data URI
 - 平台实现：session / persist / net / device 已可用
 
 ## 还没做（占位）
