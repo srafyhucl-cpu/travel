@@ -45,7 +45,17 @@
 }
 
 .flags {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
   margin-top: 10rpx;
+}
+
+.flag-link {
+  margin-left: auto;
+  padding: 4rpx 8rpx;
+  font-size: 24rpx;
+  color: var(--accent);
 }
 
 .flag {
@@ -295,4 +305,333 @@
 
 .loose .shots {
   margin-top: 0;
+}
+
+/* ---------- Deck：前置 / 钱 两格 ---------- */
+
+.segs {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 14rpx;
+}
+
+.seg {
+  flex: 1;
+  min-width: 0;
+  background: var(--card);
+  border-radius: 20rpx;
+  padding: 18rpx 22rpx;
+  border: 2rpx solid transparent;
+  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+}
+
+.seg.open {
+  border-color: var(--accent-soft);
+}
+
+.seg-l1 {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.seg-ic {
+  width: 28rpx;
+  height: 28rpx;
+  flex: none;
+}
+
+.seg-label {
+  font-size: 24rpx;
+  color: var(--ink-2);
+}
+
+.seg-num {
+  margin-left: auto;
+  font-size: 26rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.seg.ok .seg-num {
+  color: var(--ok);
+}
+
+.seg-num.danger {
+  color: var(--danger);
+}
+
+.seg-sub {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.bar {
+  margin-top: 10rpx;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2, var(--line));
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: var(--accent);
+}
+
+.seg.ok .bar-fill {
+  background: var(--ok);
+}
+
+.seg.over .bar-fill {
+  background: var(--danger);
+}
+
+/* Deck 展开的明细面板 */
+.panel {
+  margin-top: 14rpx;
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 22rpx 26rpx;
+  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.panel-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 28rpx;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-act {
+  font-size: 24rpx;
+  color: var(--accent);
+  padding: 4rpx 8rpx;
+}
+
+.panel-empty {
+  padding: 12rpx 0;
+  font-size: 26rpx;
+  color: var(--ink-3);
+}
+
+.brow {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 10rpx 0;
+}
+
+.brow-ic {
+  width: 30rpx;
+  height: 30rpx;
+  flex: none;
+}
+
+.brow-label {
+  font-size: 27rpx;
+}
+
+.brow-count {
+  margin-left: auto;
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.brow-amt {
+  margin-left: 16rpx;
+  min-width: 130rpx;
+  text-align: right;
+  font-size: 27rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.split {
+  margin-top: 14rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.split-title {
+  font-size: 24rpx;
+  color: var(--ink-3);
+  margin-bottom: 8rpx;
+}
+
+.prow {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 8rpx 0;
+}
+
+.avatar {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 48rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  flex: none;
+}
+
+.prow-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 27rpx;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.prow-amt {
+  font-size: 27rpx;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-foot {
+  display: flex;
+  align-items: center;
+  margin-top: 16rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.foot-note {
+  flex: 1;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.foot-note.danger {
+  color: var(--danger);
+}
+
+.foot-btn {
+  font-size: 26rpx;
+  color: var(--accent);
+  padding: 4rpx 8rpx;
+}
+
+/* ---------- 卡片头 / 账目行 / 打卡 ---------- */
+
+.node-head {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.node-meta {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.node-right {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+}
+
+.node-right .node-range {
+  margin-left: 0;
+}
+
+.node-spend {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.money {
+  margin-top: 12rpx;
+}
+
+.mrow {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 10rpx 0;
+}
+
+.mrow-ic {
+  width: 32rpx;
+  height: 32rpx;
+  flex: none;
+}
+
+.mrow-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 27rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mrow-amt {
+  font-size: 27rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.act-btn.on-accent {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.act-btn.on-ok {
+  background: var(--ok);
+  color: #ffffff;
+}
+
+.act-btn.done-chip {
+  background: rgba(39, 174, 96, 0.12);
+  color: var(--ok);
+}
+
+/* ---------- 每天的「加一项」与右下角快捷入口 ---------- */
+
+.day-add {
+  margin: -6rpx 0 18rpx 134rpx;
+  padding: 12rpx 0;
+  font-size: 25rpx;
+  color: var(--ink-3);
+}
+
+.fab {
+  position: fixed;
+  right: 36rpx;
+  bottom: calc(52rpx + env(safe-area-inset-bottom));
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 56rpx;
+  line-height: 104rpx;
+  text-align: center;
+  box-shadow: 0 8rpx 24rpx rgba(47, 128, 237, 0.35);
+  z-index: 20;
+}
+
+.fab-press {
+  opacity: 0.85;
 }

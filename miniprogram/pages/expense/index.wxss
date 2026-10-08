@@ -4,6 +4,13 @@
   padding: 6rpx 28rpx 36rpx;
 }
 
+/* 顶部一行模式提示：记一笔 / 改这笔（跟按钮文案一致，一眼知道在哪个模式） */
+.form-title {
+  padding: 26rpx 0 4rpx;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
 /* ------------------------------ 金额 ------------------------------ */
 
 .amount-row {
@@ -109,6 +116,17 @@ button.btn-primary[disabled] {
   background: var(--accent);
   color: #ffffff;
   opacity: 0.55;
+}
+
+/* 删掉：危险色描边按钮，跟实心的「保存」拉开层级，不抢主操作 */
+.btn-danger {
+  margin-top: 20rpx;
+  background: transparent;
+  color: var(--danger);
+  border: 2rpx solid var(--danger);
+  border-radius: 22rpx;
+  font-size: 30rpx;
+  line-height: 2.4;
 }
 
 .btn-press {

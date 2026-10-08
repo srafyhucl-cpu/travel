@@ -1,0 +1,64 @@
+/* 总预算：与记账页同款表单语言 */
+.form {
+  padding: 6rpx 28rpx 36rpx;
+}
+
+.form-title {
+  padding: 26rpx 0 4rpx;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.amount-row {
+  display: flex;
+  align-items: baseline;
+}
+
+.amount-cur {
+  flex: none;
+  margin-right: 12rpx;
+  font-size: 40rpx;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.amount-input {
+  flex: 1;
+  min-width: 0;
+  height: 112rpx;
+  font-size: 66rpx;
+  font-weight: 700;
+  line-height: 112rpx;
+}
+
+.amount-ph {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+.stat-line {
+  margin-top: 18rpx;
+  font-size: 26rpx;
+  color: var(--ink-3);
+}
+
+button.btn-primary[disabled] {
+  background: var(--accent);
+  color: #ffffff;
+  opacity: 0.55;
+}
+
+.btn-press {
+  opacity: 0.86;
+}
+
+.loading {
+  padding-top: 220rpx;
+  text-align: center;
+}
+
+.loading-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}

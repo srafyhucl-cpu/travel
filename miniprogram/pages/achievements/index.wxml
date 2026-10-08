@@ -1,0 +1,41 @@
+<view class="page">
+  <block wx:if="{{ready}}">
+    <scroll-view class="pill-scroll" scroll-x enable-flex>
+      <view
+        wx:for="{{picks}}"
+        wx:key="id"
+        class="pill {{item.on ? 'on' : ''}}"
+        hover-class="pill-press"
+        data-id="{{item.id}}"
+        bindtap="onPick"
+      >
+        <text>{{item.label}}</text>
+        <text wx:if="{{item.me}}" class="me-tag">我</text>
+      </view>
+    </scroll-view>
+
+    <view class="sum">已解锁 {{unlocked}}/{{total}} · 成就从行程、打卡、照片和记账里自动算，不用手动领</view>
+
+    <view class="grid">
+      <view wx:for="{{list}}" wx:key="id" class="ach-card {{item.done ? '' : 'locked'}}">
+        <view class="ach-ic" style="{{item.done ? 'background:' + item.tint : ''}}">
+          <image class="ach-img" src="{{item.icon}}" mode="aspectFit" />
+        </view>
+        <view class="ach-body">
+          <view class="ach-title">{{item.title}}</view>
+          <view class="ach-desc">{{item.desc}}</view>
+          <view wx:if="{{item.done && item.atLabel}}" class="ach-at">{{item.atLabel}}</view>
+          <view wx:elif="{{item.progress}}" class="ach-prog">
+            <view class="bar"><view class="bar-fill" style="width:{{item.progress.rate * 100}}%"></view></view>
+            <text class="ach-prog-num">{{item.progress.done}}/{{item.progress.total}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <view wx:else class="loading">
+    <view class="loading-title">加载中…</view>
+    <view class="muted">正在准备这趟旅行的数据</view>
+  </view>
+</view>

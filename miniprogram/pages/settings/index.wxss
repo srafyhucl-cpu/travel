@@ -1,0 +1,337 @@
+/* 「我的」设置页：卡片 + 内联小表单；颜色全走 tokens（深色自适应） */
+
+.sec {
+  padding: 24rpx 28rpx;
+  margin-bottom: 8rpx;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.strong {
+  font-size: 29rpx;
+  font-weight: 600;
+}
+
+.tiny {
+  font-size: 23rpx;
+  color: var(--ink-3);
+  margin-top: 4rpx;
+}
+
+.trip-name {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.stats-line {
+  margin-top: 16rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid var(--line);
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+/* 小节标题 + 右侧动作 */
+.sec-title {
+  display: flex;
+  align-items: baseline;
+  gap: 16rpx;
+  margin: 26rpx 6rpx 12rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.sec-act {
+  margin-left: auto;
+  font-size: 24rpx;
+  font-weight: 400;
+  color: var(--accent);
+}
+
+.sub-title {
+  margin: 18rpx 0 10rpx;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+/* ------------------------------ 通用小件 ------------------------------ */
+
+.chip {
+  flex: none;
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2, var(--line));
+  color: var(--ink-2);
+  font-size: 25rpx;
+}
+
+.chip.sm {
+  padding: 6rpx 18rpx;
+  font-size: 23rpx;
+}
+
+.chip.danger {
+  color: var(--danger);
+}
+
+.chip.add {
+  color: var(--accent);
+}
+
+.chip.mgr {
+  display: inline-block;
+  margin-top: 16rpx;
+}
+
+.soft-chip {
+  display: inline-block;
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.cat-row:last-of-type {
+  border-bottom: none;
+}
+
+.chev {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 30rpx;
+}
+
+/* ------------------------------ 表单 ------------------------------ */
+
+.sub-form {
+  margin-top: 16rpx;
+  padding: 20rpx;
+  background: var(--bg);
+  border-radius: 20rpx;
+}
+
+.sub-form .field {
+  margin-top: 18rpx;
+}
+
+.sub-form .field:first-child {
+  margin-top: 0;
+}
+
+.field .label {
+  display: block;
+  font-size: 24rpx;
+  color: var(--ink-2);
+  margin-bottom: 8rpx;
+}
+
+.input {
+  height: 80rpx;
+  padding: 0 22rpx;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 18rpx;
+  font-size: 29rpx;
+}
+
+.grid2 {
+  display: flex;
+  gap: 18rpx;
+}
+
+.grid2 .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-trigger {
+  height: 80rpx;
+  line-height: 80rpx;
+  padding: 0 22rpx;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 18rpx;
+  font-size: 29rpx;
+}
+
+.picker-trigger.empty {
+  color: var(--ink-3);
+}
+
+.btn-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+button.btn-primary.sm {
+  margin-top: 0;
+  font-size: 29rpx;
+  line-height: 2.3;
+}
+
+button.btn-primary[disabled] {
+  background: var(--accent);
+  color: #ffffff;
+  opacity: 0.55;
+}
+
+.btn-plain {
+  flex: none;
+  margin-top: 0;
+  padding: 0 30rpx;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 22rpx;
+  font-size: 29rpx;
+  line-height: 2.3;
+  color: var(--ink-2);
+}
+
+.btn-danger {
+  margin-top: 24rpx;
+  background: transparent;
+  color: var(--danger);
+  border: 2rpx solid var(--danger);
+  border-radius: 22rpx;
+  font-size: 30rpx;
+  line-height: 2.4;
+}
+
+.err {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: var(--danger);
+}
+
+/* ------------------------------ 成员 ------------------------------ */
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 14rpx 0;
+}
+
+.avatar {
+  flex: none;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 64rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.me-tag {
+  margin-left: 8rpx;
+  padding: 0 10rpx;
+  border-radius: 999rpx;
+  background: rgba(47, 128, 237, 0.12);
+  color: var(--accent);
+  font-size: 20rpx;
+  font-weight: 600;
+  line-height: 30rpx;
+}
+
+.member-edit {
+  padding: 14rpx 0;
+}
+
+.swatches {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 14rpx;
+}
+
+.swatch {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 50%;
+  border: 4rpx solid transparent;
+}
+
+.swatch.on {
+  border-color: var(--card);
+  box-shadow: 0 0 0 3rpx var(--ink-3);
+}
+
+/* ------------------------------ 词汇 ------------------------------ */
+
+.custom-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 10rpx 0;
+}
+
+.icongrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+}
+
+.iconcell {
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 18rpx;
+  background: var(--card);
+  border: 2rpx solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconcell.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.icon-img {
+  width: 44rpx;
+  height: 44rpx;
+}
+
+/* ------------------------------ 尾部 ------------------------------ */
+
+.foot {
+  margin: 28rpx 6rpx 8rpx;
+  text-align: center;
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
+.loading {
+  padding-top: 220rpx;
+  text-align: center;
+}
+
+.loading-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}

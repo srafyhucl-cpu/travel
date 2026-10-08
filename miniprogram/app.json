@@ -2,7 +2,12 @@
   "pages": [
     "pages/timeline/index",
     "pages/expense/index",
-    "pages/login/index"
+    "pages/login/index",
+    "pages/node/index",
+    "pages/budget/index",
+    "pages/achievements/index",
+    "pages/settings/index",
+    "pages/poster/index"
   ],
   "window": {
     "navigationBarBackgroundColor": "@navBgColor",

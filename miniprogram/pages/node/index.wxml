@@ -1,0 +1,122 @@
+<view class="page">
+  <view wx:if="{{ready}}" class="card form">
+    <view class="field">
+      <text class="label">标题 <text class="req">必填</text></text>
+      <input class="input" value="{{title}}" placeholder="例如：云杉坪索道" maxlength="80" bindinput="onTitle" />
+    </view>
+
+    <view class="field">
+      <text class="label">待办</text>
+      <view wx:for="{{checklist}}" wx:for-item="it" wx:key="id" class="check-edit">
+        <view class="checkbox {{it.done ? 'on' : ''}}">{{it.done ? '✓' : ''}}</view>
+        <input
+          class="check-input"
+          value="{{it.text}}"
+          focus="{{it.id === focusId}}"
+          placeholder="写一条"
+          maxlength="40"
+          data-id="{{it.id}}"
+          bindinput="onCheckText"
+        />
+        <text class="check-del" data-id="{{it.id}}" bindtap="onCheckDel">✕</text>
+      </view>
+      <view class="check-add" bindtap="onCheckAdd">＋ 加一条待办</view>
+    </view>
+
+    <view class="field">
+      <text class="label">类型</text>
+      <scroll-view class="pill-scroll" scroll-x enable-flex>
+        <view
+          wx:for="{{types}}"
+          wx:key="key"
+          class="pill {{item.on ? 'on' : ''}}"
+          style="{{item.on ? 'color:' + item.color + ';border-color:' + item.color : ''}}"
+          hover-class="pill-press"
+          data-key="{{item.key}}"
+          bindtap="onType"
+        >
+          <image class="pill-icon" src="{{item.icon}}" mode="aspectFit" />
+          <text>{{item.label}}</text>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view class="field row-between">
+      <view class="grow">
+        <text class="label">首页模块</text>
+        <text class="hint">在「现在」卡下面单独显示一份进度，时间线上照常保留</text>
+      </view>
+      <switch checked="{{isModule}}" color="#2f80ed" bindchange="onModule" />
+    </view>
+
+    <view class="grid2">
+      <view class="field">
+        <text class="label">日期 <text class="req">必填</text></text>
+        <picker mode="date" value="{{date}}" bindchange="onDate">
+          <view class="picker-trigger {{date ? '' : 'empty'}}">{{date || '选日期'}}</view>
+        </picker>
+      </view>
+      <view class="field">
+        <text class="label">开始</text>
+        <view class="time-row">
+          <picker class="grow" mode="time" value="{{startTime || '09:00'}}" bindchange="onStart">
+            <view class="picker-trigger {{startTime ? '' : 'empty'}}">{{startTime || '不定'}}</view>
+          </picker>
+          <text wx:if="{{startTime}}" class="clear" data-k="startTime" bindtap="onClearTime">✕</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="grid2">
+      <view class="field">
+        <text class="label">结束</text>
+        <view class="time-row">
+          <picker class="grow" mode="time" value="{{endTime || '18:00'}}" bindchange="onEnd">
+            <view class="picker-trigger {{endTime ? '' : 'empty'}}">{{endTime || '不定'}}</view>
+          </picker>
+          <text wx:if="{{endTime}}" class="clear" data-k="endTime" bindtap="onClearTime">✕</text>
+        </view>
+      </view>
+      <view class="field">
+        <text class="label">车程（分钟）</text>
+        <input class="input" type="number" value="{{transportMinutes}}" placeholder="40" bindinput="onTransport" />
+      </view>
+    </view>
+
+    <view class="field">
+      <view class="label-row">
+        <text class="label">地点</text>
+        <text class="field-act {{showNav ? 'on' : ''}}" bindtap="onToggleNav">{{showNav ? '收起导航词' : '导航词'}}</text>
+      </view>
+      <input class="input" value="{{location}}" placeholder="例如：玉龙雪山景区" bindinput="onLocation" />
+      <input
+        wx:if="{{showNav}}"
+        class="input input-sub"
+        value="{{navKeyword}}"
+        placeholder="导航关键词，留空就用地点"
+        bindinput="onNav"
+      />
+    </view>
+
+    <button
+      class="btn-primary {{canSave ? '' : 'off'}}"
+      hover-class="{{canSave ? 'btn-press' : 'none'}}"
+      disabled="{{!canSave}}"
+      bindtap="onSave"
+    >{{editing ? '保存' : '添加'}}</button>
+    <view wx:if="{{missing}}" class="req-missing">还差：{{missing}}</view>
+
+    <block wx:if="{{editing}}">
+      <view class="move-row">
+        <view class="move-btn" hover-class="pill-press" data-dir="-1" bindtap="onMove">↑ 上移一位</view>
+        <view class="move-btn" hover-class="pill-press" data-dir="1" bindtap="onMove">↓ 下移一位</view>
+      </view>
+      <button class="btn-danger" hover-class="btn-press" bindtap="onDelete">删除这一项</button>
+    </block>
+  </view>
+
+  <view wx:else class="loading">
+    <view class="loading-title">加载中…</view>
+    <view class="muted">正在准备这趟旅行的数据</view>
+  </view>
+</view>

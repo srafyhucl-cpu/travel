@@ -37,15 +37,30 @@ function variantUrl(id, variant) {
   return `${baseUrl()}/api/photos/${encodeURIComponent(id)}/file${q}`;
 }
 
-/* wx.downloadFile 无论 200 还是 404 都会走 success，必须自己判状态码 */
-function download(url) {
+/* wx.downloadFile 无论 200 还是 404 都会走 success，必须自己判状态码。
+   再给一个超时：个别请求会既不 success 也不 fail（弱网/被系统掐掉），
+   不兜住的话 pending 里这条永远不释放，后面同 id 的调用会一直等它。 */
+function download(url, timeoutMs = 30000) {
   const token = session.getToken();
   return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      resolve(v);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
     wx.downloadFile({
       url,
       header: token ? { Authorization: `Bearer ${token}` } : {},
-      success: (res) => resolve(res.statusCode === 200 && res.tempFilePath ? res.tempFilePath : null),
-      fail: () => resolve(null),
+      success: (res) => {
+        clearTimeout(timer);
+        finish(res.statusCode === 200 && res.tempFilePath ? res.tempFilePath : null);
+      },
+      fail: () => {
+        clearTimeout(timer);
+        finish(null);
+      },
     });
   });
 }

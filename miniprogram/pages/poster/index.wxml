@@ -1,0 +1,84 @@
+<view class="page">
+  <block wx:if="{{ready}}">
+    <view class="card sec">
+      <view class="pill-row">
+        <view class="pill {{mode === 'long' ? 'on' : ''}}" data-mode="long" bindtap="onMode">行程长图</view>
+        <view class="pill {{mode === 'photo' ? 'on' : ''}}" data-mode="photo" bindtap="onMode">照片海报</view>
+      </view>
+
+      <view wx:if="{{mode === 'photo'}}" class="pill-row sub">
+        <view
+          wx:for="{{templates}}"
+          wx:key="id"
+          class="pill {{template === item.id ? 'on' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="onTemplate"
+        >{{item.name}}</view>
+      </view>
+
+      <view class="field">
+        <text class="label">强调色</text>
+        <view class="swatches">
+          <view
+            wx:for="{{accents}}"
+            wx:key="*this"
+            class="swatch {{accent === item ? 'on' : ''}}"
+            style="background:{{item}}"
+            data-color="{{item}}"
+            bindtap="onAccent"
+          ></view>
+        </view>
+      </view>
+
+      <view wx:if="{{mode === 'long'}}" class="field row-between">
+        <view class="grow">
+          <text class="label">带上照片</text>
+          <text class="hint">每项最多 2 张、整趟最多 6 张{{photoCount ? '' : '（这趟还没照片）'}}</text>
+        </view>
+        <switch checked="{{includePhotos}}" color="#2f80ed" bindchange="onIncludePhotos" />
+      </view>
+
+      <block wx:else>
+        <view class="field">
+          <text class="label">照片张数（从最新开始取）</text>
+          <view class="pill-row">
+            <view
+              wx:for="{{counts}}"
+              wx:key="*this"
+              class="pill {{count === item ? 'on' : ''}}"
+              data-n="{{item}}"
+              bindtap="onCount"
+            >{{item}} 张</view>
+          </view>
+        </view>
+        <view class="field">
+          <text class="label">标题</text>
+          <input class="input" value="{{title}}" maxlength="40" bindinput="onTitle" />
+        </view>
+        <view class="field">
+          <text class="label">副标题</text>
+          <input class="input" value="{{subtitle}}" maxlength="40" placeholder="可不填" bindinput="onSubtitle" />
+        </view>
+        <view class="hint">改完点下面的「重新出图」刷新预览</view>
+      </block>
+    </view>
+
+    <view class="card preview">
+      <canvas type="2d" id="cv" class="cv" style="width:{{dispW}}px;height:{{dispH}}px"></canvas>
+      <view wx:if="{{busy}}" class="mask">
+        <text>出图中…{{progress}}</text>
+      </view>
+    </view>
+
+    <view class="acts">
+      <button class="btn-primary {{previewPath ? '' : 'off'}}" disabled="{{!previewPath}}" bindtap="onSave">保存到相册</button>
+      <button class="btn-plain" disabled="{{!previewPath}}" bindtap="onShare">分享给朋友</button>
+      <button class="btn-plain" bindtap="onRegenerate">重新出图</button>
+    </view>
+  </block>
+
+  <view wx:else class="loading">
+    <view class="loading-title">加载中…</view>
+    <view class="muted">正在准备这趟旅行的数据</view>
+  </view>
+</view>

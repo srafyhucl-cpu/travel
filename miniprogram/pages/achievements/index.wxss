@@ -1,0 +1,146 @@
+/* 成就页：顶部切人 + 徽章网格（和 Web 的成就弹层同一套信息） */
+
+.pill-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.pill-scroll .pill {
+  margin-right: 14rpx;
+}
+
+.pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  border: 3rpx solid transparent;
+  background: var(--surface-2, var(--line));
+  color: var(--ink-2);
+  font-size: 26rpx;
+}
+
+.pill.on {
+  background: var(--card);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pill-press {
+  opacity: 0.7;
+}
+
+.me-tag {
+  margin-left: 8rpx;
+  padding: 0 10rpx;
+  border-radius: 999rpx;
+  background: rgba(47, 128, 237, 0.12);
+  color: var(--accent);
+  font-size: 20rpx;
+  font-weight: 600;
+  line-height: 30rpx;
+}
+
+.sum {
+  margin: 18rpx 4rpx;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.ach-card {
+  display: flex;
+  gap: 20rpx;
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 24rpx;
+  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+}
+
+.ach-card.locked {
+  opacity: 0.55;
+}
+
+.ach-ic {
+  flex: none;
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2, var(--line));
+}
+
+.ach-img {
+  width: 44rpx;
+  height: 44rpx;
+}
+
+.ach-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ach-title {
+  font-size: 29rpx;
+  font-weight: 600;
+}
+
+.ach-desc {
+  margin-top: 4rpx;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.ach-at {
+  margin-top: 8rpx;
+  font-size: 23rpx;
+  color: var(--ok);
+}
+
+.ach-prog {
+  margin-top: 10rpx;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
+
+.bar {
+  flex: 1;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2, var(--line));
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: var(--accent);
+}
+
+.ach-prog-num {
+  font-size: 22rpx;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.loading {
+  padding-top: 220rpx;
+  text-align: center;
+}
+
+.loading-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}

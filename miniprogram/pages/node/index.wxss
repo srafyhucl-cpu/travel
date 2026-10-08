@@ -1,0 +1,250 @@
+/* 行程编辑：和记账页同一套表单语言（卡片、胶囊、字段），颜色全走 tokens */
+.form {
+  padding: 6rpx 28rpx 36rpx;
+}
+
+.req {
+  font-size: 22rpx;
+  color: var(--danger);
+}
+
+.hint {
+  display: block;
+  font-size: 24rpx;
+  color: var(--ink-3);
+  margin-top: 4rpx;
+}
+
+.row-between {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ------------------------------ 待办 ------------------------------ */
+
+.check-edit {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 6rpx 0;
+}
+
+.check-edit .checkbox {
+  width: 36rpx;
+  height: 36rpx;
+  flex: none;
+  border-radius: 50%;
+  border: 3rpx solid rgba(17, 24, 39, 0.25);
+  color: #ffffff;
+  font-size: 24rpx;
+  line-height: 30rpx;
+  text-align: center;
+}
+
+.check-edit .checkbox.on {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.check-input {
+  flex: 1;
+  min-width: 0;
+  height: 72rpx;
+  padding: 0 18rpx;
+  background: var(--bg);
+  border-radius: 16rpx;
+  font-size: 28rpx;
+}
+
+.check-del {
+  flex: none;
+  padding: 8rpx 14rpx;
+  color: var(--ink-3);
+  font-size: 28rpx;
+}
+
+.check-add {
+  margin-top: 6rpx;
+  padding: 12rpx 0;
+  font-size: 26rpx;
+  color: var(--accent);
+}
+
+/* ------------------------------ 胶囊（与记账页同款） ------------------------------ */
+
+.pill-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.pill-scroll .pill {
+  margin: 0 14rpx 0 0;
+}
+
+.pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  border: 3rpx solid transparent;
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 26rpx;
+}
+
+.pill.on {
+  background: var(--card);
+  border-color: currentColor;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pill-icon {
+  flex: none;
+  width: 30rpx;
+  height: 30rpx;
+  margin-right: 8rpx;
+}
+
+.pill-press {
+  opacity: 0.7;
+}
+
+/* ------------------------------ 日期 / 时间 ------------------------------ */
+
+.grid2 {
+  display: flex;
+  gap: 20rpx;
+}
+
+.grid2 .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-trigger {
+  height: 84rpx;
+  line-height: 84rpx;
+  padding: 0 24rpx;
+  background: var(--bg);
+  border-radius: 20rpx;
+  font-size: 30rpx;
+}
+
+.picker-trigger.empty {
+  color: var(--ink-3);
+}
+
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.time-row .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.clear {
+  flex: none;
+  padding: 10rpx 12rpx;
+  color: var(--ink-3);
+  font-size: 28rpx;
+}
+
+/* ------------------------------ 地点 ------------------------------ */
+
+.label-row {
+  display: flex;
+  align-items: center;
+}
+
+.label-row .label {
+  flex: 1;
+  margin-bottom: 10rpx;
+}
+
+.field-act {
+  font-size: 24rpx;
+  color: var(--ink-3);
+  padding: 4rpx 8rpx;
+  margin-bottom: 10rpx;
+}
+
+.field-act.on {
+  color: var(--accent);
+}
+
+.input-sub {
+  margin-top: 12rpx;
+}
+
+/* ------------------------------ 按钮 ------------------------------ */
+
+.form .input {
+  background: var(--bg);
+}
+
+button.btn-primary[disabled] {
+  background: var(--accent);
+  color: #ffffff;
+  opacity: 0.55;
+}
+
+.btn-press {
+  opacity: 0.86;
+}
+
+.req-missing {
+  margin-top: 14rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: var(--danger);
+}
+
+.move-row {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 28rpx;
+}
+
+.move-btn {
+  flex: 1;
+  text-align: center;
+  padding: 20rpx 0;
+  background: var(--bg);
+  border-radius: 20rpx;
+  font-size: 27rpx;
+  color: var(--ink-2);
+}
+
+.btn-danger {
+  margin-top: 20rpx;
+  background: transparent;
+  color: var(--danger);
+  border: 2rpx solid var(--danger);
+  border-radius: 22rpx;
+  font-size: 30rpx;
+  line-height: 2.4;
+}
+
+/* ------------------------------ 加载 ------------------------------ */
+
+.loading {
+  padding-top: 220rpx;
+  text-align: center;
+}
+
+.loading-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}

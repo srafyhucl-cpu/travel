@@ -6,9 +6,85 @@
         <view class="now-title">{{now.title}}</view>
         <view class="now-sub">{{now.sub}}</view>
       </view>
+
+      <!-- 和 Web 的 Deck 同构：前置（模块）与钱各一格，点开一格看明细 -->
+      <view class="segs">
+        <view
+          wx:if="{{module}}"
+          class="seg {{module.allDone ? 'ok' : ''}} {{seg === 'prep' ? 'open' : ''}}"
+          data-seg="prep"
+          bindtap="onSeg"
+        >
+          <view class="seg-l1">
+            <image class="seg-ic" src="{{module.icon}}" mode="aspectFit" />
+            <text class="seg-label">前置</text>
+            <text class="seg-num">{{module.allDone ? '✓ 完成' : module.done + '/' + module.total}}</text>
+          </view>
+          <view class="bar"><view class="bar-fill" style="width:{{module.total ? module.done * 100 / module.total : 0}}%"></view></view>
+        </view>
+
+        <view class="seg {{budget.over ? 'over' : ''}} {{seg === 'money' ? 'open' : ''}}" data-seg="money" bindtap="onSeg">
+          <view class="seg-l1">
+            <text class="seg-label">已花</text>
+            <text class="seg-num {{budget.over ? 'danger' : ''}}">¥{{budget.actual}}</text>
+          </view>
+          <view class="bar"><view class="bar-fill" style="width:{{budget.rate * 100}}%"></view></view>
+          <text class="seg-sub">{{budget.hasPlanned ? '预算 ¥' + budget.planned : '未设预算'}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{seg === 'prep' && module}}" class="panel">
+        <view class="panel-head">
+          <text class="panel-title">{{module.title}}</text>
+          <text class="panel-act" data-id="{{module.id}}" bindtap="onEditNode">编辑</text>
+        </view>
+        <view wx:if="{{module.checks.length}}" class="checks">
+          <view
+            wx:for="{{module.checks}}"
+            wx:for-item="c"
+            wx:key="id"
+            class="check-row"
+            data-node="{{module.id}}"
+            data-item="{{c.id}}"
+            data-done="{{c.done}}"
+            data-text="{{c.text}}"
+            bindtap="onToggle"
+          >
+            <view class="checkbox {{c.done ? 'on' : ''}}">{{c.done ? '✓' : ''}}</view>
+            <text class="check-text {{c.done ? 'strike' : ''}}">{{c.text}}</text>
+          </view>
+        </view>
+        <view wx:else class="panel-empty">还没写待办，点「编辑」加几条</view>
+      </view>
+
+      <view wx:if="{{seg === 'money'}}" class="panel">
+        <view wx:if="{{!budget.spent.length}}" class="panel-empty">还没记过账</view>
+        <view wx:for="{{budget.spent}}" wx:key="key" class="brow">
+          <image class="brow-ic" src="{{item.icon}}" mode="aspectFit" />
+          <text class="brow-label">{{item.label}}</text>
+          <text class="brow-count">{{item.count}} 笔</text>
+          <text class="brow-amt">¥{{item.amount}}</text>
+        </view>
+
+        <view wx:if="{{budget.paid.length}}" class="split">
+          <view class="split-title">各自花的</view>
+          <view wx:for="{{budget.paid}}" wx:key="name" class="prow">
+            <view class="avatar" style="color:{{item.color}};background:{{item.tint}}">{{item.initial}}</view>
+            <text class="prow-name">{{item.name}}</text>
+            <text class="prow-amt">¥{{item.amount}}</text>
+          </view>
+        </view>
+
+        <view class="panel-foot">
+          <text class="foot-note {{budget.over ? 'danger' : ''}}">{{budget.hasPlanned ? (budget.over ? '超支 ¥' + budget.remaining : '还剩 ¥' + budget.remaining) : '还没设总预算'}}</text>
+          <text class="foot-btn" bindtap="onEditBudget">改预算</text>
+        </view>
+      </view>
+
       <view class="flags">
         <text wx:if="{{!online}}" class="flag off">离线中</text>
         <text wx:elif="{{syncing}}" class="flag">同步中…</text>
+        <text class="flag-link" bindtap="onSettings">我的 ›</text>
       </view>
     </view>
 
@@ -19,7 +95,7 @@
         <text class="dm-count">{{item.done}}/{{item.total}}</text>
       </view>
 
-      <view wx:if="{{item.total === 0}}" class="day-empty">这天还没安排</view>
+      <view wx:if="{{item.total === 0}}" class="day-empty" data-date="{{item.date}}" bindtap="onAddNode">这天还没安排 · 点一下加一项</view>
 
       <view
         wx:for="{{item.nodes}}"
@@ -29,10 +105,15 @@
       >
         <view class="node-time">{{n.time}}</view>
         <view class="node-card" style="border-left-color:{{n.typeColor}}">
-          <view class="node-meta">
-            <image class="type-icon" src="{{n.icon}}" mode="aspectFit" />
-            <text class="type-name" style="color:{{n.typeColor}}">{{n.typeLabel}}</text>
-            <text wx:if="{{n.range}}" class="node-range">{{n.range}}</text>
+          <view class="node-head" data-id="{{n.id}}" bindtap="onEditNode">
+            <view class="node-meta">
+              <image class="type-icon" src="{{n.icon}}" mode="aspectFit" />
+              <text class="type-name" style="color:{{n.typeColor}}">{{n.typeLabel}}</text>
+            </view>
+            <view class="node-right">
+              <text wx:if="{{n.range}}" class="node-range">{{n.range}}</text>
+              <text wx:if="{{n.spend}}" class="node-spend">¥{{n.spend}}</text>
+            </view>
           </view>
           <view class="node-title {{n.done ? 'strike' : ''}}">{{n.title}}</view>
           <view wx:if="{{n.location}}" class="node-loc">{{n.location}}</view>
@@ -70,19 +151,55 @@
             </view>
           </view>
 
+          <!-- 账目行：点一下进编辑页（改金额/类别/谁付的/备注，也能删） -->
+          <view wx:if="{{n.money.length}}" class="money">
+            <view
+              wx:for="{{n.money}}"
+              wx:for-item="m"
+              wx:key="id"
+              class="mrow"
+              data-id="{{m.id}}"
+              bindtap="onEditExpense"
+            >
+              <image class="mrow-ic" src="{{m.icon}}" mode="aspectFit" />
+              <text class="mrow-text">{{m.text}}</text>
+              <text class="mrow-amt">¥{{m.amount}}</text>
+            </view>
+          </view>
+
           <!-- 卡片底部的附加操作：跟待办、地点一样是这张卡的附注，不抢标题的视线 -->
           <view class="card-acts">
+            <view wx:if="{{!n.done && !n.started}}" class="act-btn on-accent" data-id="{{n.id}}" data-action="departed" bindtap="onCheckin">出发</view>
+            <view wx:elif="{{!n.done}}" class="act-btn on-ok" data-id="{{n.id}}" data-action="done" bindtap="onCheckin">✓ 完成</view>
+            <view wx:else class="act-btn done-chip">✓ {{n.doneAt || '已完成'}}</view>
             <view class="act-btn" data-id="{{n.id}}" bindtap="onAddPhoto"><image class="act-ic" src="{{cameraIcon}}" mode="aspectFit" />照片</view>
             <view class="act-btn" data-id="{{n.id}}" bindtap="onAddExpense"><image class="act-ic" src="{{walletIcon}}" mode="aspectFit" />记一笔</view>
+            <view wx:if="{{n.navKeyword}}" class="act-btn" data-kw="{{n.navKeyword}}" bindtap="onNav">导航</view>
           </view>
         </view>
       </view>
+
+      <view wx:if="{{item.total > 0}}" class="day-add" data-date="{{item.date}}" bindtap="onAddNode">＋ 加一项</view>
     </view>
 
-    <!-- 不属于任何节点的散照片（随手拍），收在时间线末尾 -->
-    <view wx:if="{{loose.length}}" class="loose">
-      <view class="loose-title">随手记 · 照片</view>
-      <view class="shots">
+    <!-- 不属于任何节点的散账与散照片（随手记），收在时间线末尾 -->
+    <view wx:if="{{loose.length || looseExp.length}}" class="loose">
+      <view class="loose-title">随手记</view>
+      <view wx:if="{{looseExp.length}}" class="money">
+        <view
+          wx:for="{{looseExp}}"
+          wx:for-item="m"
+          wx:key="id"
+          class="mrow"
+          data-id="{{m.id}}"
+          bindtap="onEditExpense"
+        >
+          <image class="mrow-ic" src="{{m.icon}}" mode="aspectFit" />
+          <text class="mrow-text">{{m.text}}</text>
+          <text class="mrow-amt">¥{{m.amount}}</text>
+        </view>
+      </view>
+      <view wx:if="{{loose.length}}" class="shots">
         <image
           wx:for="{{loose}}"
           wx:for-item="p"
@@ -99,6 +216,9 @@
     </view>
 
     <view class="tail muted">下拉刷新 · 每 20 秒自动同步</view>
+
+    <!-- 右下角快捷入口：传照片（不指定进随手记）/ 加一项 -->
+    <view class="fab" hover-class="fab-press" bindtap="onQuickAdd">＋</view>
   </block>
 
   <view wx:else class="loading">

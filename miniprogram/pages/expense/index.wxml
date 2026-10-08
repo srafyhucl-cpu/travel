@@ -1,5 +1,7 @@
 <view class="page">
   <view wx:if="{{ready}}" class="card form">
+    <view class="form-title">{{editing ? '改这笔' : '记一笔'}}</view>
+
     <view class="field">
       <text class="label">金额</text>
       <view class="amount-row">
@@ -8,7 +10,7 @@
           class="amount-input"
           type="digit"
           value="{{amount}}"
-          focus="{{ready}}"
+          focus="{{ready && !editing}}"
           placeholder="0"
           placeholder-class="amount-ph"
           bindinput="onAmount"
@@ -67,7 +69,9 @@
       hover-class="{{canSave ? 'btn-press' : 'none'}}"
       disabled="{{!canSave}}"
       bindtap="onSave"
-    >记下</button>
+    >{{editing ? '保存' : '记下'}}</button>
+
+    <button wx:if="{{editing}}" class="btn-danger" hover-class="btn-press" bindtap="onDelete">删掉</button>
 
     <view wx:if="{{nodeTitle}}" class="attached">挂在「{{nodeTitle}}」</view>
   </view>

@@ -1,0 +1,38 @@
+<view class="page">
+  <view wx:if="{{ready}}" class="card form">
+    <view class="form-title">总预算</view>
+
+    <view class="field">
+      <text class="label">整趟一个数，0 表示不设</text>
+      <view class="amount-row">
+        <text class="amount-cur">¥</text>
+        <input
+          class="amount-input"
+          type="digit"
+          value="{{amount}}"
+          placeholder="0"
+          placeholder-class="amount-ph"
+          bindinput="onAmount"
+        />
+      </view>
+    </view>
+
+    <view class="stat-line">
+      已花 ¥{{actual}}
+      <text wx:if="{{hasPlanned}}"> · {{over ? '超支 ¥' + remaining : '还剩 ¥' + remaining}}</text>
+      <text wx:else> · 还没设总预算</text>
+    </view>
+
+    <button
+      class="btn-primary {{canSave ? '' : 'off'}}"
+      hover-class="{{canSave ? 'btn-press' : 'none'}}"
+      disabled="{{!canSave}}"
+      bindtap="onSave"
+    >保存</button>
+  </view>
+
+  <view wx:else class="loading">
+    <view class="loading-title">加载中…</view>
+    <view class="muted">正在准备这趟旅行的数据</view>
+  </view>
+</view>
