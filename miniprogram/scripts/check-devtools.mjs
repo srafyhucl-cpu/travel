@@ -137,15 +137,49 @@ function spawnCliAuto() {
   return { child, lines };
 }
 
-async function connectOrLaunch() {
-  // 1) 已开着的自动化桥优先（IDE 开着这个项目、开过自动化端口时）
+/** 连上桥还不够：IDE 重启后 9420 会留一个僵尸监听 —— 连得上但背后没有活的调试会话 */
+async function probeAlive(mp) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      await Promise.race([
+        mp.currentPage(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('probe timeout')), 5000)),
+      ]);
+      return true;
+    } catch {
+      await sleep(1200);
+    }
+  }
+  return false;
+}
+
+/** 连一次桥并探活；不活就断开返回 null（quiet 时少打日志，轮询用） */
+async function tryConnect(quiet = false) {
+  let mp;
   try {
-    const mp = await automator.connect({ wsEndpoint: WS_ENDPOINT });
+    // timeout 调大：IDE 刚冷启动时，第一条命令（编译 + 首屏）经常超过默认的 30 秒
+    mp = await automator.connect({ wsEndpoint: WS_ENDPOINT, timeout: 90000 });
+  } catch (e) {
+    if (!quiet) console.log(`连接 ${WS_ENDPOINT} 失败：${e.message}`);
+    return null;
+  }
+  if (await probeAlive(mp)) {
     console.log(`已连接运行中的自动化桥：${WS_ENDPOINT}`);
     return mp;
-  } catch (e) {
-    console.log(`连接 ${WS_ENDPOINT} 失败：${e.message}`);
   }
+  if (!quiet) console.log('桥连上了，但背后没有活的调试会话（IDE 可能刚重启过）');
+  try {
+    mp.disconnect();
+  } catch {
+    /* 忽略 */
+  }
+  return null;
+}
+
+async function connectOrLaunch() {
+  // 1) 已开着的自动化桥优先（IDE 开着这个项目、开过自动化端口时）
+  const live = await tryConnect();
+  if (live) return live;
 
   // 2) 规格要求的 automator.launch
   try {
@@ -163,12 +197,10 @@ async function connectOrLaunch() {
   const cli = spawnCliAuto();
   for (let i = 0; i < 60; i++) {
     await sleep(2000);
-    try {
-      const mp = await automator.connect({ wsEndpoint: WS_ENDPOINT });
+    const mp = await tryConnect(true);
+    if (mp) {
       console.log(`手动拉起后连接成功（等了 ${(i + 1) * 2}s）`);
       return mp;
-    } catch {
-      /* 继续轮询 */
     }
   }
   const tail = cli.lines.slice(-12).map((l) => `    ${l}`).join('\n');
@@ -253,6 +285,20 @@ async function nudgeRefresh(mp) {
   } catch {
     /* 没有 callMethod 也不怕：后面的等待循环能兜住一次 20 秒轮询 */
   }
+}
+
+/** 等栈顶页变成期望的页面：路由切换比 sleep 慢、currentPage 还可能短暂滞后（新版 IDE） */
+async function waitPage(mp, expectPath, tries = 12, gap = 500) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const page = await mp.currentPage();
+      if (page?.path === expectPath) return page;
+    } catch {
+      /* 路由切换中 */
+    }
+    await sleep(gap);
+  }
+  return null;
 }
 
 /**
@@ -340,6 +386,33 @@ function snapshotInApp(mp, base) {
       }),
     base
   );
+}
+
+/** 用 automator 的元素 API 拿一批元素的位置/尺寸（顺序与 page.$$ 一致；避开 evaluate 的序列化坑） */
+async function rectsOfElements(els) {
+  const out = [];
+  for (const el of els) {
+    let top = 0;
+    let left = 0;
+    let w = 0;
+    let h = 0;
+    try {
+      const o = (await el.offset()) || {};
+      top = Number(o.top) || 0;
+      left = Number(o.left) || 0;
+    } catch {
+      /* 单个失败给零 */
+    }
+    try {
+      const s = (await el.size()) || {};
+      w = Number(s.width) || 0;
+      h = Number(s.height) || 0;
+    } catch {
+      /* 同上 */
+    }
+    out.push({ top, left, w, h });
+  }
+  return out;
 }
 
 /** 把一段 base64 写进小程序用户目录并上传（wx.uploadFile 的真实链路） */
@@ -772,6 +845,125 @@ async function runLocalFlow(mp) {
     }
   }
 
+  // —— 拖动排序链路：长按卡片拖到前一张上沿，松手后顺序变化；另有取消与「没时间不起拖」 ——
+  console.log('\n== 拖动排序链路 ==');
+  {
+    const snap = await snapshotInApp(mp, LOCAL_BASE);
+    const byDate = new Map();
+    for (const n of snap.data?.nodes || []) {
+      if (!byDate.has(n.date)) byDate.set(n.date, []);
+      byDate.get(n.date).push(n);
+    }
+    await nudgeRefresh(mp);
+    await mp.reLaunch('/pages/timeline/index');
+    await sleep(2500);
+    const page = await mp.currentPage();
+    // DOM 顺序 = 页面数据顺序：元素与节点一一对应（用元素 API 拿位置，避开 evaluate 的序列化坑）
+    const els = await page.$$('.node');
+    const rects = await rectsOfElements(els);
+    const flat = ((await page.data())?.days || []).flatMap((d) => d.nodes || []);
+    const idxOf = (id) => flat.findIndex((n) => n.id === id);
+
+    // 找相邻两张卡：b 有起止时间（move 的硬性要求），且尽量在视口内（离边缘远一点，别触发自动滚动）
+    let pair = null;
+    for (const list of byDate.values()) {
+      list.sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0));
+      for (let i = 1; i < list.length; i++) {
+        const a = list[i - 1];
+        const b = list[i];
+        if (!(b.start_time && b.end_time)) continue;
+        const ia = idxOf(a.id);
+        const ib = idxOf(b.id);
+        if (ia < 0 || ib < 0 || !rects[ia] || !rects[ib]) continue;
+        const cand = { a, b, ia, ib, ra: rects[ia], rb: rects[ib] };
+        const comfy = cand.ra.top >= 150 && cand.rb.top <= 480;
+        if (comfy) {
+          pair = cand;
+          break;
+        }
+        if (!pair) pair = cand; // 放宽的候选：位置不理想也先留着
+      }
+      if (pair && pair.ra.top >= 150 && pair.rb.top <= 480) break;
+    }
+    check('拖动：找到可拖的相邻两项', !!pair, pair ? `b=${pair.b.title}` : '没有');
+    if (pair) {
+      const { a, b, ia, ib, ra, rb } = pair;
+      const elB = els[ib];
+      const cx = Math.round(ra.left + ra.w / 2);
+      const cy = Math.round(rb.top + rb.h / 2);
+      const ty = Math.max(140, Math.round(ra.top - 8));
+      const touch = (x, y) => ({ pageX: x, pageY: y, clientX: x, clientY: y, identifier: 1 });
+
+      await elB.touchstart({ touches: [touch(cx, cy)] });
+      await sleep(500); // 让 350ms 的长按判定过
+      const mid = await page.data();
+      check('拖动：长按进入拖动模式', mid?.dragging === true && mid?.dragId === b.id, `dragging=${mid?.dragging} dragId命中=${mid?.dragId === b.id}`);
+
+      await elB.touchmove({ touches: [touch(cx, ty)] });
+      await sleep(150);
+      await elB.touchend({ changedTouches: [touch(cx, ty)] });
+      await sleep(3500); // move 请求 + store 刷新
+
+      const after = await snapshotInApp(mp, LOCAL_BASE);
+      const order = (after.data?.nodes || [])
+        .filter((n) => n.date === b.date)
+        .sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0))
+        .map((n) => n.id);
+      const posA = order.indexOf(a.id);
+      const posB = order.indexOf(b.id);
+      check(
+        '拖动：松手后 b 排到 a 前面',
+        posB >= 0 && posA >= 0 && posB === posA - 1,
+        `顺序=${order.map((id) => (id === a.id ? 'a' : id === b.id ? 'b' : '·')).join('')}`
+      );
+
+      // 取消：长按后不移动就松手 → 不发请求、顺序不变
+      const before = order.join(',');
+      const els2 = await page.$$('.node');
+      const flat2 = ((await page.data())?.days || []).flatMap((d) => d.nodes || []);
+      const elB2 = els2[flat2.findIndex((n) => n.id === b.id)] || elB;
+      await elB2.longpress();
+      await sleep(1500);
+      const afterCancel = await snapshotInApp(mp, LOCAL_BASE);
+      const order2 = (afterCancel.data?.nodes || [])
+        .filter((n) => n.date === b.date)
+        .sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0))
+        .map((n) => n.id)
+        .join(',');
+      check('拖动：原地松手不算移动', order2 === before, `${order2 === before ? '顺序未变' : '顺序被改了'}`);
+    } else {
+      check('拖动：长按进入拖动模式', false, '前置条件不满足，跳过');
+      check('拖动：松手后 b 排到 a 前面', false, '跳过');
+      check('拖动：原地松手不算移动', false, '跳过');
+    }
+
+    // 没有起止时间的卡：长按不起拖（服务器也不收这种移动）
+    const noTime = (snap.data?.nodes || []).find((n) => !n.start_time || !n.end_time);
+    if (noTime) {
+      const els3 = await page.$$('.node');
+      const rects3 = await rectsOfElements(els3);
+      const flat3 = ((await page.data())?.days || []).flatMap((d) => d.nodes || []);
+      const idx = flat3.findIndex((n) => n.id === noTime.id);
+      const elN = idx >= 0 ? els3[idx] : null;
+      if (elN && rects3[idx]) {
+        const r = rects3[idx];
+        const t = (x, y) => ({ pageX: x, pageY: y, clientX: x, clientY: y, identifier: 1 });
+        const nx = Math.round(r.left + r.w / 2);
+        const ny = Math.round(Math.max(140, r.top + r.h / 2));
+        await elN.touchstart({ touches: [t(nx, ny)] });
+        await sleep(500);
+        const st = await page.data();
+        check('拖动：没有时间的卡不起拖', st?.dragging !== true, `dragging=${st?.dragging}`);
+        await elN.touchend({ changedTouches: [t(nx, ny)] });
+        await sleep(600);
+      } else {
+        check('拖动：没有时间的卡不起拖', false, '没找到那张卡，跳过');
+      }
+    } else {
+      console.log('  · 这趟没有缺时间的节点，跳过「没时间不起拖」');
+    }
+  }
+
   // —— 照片链路：只测接口与数据（UI 由另一路同学做） ——
   console.log('\n== 照片链路（数据层） ==');
   const before = await snapshotInApp(mp, LOCAL_BASE);
@@ -816,6 +1008,25 @@ async function runLocalFlow(mp) {
       afterPhotos.some((p) => p.id === uploadedId && p.node_id === nodeId),
       `photo=${uploadedId}`
     );
+
+    // 归位：长按照片 → 「挂到某一项」（mock 掉原生菜单）→ 选「不指定」→ 快照 node_id 变 null
+    await mp.mockWxMethod('showActionSheet', { tapIndex: 1 });
+    const thumbEl = await (await mp.currentPage()).$('.shot-thumb');
+    if (thumbEl) {
+      await thumbEl.longpress();
+      const pickPage = await waitPage(mp, 'pages/nodepick/index');
+      check('照片归位：节点选择页打开', !!pickPage, pickPage ? 'ok' : '（等不到 nodepick）');
+      const noneBtn = pickPage ? await pickPage.$('.pick-none') : null;
+      if (noneBtn) await noneBtn.tap();
+      await sleep(2500);
+      const snapAfter = await snapshotInApp(mp, LOCAL_BASE);
+      const row = (snapAfter.data?.photos || []).find((p) => p.id === uploadedId);
+      check('照片归位：移到随手记', row?.node_id === null, `node_id=${row?.node_id === null ? 'null' : String(row?.node_id)}`);
+    } else {
+      check('照片归位：节点选择页打开', false, '没找到缩略图');
+      check('照片归位：移到随手记', false, '跳过');
+    }
+    await mp.restoreWxMethod('showActionSheet');
 
     const del = await deletePhotoInApp(mp, LOCAL_BASE, uploadedId);
     check('删除照片', del.status === 200, `status=${del.status}`);
@@ -907,6 +1118,11 @@ async function runLocalFlow(mp) {
       addedId = (afterSnap.data?.expenses || []).find((e) => !beforeIds.has(e.id))?.id || null;
       const backPage = await mp.currentPage();
       check('记完回到时间线', backPage?.path === 'pages/timeline/index', backPage?.path || '（读不到）');
+
+      const addedRow = (afterSnap.data?.expenses || []).find((e) => e.id === addedId);
+      check('新账挂在选中的行程上', addedRow?.node_id === nodeId, `node_id=${addedRow?.node_id || '（空）'}`);
+      const dt = addedRow?.occurred_at ? Math.abs(Date.now() - new Date(addedRow.occurred_at).getTime()) : Infinity;
+      check('新账时间默认「现在」', dt < 10 * 60 * 1000, `occurred_at=${addedRow?.occurred_at || ''}`);
     } else {
       check('记一笔后临时库账目 +1', false, '记账页没打开，跳过');
       check('记完回到时间线', false, '记账页没打开，跳过');
@@ -925,23 +1141,77 @@ async function runLocalFlow(mp) {
       }
       check('时间线出现账目行（¥12.50）', !!rowText, `mrow=${rows1.length}${rowText ? ` text=${rowText.replace(/\s+/g, ' ').slice(0, 30)}` : ''}`);
 
-      // 编辑：预填 → 改成 99 → 保存
+      // 编辑：预填（金额 + 时间）→ 改金额/时间/挂靠 → 保存
+      const beforeEdit = (await snapshotInApp(mp, LOCAL_BASE)).data?.expenses?.find((e) => e.id === addedId);
+      const localDate = (iso) => {
+        const d = new Date(iso);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      };
+      const localTime = (iso) => {
+        const d = new Date(iso);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      };
       await mp.reLaunch(`/pages/expense/index?id=${encodeURIComponent(addedId)}`);
       await sleep(2000);
       const editPage = await mp.currentPage();
       const editAmount = await editPage.$('.amount-input');
       const prefilled = editAmount ? await editAmount.value() : '';
       check('编辑页预填金额', String(prefilled) === '12.5', `value=${prefilled}`);
-      if (editAmount) {
-        await editAmount.input('99');
-        await sleep(400);
-        const save2 = await editPage.$('.btn-primary');
+
+      // 时间预填必须与库里那条一致（本地墙钟）—— 这条抓 UTC/本地 8 小时偏移
+      const dateEl = await editPage.$('.time-date');
+      const timeEl = await editPage.$('.time-time');
+      const shownDate = dateEl ? (await dateEl.text()).trim() : '';
+      const shownTime = timeEl ? (await timeEl.text()).trim() : '';
+      check(
+        '编辑页预填日期',
+        !!beforeEdit && shownDate === localDate(beforeEdit.occurred_at),
+        `shown=${shownDate} 应为=${beforeEdit ? localDate(beforeEdit.occurred_at) : '（没拿到）'}`
+      );
+      check(
+        '编辑页预填时间',
+        !!beforeEdit && shownTime === localTime(beforeEdit.occurred_at),
+        `shown=${shownTime} 应为=${beforeEdit ? localTime(beforeEdit.occurred_at) : '（没拿到）'}`
+      );
+
+      // 挂在：点开节点选择页 → 当前项打勾 → 选「不指定」→ 回填
+      const nodeField = await editPage.$('.node-field');
+      if (nodeField) {
+        await nodeField.tap();
+        const pickPage = await waitPage(mp, 'pages/nodepick/index');
+        check('节点选择页打开', !!pickPage, pickPage ? 'ok' : '（等不到 nodepick）');
+        const onRow = pickPage ? await pickPage.$('.pick-row.on') : null;
+        check('当前挂靠项打勾', !!onRow, onRow ? 'ok' : '没有 .pick-row.on');
+        const noneBtn = pickPage ? await pickPage.$('.pick-none') : null;
+        if (noneBtn) await noneBtn.tap();
+        const backPage = (await waitPage(mp, 'pages/expense/index')) || editPage;
+        const backField = await backPage.$('.node-field');
+        const fieldText = backField ? (await backField.text()).trim() : '';
+        check('选「不指定」后回填', fieldText.includes('不指定'), `text=${fieldText}`);
+      } else {
+        check('节点选择页打开', false, '编辑页没有 .node-field');
+        check('当前挂靠项打勾', false, '跳过');
+        check('选「不指定」后回填', false, '跳过');
+      }
+
+      // 改金额 + 改时间（原生 picker 弹层自动化点不了，直接改页面数据）→ 保存
+      const editPage2 = (await waitPage(mp, 'pages/expense/index')) || editPage;
+      const editAmount2 = (await editPage2.$('.amount-input')) || editAmount;
+      if (editAmount2) {
+        await editAmount2.input('99');
+        await sleep(300);
+        await editPage2.setData({ time: '07:35' });
+        await sleep(300);
+        const save2 = await editPage2.$('.btn-primary');
         if (save2) await save2.tap();
         await sleep(4000);
       }
       const afterEdit = await snapshotInApp(mp, LOCAL_BASE);
       const edited = (afterEdit.data?.expenses || []).find((e) => e.id === addedId);
       check('改金额保存成功', Number(edited?.amount) === 99, `amount=${edited?.amount ?? '（没找到）'}`);
+      check('改挂靠保存成功（不指定）', edited?.node_id === null, `node_id=${edited?.node_id === null ? 'null' : String(edited?.node_id)}`);
+      const wantIso = beforeEdit ? new Date(`${localDate(beforeEdit.occurred_at)}T07:35:00`).toISOString() : '';
+      check('改时间保存成功（本地 07:35）', !!wantIso && edited?.occurred_at === wantIso, `occurred_at=${edited?.occurred_at} 应为=${wantIso}`);
 
       // 时间线上的行跟着变
       await nudgeRefresh(mp);
