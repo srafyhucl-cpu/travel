@@ -5,7 +5,8 @@
  * 只读：登录 + 拉快照 + 本地队列读写；不发任何写请求
  * （登录本身会更新一次 last_used_at，和 web 的 check:order 一样）。
  *
- * 跑法：PASS=你的口令 node scripts/check-platform.mjs
+ * 跑法：PASS=你的口令 [NAME=龙哥] node scripts/check-platform.mjs
+ * 默认用生产已有成员「龙哥」；别的旅行用 NAME 指定既有成员名，避免登录时新建成员。
  * 退出码：0 = 全通，1 = 有失败，2 = 脚本自己炸了。
  */
 const PASS = process.env.PASS;
@@ -13,6 +14,7 @@ if (!PASS) {
   console.error('缺少 PASS 环境变量：PASS=你的口令 node scripts/check-platform.mjs');
   process.exit(2);
 }
+const NAME = (process.env.NAME || '龙哥').trim() || '龙哥';
 
 /* ---------------- wx mock：只实现 store/platform 用到的部分 ---------------- */
 const kv = new Map();
@@ -120,7 +122,7 @@ const check = (name, cond, extra = '') => {
   check('自写 base64 与标准一致', icon.split(',')[1] === Buffer.from(svg, 'utf8').toString('base64'));
 
   console.log('\n== 登录 + 快照（真实服务器） ==');
-  const res = await actions.login(PASS, '我');
+  const res = await actions.login(PASS, NAME);
   check('登录成功', !!res?.token, res?.trip?.name || '');
   check('本地会话说 token 已存', !!platform.session.getToken());
   check('本地会话说 tripId 已存', !!platform.session.getTripId());
@@ -131,7 +133,7 @@ const check = (name, cond, extra = '') => {
     '节点 / 成员 / 词汇表齐全',
     (data?.nodes?.length || 0) > 0 && (data?.members?.length || 0) > 0 && !!data?.vocab?.byKey
   );
-  check('「我」的身份字段贯通', !!data?.meId || !!data?.me, String(data?.meId || data?.me));
+  check(`${NAME} 的身份字段贯通`, !!data?.meId && data?.me === NAME, String(data?.meId || data?.me || ''));
 
   if (lastToast) console.log(`  （期间有 toast：${lastToast}）`);
 
