@@ -173,6 +173,10 @@
 
               <!-- 卡片底部的附加操作：跟待办、地点一样是这张卡的附注，不抢标题的视线 -->
               <view class="card-acts">
+                <view wx:if="{{n.driveMinutes}}" class="drive-hint">
+                  <image class="drive-ic" src="{{carIcon}}" mode="aspectFit" />
+                  <text>约 {{n.driveMinutes}} 分钟车程</text>
+                </view>
                 <view wx:if="{{!n.done && !n.started}}" class="act-btn on-accent" data-id="{{n.id}}" data-action="departed" bindtap="onCheckin">出发</view>
                 <view wx:elif="{{!n.done}}" class="act-btn on-ok" data-id="{{n.id}}" data-action="done" bindtap="onCheckin">✓ 完成</view>
                 <view wx:else class="act-btn done-chip">✓ {{n.doneAt || '已完成'}}</view>

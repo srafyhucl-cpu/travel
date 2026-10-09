@@ -85,7 +85,7 @@ function toExpRow(e, vocab) {
   };
 }
 
-function toCard(n, vocab, currentId, expRows) {
+function toCard(n, vocab, currentId, expRows, hasPrev) {
   const meta = typeMeta(vocab, n.type);
   const spent = expRows.reduce((s, e) => s + (Number(e.rawAmount) || 0), 0);
   return {
@@ -103,6 +103,7 @@ function toCard(n, vocab, currentId, expRows) {
     started: n.isStarted && !n.isDone ? 1 : 0,
     doneAt: n.isDone ? hhmm(n.actual_end) : '',
     current: n.id === currentId ? 1 : 0,
+    driveMinutes: hasPrev && !n.isDone && Number(n.transport_minutes) > 0 ? Number(n.transport_minutes) : 0,
     // 拖动排序要求完整的起止时间（服务端同口径：缺时间的不给拖，客户端先拦一道）
     hasTime: n.start_time && n.end_time ? 1 : 0,
     checklist: (n.checklist || []).map((c) => ({ id: c.id, text: c.text, done: c.done ? 1 : 0 })),
@@ -159,9 +160,9 @@ function buildView(s) {
       isToday: d === clock.today,
       done: list.filter((n) => n.isDone).length,
       total: list.length,
-      nodes: list.map((n) => {
+      nodes: list.map((n, i) => {
         const rows = (expByNode.get(n.id) || []).map((e) => ({ ...toExpRow(e, data.vocab), rawAmount: e.amount }));
-        return { ...toCard(n, data.vocab, clock.currentNode?.id, rows), photos: byNode.get(n.id) || [] };
+        return { ...toCard(n, data.vocab, clock.currentNode?.id, rows, i > 0), photos: byNode.get(n.id) || [] };
       }),
     };
   });
@@ -308,6 +309,7 @@ Page({
     photoPaths: {}, // photoId -> 本地路径；出现一张补一张，不阻塞列表渲染
     cameraIcon: '',
     walletIcon: '',
+    carIcon: '',
     // 长按拖动排序 v2：迷你卡跟手 + 虚线占位 + 双指滚动 + 松手确认面板
     dragging: false,
     dragId: '',
@@ -326,6 +328,7 @@ Page({
     this.setData({
       cameraIcon: iconDataUri('camera', '#6b7280'),
       walletIcon: iconDataUri('wallet', '#6b7280'),
+      carIcon: iconDataUri('car', '#9ca3af', 26),
       nav: readNav(),
     });
     // scroll-view 的实时位置：拖动落点判定要按它平移（不跟 data，避免每滚一下都 setData）

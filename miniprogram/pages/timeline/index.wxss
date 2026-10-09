@@ -408,7 +408,24 @@
   display: flex;
   align-items: center;
   gap: 14rpx;
+  flex-wrap: wrap;
   margin-top: 14rpx;
+}
+
+.drive-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
+  margin-right: auto;
+  color: var(--ink-3);
+  font-size: 23rpx;
+  white-space: nowrap;
+}
+
+.drive-ic {
+  width: 26rpx;
+  height: 26rpx;
+  flex: none;
 }
 
 .act-btn {

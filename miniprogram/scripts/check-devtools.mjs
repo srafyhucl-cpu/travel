@@ -722,6 +722,17 @@ async function runLocalFlow(mp) {
   check('行程页 ready（数据来自本机临时库）', t.data?.ready === true, `ready=${t.data?.ready}`);
   check('days.length > 0', toCount(t.data?.days) > 0, `days=${toCount(t.data?.days)}`);
 
+  const expectedDriveHints = (t.data?.days || []).reduce(
+    (sum, day) => sum + (day.nodes || []).filter((n, i) => i > 0 && !n.done && Number(n.driveMinutes) > 0).length,
+    0
+  );
+  const driveHints = await t.page.$$('.drive-hint');
+  check(
+    '时间线车程提示渲染完整',
+    expectedDriveHints > 0 && driveHints.length === expectedDriveHints,
+    `hints=${driveHints.length} 应有=${expectedDriveHints}`
+  );
+
   // —— 打卡链路：找一张还没出发的卡，点「出发」→ 临时库 checkins +1 ——
   console.log('\n== 打卡链路 ==');
   {
