@@ -352,14 +352,16 @@ function templateMinimal(ctx, o, photos) {
 
   ctx.fillStyle = '#111827';
   ctx.font = `500 62px ${FONT}`;
-  const titleLines = wrapLines(ctx, o.title || '', W - M * 2, 3);
+  const titleLines = wrapLines(ctx, o.title || '', W - M * 2, 2);
   y += 100;
   drawLines(ctx, titleLines, M, y, 80);
+
+  const afterTitle = y + Math.max(0, titleLines.length - 1) * 80;
 
   if (o.location) {
     ctx.fillStyle = '#9CA3AF';
     ctx.font = `400 28px ${FONT}`;
-    ctx.fillText(`◎ ${o.location}`, M, y + 62 + 20);
+    ctx.fillText(`◎ ${o.location}`, M, afterTitle + 82);
   }
 
   if (o.footer) {

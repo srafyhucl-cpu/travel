@@ -123,6 +123,39 @@ const check = (name, cond, extra = '') => {
   check('图标内容正确（颜色+图形）', svg.includes('#F2994A') && svg.includes('<path'), svg.slice(0, 70));
   check('自写 base64 与标准一致', icon.split(',')[1] === Buffer.from(svg, 'utf8').toString('base64'));
 
+  const { renderPoster } = await import('../platform/wx/canvas.js');
+  const fills = [];
+  const ctx = {
+    font: '',
+    textAlign: 'left',
+    fillStyle: '',
+    setTransform() {},
+    fillRect() {},
+    save() {},
+    restore() {},
+    beginPath() {},
+    moveTo() {},
+    arcTo() {},
+    closePath() {},
+    clip() {},
+    measureText: (s) => ({ width: [...String(s)].length * 62 }),
+    fillText(text, x, y) {
+      fills.push({ text, y, font: this.font });
+    },
+  };
+  await renderPoster({
+    canvas: { width: 0, height: 0, getContext: () => ctx },
+    template: 'minimal',
+    title: '云南四日丽江大理旅行记录完整版纪念',
+    location: '丽江',
+    accent: '#2F80ED',
+    photoSrcs: [],
+  });
+  const titleFills = fills.filter((f) => f.font.startsWith('500 62px'));
+  const locationFill = fills.find((f) => f.font.startsWith('400 28px') && f.text === '◎ 丽江');
+  const locationGap = locationFill ? locationFill.y - titleFills[titleFills.length - 1].y : 0;
+  check('海报单图两行标题与地点不重叠', titleFills.length === 2 && locationGap >= 80, `lines=${titleFills.length} gap=${locationGap}`);
+
   let uploadMessage = '';
   try {
     await api.uploadPhotos({ files: [{ filePath: 'mock.png' }] });
