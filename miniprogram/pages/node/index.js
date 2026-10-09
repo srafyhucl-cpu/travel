@@ -32,7 +32,6 @@ Page({
     showNav: false,
     transportMinutes: '',
     checklist: [],
-    isModule: false,
     types: [],
     missing: '',
     canSave: false,
@@ -92,10 +91,6 @@ Page({
     const key = e.currentTarget.dataset.key;
     if (!key || key === this.data.type) return;
     this.setData({ type: key, types: toTypePills(getState().data?.vocab, key) });
-  },
-
-  onModule(e) {
-    this.setData({ isModule: e.detail.value });
   },
 
   /* ------------------------------ 待办 ------------------------------ */
@@ -161,7 +156,6 @@ Page({
       navKeyword: this.data.navKeyword.trim() || this.data.location.trim() || null,
       transportMinutes: this.data.transportMinutes === '' ? null : Number(this.data.transportMinutes),
       checklist,
-      role: this.data.isModule ? 'module' : null,
     };
     this.busy = true;
     try {
@@ -225,7 +219,6 @@ Page({
           navKeyword: n.nav_keyword || '',
           transportMinutes: n.transport_minutes ?? '',
           checklist: normalizeItems(n.checklist),
-          isModule: n.role === 'module',
           types: toTypePills(data.vocab, n.type || 'spot'),
           ...this.gate(title, date),
         });

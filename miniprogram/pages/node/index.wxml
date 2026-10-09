@@ -41,14 +41,6 @@
       </scroll-view>
     </view>
 
-    <view class="field row-between">
-      <view class="grow">
-        <text class="label">首页模块</text>
-        <text class="hint">在「现在」卡下面单独显示一份进度，时间线上照常保留</text>
-      </view>
-      <switch checked="{{isModule}}" color="#2f80ed" bindchange="onModule" />
-    </view>
-
     <view class="grid2">
       <view class="field">
         <text class="label">日期 <text class="req">必填</text></text>

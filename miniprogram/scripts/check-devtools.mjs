@@ -660,16 +660,11 @@ async function runDefaultFlow(mp) {
     console.log(`  · 生产数据当前没有照片，跳过缩略图断言`);
   }
 
-  // 前置模块的待办已经收在顶栏 Deck 里，卡片上不该再重复一遍
+  // 清单渲染完整：有清单的卡都该渲染出清单块（「前置」已从时间线移除，模块卡的待办也回到卡上）
   const allNodes = (t.data?.days || []).flatMap((d) => d.nodes || []);
-  const mod = allNodes.find((n) => n.hideChecks);
-  if (mod) {
-    const expect = allNodes.filter((n) => n.checklist.length && !n.hideChecks).length;
-    const blocks = await (await mp.currentPage()).$$('.checks');
-    check('前置卡片的待办不再重复显示', blocks.length === expect, `checks=${blocks.length} 应有=${expect}`);
-  } else {
-    console.log('  · 这趟没有首页模块，跳过前置去重断言');
-  }
+  const expect = allNodes.filter((n) => (n.checklist || []).length).length;
+  const blocks = await (await mp.currentPage()).$$('.checks');
+  check('时间线清单渲染完整', blocks.length === expect, `checks=${blocks.length} 应有=${expect}`);
 }
 
 async function runLocalFlow(mp) {

@@ -87,33 +87,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 前置胶囊：点开原有明细面板（清单可勾选 + 编辑） */
-.prep-chip {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8rpx;
-  padding: 6rpx 18rpx;
-  border-radius: 999rpx;
-  background: var(--surface-2, var(--line));
-  color: var(--ink-2);
-  font-size: 23rpx;
-}
-
-.prep-chip.on {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.prep-chip.ok {
-  color: var(--ok);
-}
-
-.prep-ic {
-  width: 26rpx;
-  height: 26rpx;
-  flex: none;
-}
+/* 前置胶囊已移除：模块待办回到它自己的卡片上显示 */
 
 .sum-title {
   margin-top: 16rpx;

@@ -2,7 +2,6 @@ import { actions, getState, refresh, subscribe } from '../../store/store.js';
 import { computeNow, decorate, groupByDate } from '../../core/timeline.js';
 import { formatDate, relativeDay, typeMeta, categoryMeta, formatMoney, tintOf } from '../../core/format.js';
 import { computeBudget } from '../../core/budget.js';
-import { progress } from '../../core/checklist.js';
 import { iconDataUri } from '../../platform/wx/icons.js';
 import { files } from '../../platform/wx/files.js';
 import { openMap } from '../../platform/wx/services.js';
@@ -86,7 +85,7 @@ function toExpRow(e, vocab) {
   };
 }
 
-function toCard(n, vocab, currentId, expRows, moduleId) {
+function toCard(n, vocab, currentId, expRows) {
   const meta = typeMeta(vocab, n.type);
   const spent = expRows.reduce((s, e) => s + (Number(e.rawAmount) || 0), 0);
   return {
@@ -107,8 +106,6 @@ function toCard(n, vocab, currentId, expRows, moduleId) {
     // 拖动排序要求完整的起止时间（服务端同口径：缺时间的不给拖，客户端先拦一道）
     hasTime: n.start_time && n.end_time ? 1 : 0,
     checklist: (n.checklist || []).map((c) => ({ id: c.id, text: c.text, done: c.done ? 1 : 0 })),
-    // 被顶栏「前置」收编的那个模块：待办只在总结卡里出现，卡片上不再重复一份
-    hideChecks: moduleId && n.id === moduleId ? 1 : 0,
     money: expRows,
     spend: spent > 0 ? formatMoney(spent) : '',
   };
@@ -153,24 +150,6 @@ function buildView(s) {
     }
   }
 
-  /* 前置模块：role === 'module' 的那一项，收进总结卡的「前置」胶囊 + 明细面板 */
-  const module = (data.nodes || []).find((n) => n.role === 'module') || null;
-  let moduleView = null;
-  if (module) {
-    const meta = typeMeta(data.vocab, module.type);
-    const p = progress(module.checklist);
-    moduleView = {
-      id: module.id,
-      title: module.title,
-      icon: iconDataUri(meta.icon, meta.color),
-      color: meta.color,
-      done: p.done,
-      total: p.total,
-      allDone: p.allDone ? 1 : 0,
-      checks: (module.checklist || []).map((c) => ({ id: c.id, text: c.text, done: c.done ? 1 : 0 })),
-    };
-  }
-
   const days = clock.allDates.map((d) => {
     const list = byDate.get(d) || [];
     return {
@@ -182,7 +161,7 @@ function buildView(s) {
       total: list.length,
       nodes: list.map((n) => {
         const rows = (expByNode.get(n.id) || []).map((e) => ({ ...toExpRow(e, data.vocab), rawAmount: e.amount }));
-        return { ...toCard(n, data.vocab, clock.currentNode?.id, rows, module?.id), photos: byNode.get(n.id) || [] };
+        return { ...toCard(n, data.vocab, clock.currentNode?.id, rows), photos: byNode.get(n.id) || [] };
       }),
     };
   });
@@ -242,7 +221,6 @@ function buildView(s) {
       days,
       loose,
       looseExp,
-      module: moduleView,
       budget,
       online: s.online,
       syncing: s.syncing,
@@ -323,9 +301,8 @@ Page({
     days: [],
     loose: [],
     looseExp: [],
-    module: null,
     budget: {},
-    seg: '', // 总结卡展开的那一格：'' | 'prep' | 'money'
+    seg: '', // 总结卡展开的那一格：'' | 'money'
     online: true,
     syncing: true,
     photoPaths: {}, // photoId -> 本地路径；出现一张补一张，不阻塞列表渲染
