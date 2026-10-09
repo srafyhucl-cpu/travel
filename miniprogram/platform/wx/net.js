@@ -64,7 +64,8 @@ export function send({ method = 'GET', path, headers = {}, body, isForm = false 
 /**
  * 上传：wx.uploadFile 一次只能传一个文件，这里顺序逐张传，
  * 把每次返回的数组拼起来，给 store/api 的响应形状保持不变。
- * 中途失败就把那一次的状态/文案带回去（前面已传成功的照片服务端已收下）。
+ * 网络失败直接 reject；HTTP 错误仍返回响应，由 store/api 统一给可读提示。
+ * 前面已传成功的照片服务端已收下，失败那次不假装成功。
  */
 export async function upload({ path, files = [], fields = {} }) {
   const rows = [];
@@ -73,7 +74,7 @@ export async function upload({ path, files = [], fields = {} }) {
     for (const [k, v] of Object.entries(fields)) {
       if (v !== undefined && v !== null) formData[k] = String(v);
     }
-    const res = await new Promise((resolve) =>
+    const res = await new Promise((resolve, reject) =>
       wx.uploadFile({
         url: `${baseUrl()}${path}`,
         filePath: f.filePath,
@@ -81,7 +82,7 @@ export async function upload({ path, files = [], fields = {} }) {
         header: authHeader(),
         formData,
         success: (r) => resolve({ status: r.statusCode, data: r.data }),
-        fail: () => resolve({ status: 0, data: null }),
+        fail: (err) => reject(new Error(err?.errMsg || 'upload failed')),
       })
     );
     if (res.status < 200 || res.status >= 300) return toResponse(res.status, res.data);

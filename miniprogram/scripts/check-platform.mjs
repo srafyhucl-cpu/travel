@@ -44,6 +44,8 @@ globalThis.wx = {
       .catch((e) => fail({ errMsg: String(e?.message || e) }));
   },
 
+  uploadFile: ({ fail }) => fail({ errMsg: 'uploadFile:fail mock offline' }),
+
   showToast: ({ title }) => {
     lastToast = title;
   },
@@ -87,7 +89,7 @@ const check = (name, cond, extra = '') => {
   await platform.queue.remove(seq);
   check('队列删除', (await platform.queue.size()) === 0);
 
-  const { createApi } = await import('../store/api.js');
+  const { createApi, api } = await import('../store/api.js');
   const replayQueue = [{ seq: 1, method: 'POST', path: '/replay', body: { a: 1 } }];
   let failReplay = true;
   const fakeApi = createApi({
@@ -120,6 +122,14 @@ const check = (name, cond, extra = '') => {
   const svg = Buffer.from(icon.split(',')[1], 'base64').toString('utf8');
   check('图标内容正确（颜色+图形）', svg.includes('#F2994A') && svg.includes('<path'), svg.slice(0, 70));
   check('自写 base64 与标准一致', icon.split(',')[1] === Buffer.from(svg, 'utf8').toString('base64'));
+
+  let uploadMessage = '';
+  try {
+    await api.uploadPhotos({ files: [{ filePath: 'mock.png' }] });
+  } catch (e) {
+    uploadMessage = e.message;
+  }
+  check('照片上传断网提示可读', uploadMessage === '网络不可用，照片要联网才能传', uploadMessage);
 
   console.log('\n== 登录 + 快照（真实服务器） ==');
   const res = await actions.login(PASS, NAME);
