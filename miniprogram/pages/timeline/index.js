@@ -57,7 +57,8 @@ function nowCard(clock) {
     return {
       label: '下一个',
       title: clock.nextNode.title,
-      sub: `${day} · ${clock.nextNode.start_time || ''} 开始`.trim(),
+      // 下一项没定时间时别写成「·  开始」：明说是待定
+      sub: `${day} · ${clock.nextNode.start_time ? `${clock.nextNode.start_time} 开始` : '时间待定'}`,
       tone: 'normal',
     };
   }
@@ -91,7 +92,8 @@ function toCard(n, vocab, currentId, expRows, hasPrev) {
   return {
     id: n.id,
     title: n.title,
-    time: n.start_time || '—',
+    time: n.start_time || '待定',
+    tbd: n.start_time ? 0 : 1, // 没定时间：时间格给「待定」，不给一个像缺字的「—」
     range: n.end_time && n.start_time ? `${n.start_time}–${n.end_time}` : '',
     typeLabel: meta.label,
     typeColor: meta.color,
@@ -122,8 +124,16 @@ function toCard(n, vocab, currentId, expRows, hasPrev) {
  */
 function buildView(s) {
   const data = s.data;
-  const clock = computeNow({ trip: data.trip, nodes: data.nodes, checkins: data.checkins }, s.now);
-  const decorated = decorate(data.nodes, data.checkins);
+  /*
+   * 「前置准备」（role=module）不是行程里的一项：它没有起止时间，塞进按天的
+   * 时间线只能给它一格「—」。这里把它整个从行程里摘出来，单独交给下面那张
+   * 「出行准备」清单卡；只装了它的那天也不在时间线上留一个空壳日期。
+   */
+  const allNodes = data.nodes || [];
+  const moduleNode = allNodes.find((n) => n.role === 'module') || null;
+  const itinerary = moduleNode ? allNodes.filter((n) => n.role !== 'module') : allNodes;
+  const clock = computeNow({ trip: data.trip, nodes: itinerary, checkins: data.checkins }, s.now);
+  const decorated = decorate(itinerary, data.checkins);
   const byDate = groupByDate(decorated);
 
   const byNode = new Map();
@@ -151,9 +161,13 @@ function buildView(s) {
     }
   }
 
-  const days = clock.allDates.map((d) => {
+  const allByDate = moduleNode ? groupByDate(allNodes) : byDate;
+  const days = [];
+  for (const d of clock.allDates) {
     const list = byDate.get(d) || [];
-    return {
+    // 这天只是准备卡的落脚处：整格端走，别在时间线上挂一个空壳日期
+    if (!list.length && (allByDate.get(d) || []).length) continue;
+    days.push({
       date: d,
       label: formatDate(d),
       rel: relativeDay(d, s.now),
@@ -164,8 +178,8 @@ function buildView(s) {
         const rows = (expByNode.get(n.id) || []).map((e) => ({ ...toExpRow(e, data.vocab), rawAmount: e.amount }));
         return { ...toCard(n, data.vocab, clock.currentNode?.id, rows, i > 0), photos: byNode.get(n.id) || [] };
       }),
-    };
-  });
+    });
+  }
 
   /* 钱：总预算对照（core/budget 与 Web 同一份逻辑） */
   const b = computeBudget({ budgets: data.budgets, expenses: data.expenses });
@@ -214,11 +228,32 @@ function buildView(s) {
     photos: (data.photos || []).length,
   };
 
+  /*
+   * 出行准备：一趟只带一条（服务端只留一个 role=module），没清单就不占位。
+   * 它不是某一项行程，进度也算它自己的，不混进上面那条行程进度条。
+   */
+  const prepItems = moduleNode?.checklist || [];
+  const prepDone = prepItems.filter((c) => c.done).length;
+  const prep = prepItems.length
+    ? {
+        id: moduleNode.id,
+        title: (moduleNode.title || '').trim() || '出行准备',
+        icon: iconDataUri('pack', '#2F80ED'),
+        items: prepItems.map((c) => ({ id: c.id, text: c.text, done: c.done ? 1 : 0 })),
+        done: prepDone,
+        total: prepItems.length,
+        left: prepItems.length - prepDone,
+        pct: Math.round((prepDone / prepItems.length) * 100),
+        allDone: prepDone === prepItems.length ? 1 : 0,
+      }
+    : null;
+
   return {
     view: {
       tripName: trip.name || '旅行助手',
       now: nowCard(clock),
       summary,
+      prep,
       days,
       loose,
       looseExp,
@@ -299,6 +334,8 @@ Page({
     tripName: '旅行助手',
     now: {},
     summary: { status: '', tone: 'active', range: '', done: 0, total: 0, pct: 0, photos: 0 },
+    prep: null, // 出行准备（role=module）的清单卡视图；没清单就是 null
+    prepOpen: false, // 默认收起，只露一条进度；勾完最后一条会自动收回去
     days: [],
     loose: [],
     looseExp: [],
@@ -429,6 +466,10 @@ Page({
       this.lastTripName = view.tripName;
       patch.navTitleSize = titleFontPx(view.tripName);
     }
+    // 准备清单刚勾完最后一条：顺手把面板收回去（跟 Web Deck 同一个手感）
+    const prepLeft = view.prep ? view.prep.left : null;
+    if (prepLeft === 0 && this.prepLeft > 0) patch.prepOpen = false;
+    this.prepLeft = prepLeft;
     // 视图落地后再补缩略图：新照片每轮同步都会重新排进来
     this.setData(patch, () => {
       this.fillThumbs();
@@ -875,7 +916,7 @@ Page({
       return {
         id: n.id,
         icon: local?.icon || '',
-        time: n.start_time || '—',
+        time: n.start_time || '待定',
         title: n.title || local?.title || '',
         on: n.id === drop.nodeId ? 1 : 0,
         timeMoved: n.time_changed ? 1 : 0,
@@ -950,6 +991,12 @@ Page({
     const seg = e.currentTarget.dataset.seg;
     if (!seg) return;
     this.setData({ seg: this.data.seg === seg ? '' : seg });
+  },
+
+  /** 出行准备卡：整头像一行展开/收起，清单里每条仍走同一个勾选动作 */
+  onPrepToggle() {
+    if (!this.data.prep) return;
+    this.setData({ prepOpen: !this.data.prepOpen });
   },
 
   /** 逐张补缩略图（并发 3）：每张成功只动 photoPaths 里一个 key，列表不整体重排 */

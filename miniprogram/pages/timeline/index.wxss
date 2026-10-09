@@ -87,7 +87,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 前置胶囊已移除：模块待办回到它自己的卡片上显示 */
+/* 前置准备不在这里：它是顶部那张独立的「出行准备」卡（见 .prep-card） */
 
 .sum-title {
   margin-top: 16rpx;
@@ -187,6 +187,109 @@
 }
 
 /* ---------- 天分组 ---------- */
+/* ---------- ②′ 出行准备：不属于任何一天，单独一张清单卡 ---------- */
+
+.prep-card {
+  margin-top: 20rpx;
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 22rpx 26rpx;
+  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+}
+
+/* 卡片头整行可点：展开/收起，右侧给一个明说「展开 / 收起」的小胶囊 */
+.prep-head {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.prep-ic {
+  width: 38rpx;
+  height: 38rpx;
+  flex: none;
+}
+
+.prep-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.prep-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.prep-note {
+  margin-top: 2rpx;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.prep-card.alldone .prep-note {
+  color: var(--ok);
+}
+
+.prep-count {
+  flex: none;
+  font-size: 26rpx;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.prep-toggle {
+  flex: none;
+  padding: 4rpx 18rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2, var(--line));
+  color: var(--ink-2);
+  font-size: 23rpx;
+}
+
+.prep-bar {
+  margin-top: 14rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2, var(--line));
+  overflow: hidden;
+}
+
+.prep-fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: var(--accent);
+}
+
+.prep-card.alldone .prep-fill {
+  background: var(--ok);
+}
+
+.prep-body {
+  margin-top: 12rpx;
+  border-top: 2rpx solid var(--line);
+  padding-top: 10rpx;
+}
+
+.prep-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8rpx;
+  padding-top: 14rpx;
+  border-top: 2rpx solid var(--line);
+}
+
+.prep-tip {
+  font-size: 23rpx;
+  color: var(--ink-3);
+}
+
+.prep-edit {
+  font-size: 25rpx;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 
 .day {
   margin-top: 26rpx;
@@ -244,6 +347,12 @@
   color: var(--ink-3);
   font-size: 24rpx;
   font-variant-numeric: tabular-nums;
+}
+
+/* 没定时间的项：时间格写「待定」，比一个像缺字的「—」像样，卡片仍然对齐 */
+.node-time.tbd {
+  padding-top: 22rpx;
+  font-size: 22rpx;
 }
 
 .node-card {

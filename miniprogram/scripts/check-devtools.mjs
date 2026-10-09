@@ -426,6 +426,45 @@ function patchNodeInApp(mp, base, id, payload) {
 }
 
 /** 用 automator 的元素 API 拿一批元素的位置/尺寸（顺序与 page.$$ 一致；避开 evaluate 的序列化坑） */
+/** 建一条节点（--local 专用：造 role=module 的「出行准备」来验准备卡） */
+function createNodeInApp(mp, base, payload) {
+  return mp.evaluate(
+    (b, body) =>
+      new Promise((resolve, reject) => {
+        wx.request({
+          method: 'POST',
+          url: `${b}/api/nodes`,
+          header: {
+            Authorization: `Bearer ${wx.getStorageSync('travel.token')}`,
+            'content-type': 'application/json',
+          },
+          data: body,
+          success: (r) => resolve({ status: r.statusCode, data: r.data }),
+          fail: (e) => reject(new Error(e.errMsg || 'request failed')),
+        });
+      }),
+    base,
+    payload
+  );
+}
+
+function deleteNodeInApp(mp, base, id) {
+  return mp.evaluate(
+    (b, nodeId) =>
+      new Promise((resolve, reject) => {
+        wx.request({
+          method: 'DELETE',
+          url: `${b}/api/nodes/${nodeId}`,
+          header: { Authorization: `Bearer ${wx.getStorageSync('travel.token')}` },
+          success: (r) => resolve({ status: r.statusCode, data: r.data }),
+          fail: (e) => reject(new Error(e.errMsg || 'request failed')),
+        });
+      }),
+    base,
+    id
+  );
+}
+
 async function rectsOfElements(els) {
   const out = [];
   for (const el of els) {
@@ -682,7 +721,7 @@ async function runDefaultFlow(mp) {
     console.log(`  · 生产数据当前没有照片，跳过缩略图断言`);
   }
 
-  // 清单渲染完整：有清单的卡都该渲染出清单块（「前置」已从时间线移除，模块卡的待办也回到卡上）
+  // 清单渲染完整：时间线上出现的卡都该渲染出清单块（「前置准备」不在 days 里，它有自己的准备卡）
   const allNodes = (t.data?.days || []).flatMap((d) => d.nodes || []);
   const expect = allNodes.filter((n) => (n.checklist || []).length).length;
   const blocks = await (await mp.currentPage()).$$('.checks');
@@ -1035,6 +1074,110 @@ async function runLocalFlow(mp) {
   }
 
   // —— 照片链路：只测接口与数据（UI 由另一路同学做） ——
+  // —— 准备卡链路：role=module 的「前置准备」不进按天时间线，改坐顶部那张清单卡 ——
+  console.log('\n== 准备卡链路 ==');
+  {
+    const prepDate = '2026-09-30'; // 行程前一天：以前这里会多出「9月30日」+ 一张时间格是「—」的卡
+    const made = await createNodeInApp(mp, LOCAL_BASE, {
+      date: prepDate,
+      title: '出行准备',
+      type: 'other',
+      role: 'module',
+      checklist: ['身份证', '充电宝', '雨伞'],
+    });
+    const prepId = made?.data?.id || null;
+    check('准备卡：造出一条前置准备节点', made.status === 201 && !!prepId, `status=${made.status} id=${prepId || ''}`);
+
+    await nudgeRefresh(mp);
+    let t2 = await waitTimeline(mp);
+    for (let i = 0; i < 10 && !t2.data?.prep; i++) {
+      await sleep(800);
+      t2 = await waitTimeline(mp);
+    }
+    const d2 = t2.data || {};
+    const dayDates = (d2.days || []).map((x) => x.date);
+    const inTimeline = (d2.days || []).some((x) => (x.nodes || []).some((n) => n.id === prepId));
+    check('准备卡：时间线不为它单开一天', !!prepId && !dayDates.includes(prepDate), `days=${dayDates.join(',')}`);
+    check('准备卡：按天列表里没有这张卡', !!prepId && !inTimeline, inTimeline ? '还在时间线里' : 'ok');
+    check('准备卡：进度按自己的清单算', d2.prep?.total === 3 && d2.prep?.done === 0, `done=${d2.prep?.done}/${d2.prep?.total}`);
+
+    const snapPrep = await snapshotInApp(mp, LOCAL_BASE);
+    const itineraryCount = (snapPrep.data?.nodes || []).filter((n) => n.role !== 'module').length;
+    check('准备卡：行程进度不掺准备项', d2.summary?.total === itineraryCount, `summary=${d2.summary?.total} 行程=${itineraryCount}`);
+
+    // 默认收起：只露一条进度，别在首屏铺七条待办
+    let page2 = await mp.currentPage();
+    const head = await page2.$('.prep-head');
+    const closedRows = (await page2.$$('.prep-body .check-row')).length;
+    check('准备卡：默认收起', !!head && d2.prepOpen === false && closedRows === 0, `open=${d2.prepOpen} rows=${closedRows}`);
+
+    if (head) {
+      await head.tap();
+      await sleep(700);
+      page2 = await mp.currentPage();
+      const openRows = await page2.$$('.prep-body .check-row');
+      check('准备卡：展开露出清单', openRows.length === 3, `rows=${openRows.length}`);
+      if (openRows[0]) {
+        await openRows[0].tap();
+        await sleep(1600);
+        const snapTick = await snapshotInApp(mp, LOCAL_BASE);
+        const row = (snapTick.data?.nodes || []).find((n) => n.id === prepId);
+        const doneCount = (row?.checklist || []).filter((c) => c.done).length;
+        check('准备卡：勾一条落库', doneCount === 1, `done=${doneCount}`);
+      } else {
+        check('准备卡：勾一条落库', false, '展开后没找到清单行');
+      }
+
+      // 把剩下两条勾完：最后一下自动收起，头部换成「都备好了」
+      for (let i = 0; i < 4; i++) {
+        const dNow = (await (await mp.currentPage()).data()) || {};
+        const idx = (dNow.prep?.items || []).findIndex((it) => !it.done);
+        if (idx < 0) break;
+        const rows = await (await mp.currentPage()).$$('.prep-body .check-row');
+        if (!rows[idx]) break;
+        await rows[idx].tap();
+        await sleep(1600);
+      }
+      const dAll = (await (await mp.currentPage()).data()) || {};
+      check(
+        '准备卡：勾完最后一条自动收起',
+        dAll.prep?.allDone === 1 && dAll.prepOpen === false,
+        `allDone=${dAll.prep?.allDone} open=${dAll.prepOpen}`
+      );
+    } else {
+      check('准备卡：展开露出清单', false, '没找到卡片头');
+      check('准备卡：勾一条落库', false, '跳过');
+      check('准备卡：勾完最后一条自动收起', false, '跳过');
+    }
+
+    // 另一种「没时间」：普通项（不是模块）也不该在时间格写一个像缺字的「—」
+    const plain = await createNodeInApp(mp, LOCAL_BASE, { date: prepDate, title: '待定时间的事', type: 'other' });
+    const plainId = plain?.data?.id || null;
+    await nudgeRefresh(mp);
+    let t3 = await waitTimeline(mp);
+    const pickPlain = (data) => (data?.days || []).flatMap((x) => x.nodes || []).find((n) => n.id === plainId);
+    let plainCard = pickPlain(t3.data);
+    for (let i = 0; i < 10 && !plainCard; i++) {
+      await sleep(800);
+      t3 = await waitTimeline(mp);
+      plainCard = pickPlain(t3.data);
+    }
+    check(
+      '无时间项：时间格写「待定」而不是「—」',
+      !!plainId && plainCard?.time === '待定' && plainCard?.tbd === 1,
+      `time=${plainCard?.time || '（没渲染）'} tbd=${plainCard?.tbd}`
+    );
+    const delPlain = await deleteNodeInApp(mp, LOCAL_BASE, plainId);
+    check('无时间项：清掉造出来的节点', delPlain.status === 200, `status=${delPlain.status}`);
+
+    const delNode = await deleteNodeInApp(mp, LOCAL_BASE, prepId);
+    check('准备卡：清掉造出来的节点', delNode.status === 200, `status=${delNode.status}`);
+    await nudgeRefresh(mp);
+    await sleep(1200);
+    const dGone = (await (await mp.currentPage()).data()) || {};
+    check('准备卡：节点删掉后卡片消失', !dGone.prep, dGone.prep ? '卡片还在' : 'ok');
+  }
+
   console.log('\n== 照片链路（数据层） ==');
   const before = await snapshotInApp(mp, LOCAL_BASE);
   check('快照可拉取', before.status === 200 && !!before.data?.trip, `status=${before.status}`);

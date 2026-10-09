@@ -82,6 +82,40 @@
           </view>
         </view>
 
+        <!-- ②′ 出行准备（role=module）：不是行程里的一项，没时间也不占某一天。
+             一条进度 + 展开清单；点头部展开/收起，尾部「编辑清单」进编辑页 -->
+        <view wx:if="{{prep}}" class="prep-card {{prep.allDone ? 'alldone' : ''}}">
+          <view class="prep-head" bindtap="onPrepToggle">
+            <image class="prep-ic" src="{{prep.icon}}" mode="aspectFit" />
+            <view class="prep-main">
+              <view class="prep-title">{{prep.title}}</view>
+              <view class="prep-note">{{prep.allDone ? '要带的都备好了' : '还差 ' + prep.left + ' 项'}}</view>
+            </view>
+            <text class="prep-count">{{prep.done}}/{{prep.total}}</text>
+            <text class="prep-toggle">{{prepOpen ? '收起' : '展开'}}</text>
+          </view>
+          <view class="prep-bar"><view class="prep-fill" style="width:{{prep.pct}}%"></view></view>
+          <view wx:if="{{prepOpen}}" class="prep-body">
+            <view
+              wx:for="{{prep.items}}"
+              wx:key="id"
+              class="check-row"
+              data-node="{{prep.id}}"
+              data-item="{{item.id}}"
+              data-done="{{item.done}}"
+              data-text="{{item.text}}"
+              bindtap="onToggle"
+            >
+              <view class="checkbox {{item.done ? 'on' : ''}}">{{item.done ? '✓' : ''}}</view>
+              <text class="check-text {{item.done ? 'strike' : ''}}">{{item.text}}</text>
+            </view>
+            <view class="prep-foot">
+              <text class="prep-tip">出发前把这些勾完</text>
+              <text class="prep-edit" data-id="{{prep.id}}" bindtap="onEditNode">编辑清单</text>
+            </view>
+          </view>
+        </view>
+
         <view wx:for="{{days}}" wx:key="date" class="day" data-date="{{item.date}}">
           <view class="day-mark {{item.isToday ? 'today' : ''}}">
             <text class="dm-date">{{item.label}}</text>
@@ -105,7 +139,7 @@
           >
             <!-- 原位占位：迷你卡跟手去了，这里留一条虚线框告诉用户它从哪儿来 -->
             <view wx:if="{{dragId === n.id}}" class="drag-ghost"></view>
-            <view class="node-time">{{n.time}}</view>
+            <view class="node-time {{n.tbd ? 'tbd' : ''}}">{{n.time}}</view>
             <view class="node-card" style="border-left-color:{{n.typeColor}}">
               <view class="node-head" data-id="{{n.id}}" bindtap="onEditNode">
                 <view class="node-meta">
