@@ -145,7 +145,7 @@ export function createApi(platform) {
     let dropped = 0;
     for (const item of items) {
       try {
-        await request(item.method, item.path, item.body);
+        await request(item.method, item.path, item.body, { queueable: false });
         await queue.remove(item.seq);
         done++;
       } catch (e) {

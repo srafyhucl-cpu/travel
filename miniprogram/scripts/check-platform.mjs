@@ -85,6 +85,33 @@ const check = (name, cond, extra = '') => {
   await platform.queue.remove(seq);
   check('队列删除', (await platform.queue.size()) === 0);
 
+  const { createApi } = await import('../store/api.js');
+  const replayQueue = [{ seq: 1, method: 'POST', path: '/replay', body: { a: 1 } }];
+  let failReplay = true;
+  const fakeApi = createApi({
+    net: {
+      send: async () => {
+        if (failReplay) {
+          failReplay = false;
+          throw new Error('offline');
+        }
+        return { status: 200, ok: true, text: async () => '{}' };
+      },
+    },
+    queue: {
+      list: async () => replayQueue.slice(),
+      push: async (item) => replayQueue.push({ ...item, seq: replayQueue.length + 1 }),
+      remove: async (itemSeq) => {
+        const i = replayQueue.findIndex((x) => x.seq === itemSeq);
+        if (i >= 0) replayQueue.splice(i, 1);
+      },
+    },
+  });
+  const firstReplay = await fakeApi.flushQueue();
+  check('离线补传失败不复制队列', replayQueue.length === 1 && firstReplay.done === 0, `queue=${replayQueue.length}`);
+  const secondReplay = await fakeApi.flushQueue();
+  check('网络恢复后补传并清队列', replayQueue.length === 0 && secondReplay.done === 1, `done=${secondReplay.done}`);
+
   const { iconDataUri } = await import('../platform/wx/icons.js');
   const icon = iconDataUri('pin', '#F2994A');
   check('图标 data URI 生成', icon.startsWith('data:image/svg+xml;base64,'), icon.slice(0, 42));
