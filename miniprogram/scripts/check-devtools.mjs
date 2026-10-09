@@ -1079,8 +1079,35 @@ async function runLocalFlow(mp) {
       `photo=${uploadedId}`
     );
 
-    // 归位：长按照片 → 「挂到某一项」（mock 掉原生菜单）→ 选「不指定」→ 快照 node_id 变 null
+    // 备注：长按照片 → 「编辑备注」→ mock 原生可编辑弹框 → 快照 caption 变化
+    const captionText = `检查-照片备注-${Date.now()}`;
     await mp.mockWxMethod('showActionSheet', { tapIndex: 1 });
+    await mp.mockWxMethod('showModal', { confirm: true, content: captionText });
+    const captionThumb = await (await mp.currentPage()).$('.shot-thumb');
+    if (captionThumb) {
+      await captionThumb.longpress();
+      await sleep(2500);
+    }
+    await mp.restoreWxMethod('showModal');
+    const captionSnap = await snapshotInApp(mp, LOCAL_BASE);
+    const captionRow = (captionSnap.data?.photos || []).find((p) => p.id === uploadedId);
+    check('照片备注：编辑后写入快照', captionRow?.caption === captionText, `caption=${captionRow?.caption || '（空）'}`);
+
+    // 清空备注：同一个入口返回空字符串，服务端要落成 null
+    await mp.mockWxMethod('showModal', { confirm: true, content: '' });
+    const clearThumb = await (await mp.currentPage()).$('.shot-thumb');
+    if (clearThumb) {
+      await clearThumb.longpress();
+      await sleep(2500);
+    }
+    await mp.restoreWxMethod('showModal');
+    await mp.restoreWxMethod('showActionSheet');
+    const clearSnap = await snapshotInApp(mp, LOCAL_BASE);
+    const clearRow = (clearSnap.data?.photos || []).find((p) => p.id === uploadedId);
+    check('照片备注：清空后删除备注', clearRow?.caption === null, `caption=${String(clearRow?.caption)}`);
+
+    // 归位：长按照片 → 「挂到某一项」（mock 掉原生菜单）→ 选「不指定」→ 快照 node_id 变 null
+    await mp.mockWxMethod('showActionSheet', { tapIndex: 2 });
     const thumbEl = await (await mp.currentPage()).$('.shot-thumb');
     if (thumbEl) {
       await thumbEl.longpress();

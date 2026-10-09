@@ -1000,19 +1000,43 @@ Page({
     });
   },
 
-  /** 长按缩略图：保存原图 / 挂到某一项 / 删除 */
+  /** 长按缩略图：保存原图 / 编辑备注 / 挂到某一项 / 删除 */
   onPhotoLong(e) {
-    const pid = e.currentTarget.dataset.pid;
+    const { pid, group = '' } = e.currentTarget.dataset;
     if (!pid) return;
-    const group = e.currentTarget.dataset.group || '';
+    // 备注从快照里取，不往 WXML 塞 data-caption：长列表上少一份绑定
+    const photo = (getState().data?.photos || []).find((p) => p.id === pid);
+    const caption = photo?.caption || '';
     wx.showActionSheet({
-      itemList: ['保存原图', '挂到某一项', '删除照片'],
+      itemList: ['保存原图', '编辑备注', '挂到某一项', '删除照片'],
       success: (res) => {
         if (res.tapIndex === 0) this.saveOriginal(pid);
-        else if (res.tapIndex === 1) this.pickNodeForPhoto(pid, group);
-        else if (res.tapIndex === 2) this.confirmDelete(pid);
+        else if (res.tapIndex === 1) this.editCaption(pid, caption);
+        else if (res.tapIndex === 2) this.pickNodeForPhoto(pid, group);
+        else if (res.tapIndex === 3) this.confirmDelete(pid);
       },
       fail: () => {}, // 点空白收起：什么都不做
+    });
+  },
+
+  /** 编辑照片备注：与 Web 查看器共用 patchPhoto；清空即删除备注。 */
+  editCaption(pid, current = '') {
+    wx.showModal({
+      title: '照片备注',
+      content: current || '',
+      editable: true,
+      placeholderText: '给这张照片写句话',
+      confirmText: '保存',
+      success: (r) => {
+        if (!r.confirm) return;
+        const next = String(r.content || '').trim().slice(0, 200);
+        if (next === String(current || '').trim()) return;
+        actions
+          .patchPhoto(pid, { caption: next })
+          .then(() => wx.showToast({ title: next ? '备注已保存' : '备注已清除', icon: 'success' }))
+          .catch(() => {});
+      },
+      fail: () => {},
     });
   },
 
