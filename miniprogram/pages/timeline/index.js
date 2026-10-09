@@ -903,7 +903,7 @@ Page({
       })
       .catch(() => {
         // store 已经全局提示过；面板留着让用户重试或取消
-        if (this.data.dropSheet) this.setData({ 'dropSheet.busy': false });
+        if (!this.unloaded && this.data.dropSheet) this.setData({ 'dropSheet.busy': false });
       });
   },
 
@@ -914,6 +914,7 @@ Page({
   },
 
   resetDragUI() {
+    if (this.unloaded) return; // 卸载后的回调不许再碰视图
     this.setData({
       dragging: false,
       dragId: '',
@@ -976,7 +977,7 @@ Page({
         .url(id, { thumb: true })
         .then((path) => {
           // 期间可能已被别的轮次补上，别拿旧结果盖新的
-          if (path && !this.data.photoPaths?.[id]) this.setData({ [`photoPaths.${id}`]: path });
+          if (path && !this.unloaded && !this.data.photoPaths?.[id]) this.setData({ [`photoPaths.${id}`]: path });
         })
         .catch(() => {}) // 拉不到就保持占位底色，下一轮 sync 再试
         .then(done, done);
@@ -1067,14 +1068,18 @@ Page({
     } finally {
       wx.hideLoading();
     }
+    if (this.unloaded) return; // 下载跨过了页面卸载：别再出后续提示
     if (!path) {
       wx.showToast({ title: '原图没下来，检查网络再试', icon: 'none' });
       return;
     }
     wx.saveImageToPhotosAlbum({
       filePath: path,
-      success: () => wx.showToast({ title: '已存到相册', icon: 'success' }),
+      success: () => {
+        if (!this.unloaded) wx.showToast({ title: '已存到相册', icon: 'success' });
+      },
       fail: (err) => {
+        if (this.unloaded) return;
         const msg = err?.errMsg || '';
         if (/cancel/i.test(msg)) return; // 用户自己取消的，不打扰
         if (/auth|deny/i.test(msg)) {
@@ -1104,6 +1109,7 @@ Page({
         if (!r.confirm) return;
         try {
           await actions.deletePhoto(id);
+          if (this.unloaded) return; // 确认弹框开着时页面可能已经卸载
           // 离线时 store 只是把它排进队列并提示「待同步」，快照里照片还在：
           // 这种「假成功」不弹「已删除」，免得用户以为已经删干净
           const stillThere = (getState().data?.photos || []).some((p) => p.id === id);

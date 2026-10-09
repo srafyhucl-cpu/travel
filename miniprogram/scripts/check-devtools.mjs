@@ -1489,6 +1489,19 @@ async function runLocalFlow(mp) {
     );
 
     for (const id of posterIds) await deletePhotoInApp(mp, LOCAL_BASE, id);
+
+    // 出图途中离开页面：在飞的出图/导出回调不许再碰已卸载的页面（控制台结论兑底）
+    const longPill = await findPill('行程长图');
+    await longPill?.tap();
+    await sleep(600);
+    await page.callMethod('onRegenerate');
+    await sleep(150);
+    await mp.reLaunch('/pages/timeline/index');
+    await sleep(2000);
+    const leftPage = await mp.currentPage();
+    check('出图途中离开页面不报错', leftPage?.path === 'pages/timeline/index', leftPage?.path || '（读不到）');
+
+    for (const id of posterIds) await deletePhotoInApp(mp, LOCAL_BASE, id);
   }
 
   // —— 口令链路（副本库上改，验证新口令能用、旧口令失效） ——

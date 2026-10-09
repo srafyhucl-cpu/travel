@@ -35,6 +35,9 @@ Page({
   },
 
   onUnload() {
+    // 卸载后还在飞的出图/导出回调一律作废：gen 一变，后面所有检查都短路
+    this.unloaded = true;
+    this.gen = (this.gen || 0) + 1;
     this.unsub?.();
   },
 
@@ -45,6 +48,7 @@ Page({
       .select('#cv')
       .fields({ node: true, size: true })
       .exec((res) => {
+        if (this.unloaded) return; // 查询回来得比卸载晚：别再动画布
         this.canvas = res?.[0]?.node || null;
         if (!this.canvas) {
           wx.showToast({ title: '画布初始化失败', icon: 'none' });
@@ -56,7 +60,7 @@ Page({
 
   /** 画布与数据都齐了才开第一张图（两者到达顺序不固定） */
   boot() {
-    if (this.booted || !this.canvas || !getState().data) return;
+    if (this.booted || this.unloaded || !this.canvas || !getState().data) return;
     this.booted = true;
     this.generate();
   },
