@@ -29,6 +29,7 @@ let state = { ...initial };
 let tickTimer = null;
 let stream = null;
 let reconnectTimer = null;
+let lastSnapshotFingerprint = null;
 
 function emit() {
   for (const l of listeners) l();
@@ -168,11 +169,42 @@ async function celebrateAchievements(data) {
 
 /* ------------------------------ 拉数据 ------------------------------ */
 
+/**
+ * 快照指纹：轮询拿回来的 serverTime 每次都会变，旧数据的待办 id 也可能每次现生成。
+ * 比较前把这两类易变字段收掉，内容没变就别替换 data / 重写本地快照。
+ */
+function snapshotFingerprint(data) {
+  if (!data) return '';
+  const stable = {
+    ...data,
+    serverTime: undefined,
+    nodes: Array.isArray(data.nodes)
+      ? data.nodes.map((n) => ({
+          ...n,
+          checklist: Array.isArray(n.checklist)
+            ? n.checklist.map((c) => ({ text: c?.text, done: !!c?.done, done_at: c?.done_at || null }))
+            : n.checklist,
+        }))
+      : data.nodes,
+  };
+  try {
+    return JSON.stringify(stable);
+  } catch {
+    return null;
+  }
+}
+
 export async function refresh({ quiet = false } = {}) {
   if (!platform.session.getToken()) return;
   if (!quiet) set({ syncing: true });
   try {
     const data = normalizeSnapshot(await api.snapshot());
+    const fingerprint = snapshotFingerprint(data);
+    if (fingerprint !== null && fingerprint === lastSnapshotFingerprint) {
+      set({ phase: 'ready', syncing: false, error: null });
+      return;
+    }
+    lastSnapshotFingerprint = fingerprint;
     set({ data, phase: 'ready', syncing: false, error: null });
     // 改过名之后，登录页预填也要跟着换成新名字，否则下次会被认成另一个人
     if (data?.me) platform.session.setMemberName(data.me);
@@ -253,6 +285,7 @@ async function run(fn, { quiet = false } = {}) {
 
 /** 登录成功：把令牌、旅行、名字写进平台会话存储 */
 function applySession({ token, trip, member }) {
+  lastSnapshotFingerprint = null;
   platform.session.setToken(token);
   if (trip?.id) platform.session.setTripId(trip.id);
   if (member?.name) platform.session.setMemberName(member.name);
@@ -279,6 +312,7 @@ export const actions = {
 
   logout: async () => {
     disconnectLive();
+    lastSnapshotFingerprint = null;
     const tripId = platform.session.getTripId();
     if (tripId) await platform.storage.dropSnapshot(tripId).catch(() => {});
     /*

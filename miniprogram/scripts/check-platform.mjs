@@ -69,7 +69,7 @@ const check = (name, cond, extra = '') => {
 
 (async () => {
   const { platform } = await import('../platform/index.js');
-  const { actions, getState } = await import('../store/store.js');
+  const { actions, getState, refresh } = await import('../store/store.js');
 
   console.log('\n== platform/wx 基础 ==');
   platform.session.setToken('t1');
@@ -177,6 +177,9 @@ const check = (name, cond, extra = '') => {
     (data?.nodes?.length || 0) > 0 && (data?.members?.length || 0) > 0 && !!data?.vocab?.byKey
   );
   check(`${NAME} 的身份字段贯通`, !!data?.meId && data?.me === NAME, String(data?.meId || data?.me || ''));
+
+  await refresh({ quiet: true });
+  check('内容未变的轮询不替换快照引用', getState().data === data);
 
   if (lastToast) console.log(`  （期间有 toast：${lastToast}）`);
 

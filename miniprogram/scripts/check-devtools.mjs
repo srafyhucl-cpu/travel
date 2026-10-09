@@ -403,6 +403,28 @@ function snapshotInApp(mp, base) {
   );
 }
 
+function patchNodeInApp(mp, base, id, payload) {
+  return mp.evaluate(
+    (b, nodeId, body) =>
+      new Promise((resolve, reject) => {
+        wx.request({
+          method: 'PATCH',
+          url: `${b}/api/nodes/${nodeId}`,
+          header: {
+            Authorization: `Bearer ${wx.getStorageSync('travel.token')}`,
+            'content-type': 'application/json',
+          },
+          data: body,
+          success: (r) => resolve({ status: r.statusCode, data: r.data }),
+          fail: (e) => reject(new Error(e.errMsg || 'request failed')),
+        });
+      }),
+    base,
+    id,
+    payload
+  );
+}
+
 /** 用 automator 的元素 API 拿一批元素的位置/尺寸（顺序与 page.$$ 一致；避开 evaluate 的序列化坑） */
 async function rectsOfElements(els) {
   const out = [];
@@ -897,6 +919,18 @@ async function runLocalFlow(mp) {
       await sleep(500); // 让 350ms 的长按判定过
       const mid = await page.data();
       check('拖动：长按进入拖动模式', mid?.dragging === true && mid?.dragId === b.id, `dragging=${mid?.dragging} dragId命中=${mid?.dragId === b.id}`);
+
+      // 拖动期间后台快照变化：数据先记住，UI 不能被重画 / 手势不能被作废
+      await patchNodeInApp(mp, LOCAL_BASE, a.id, { notes: `拖动刷新检查-${Date.now()}` });
+      await nudgeRefresh(mp);
+      await sleep(1200);
+      const midAfterRefresh = await page.data();
+      check(
+        '拖动：后台刷新不打断手势',
+        midAfterRefresh?.dragging === true && midAfterRefresh?.dragId === b.id,
+        `dragging=${midAfterRefresh?.dragging} dragId命中=${midAfterRefresh?.dragId === b.id}`
+      );
+
       await els[ib].touchmove({ touches: [touch(cx, ty)] });
       await sleep(150);
       await els[ib].touchend({ changedTouches: [touch(cx, ty)] });

@@ -333,6 +333,10 @@ Page({
     });
     // scroll-view 的实时位置：拖动落点判定要按它平移（不跟 data，避免每滚一下都 setData）
     this.scrollTop = 0;
+    this.syncPending = false; // 拖动期间收到 store 刷新，结束后补一次
+    this.lastViewData = undefined;
+    this.lastViewClock = null;
+    this.hidden = false;
     const win = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
     this.windowHeight = win.windowHeight || 0;
     this.unsub = subscribe(() => this.sync());
@@ -341,23 +345,27 @@ Page({
 
   /** ⑦ 编辑页新建成功后写下的 travel.scrollTo：读走即清，数据就绪后滚到那张新卡 */
   onShow() {
+    this.hidden = false;
     let jump = '';
     try {
       jump = wx.getStorageSync('travel.scrollTo') || '';
     } catch {
       jump = '';
     }
-    if (!jump) return;
-    try {
-      wx.removeStorageSync('travel.scrollTo');
-    } catch {
-      /* 清不掉也不拦着这次滚动 */
+    if (jump) {
+      try {
+        wx.removeStorageSync('travel.scrollTo');
+      } catch {
+        /* 清不掉也不拦着这次滚动 */
+      }
+      this.pendingScrollTo = jump;
     }
-    this.pendingScrollTo = jump;
+    this.flushPendingSync();
     if (this.data.ready) this.flushScrollTo();
   },
 
   onHide() {
+    this.hidden = true;
     // 页面被盖住（去编辑页等）：手势已经不在，复位别把拖动 / 确认面板带回来
     this.cancelHold();
     if (this.dragStarting) this.dragCanceled = true;
@@ -366,6 +374,7 @@ Page({
 
   onUnload() {
     this.unloaded = true;
+    this.syncPending = false;
     this.unsub?.();
     this.cancelHold();
     if (this.dragStarting) this.dragCanceled = true;
@@ -376,13 +385,9 @@ Page({
 
   /** 下拉刷新（scroll-view 的 refresher 走这里）；自动化脚本也会 callMethod 调它 */
   async onPullDownRefresh() {
-    // 拖动/确认面板期间即使页面级下拉被误触，也别刷新（列表一重排拖动就散了），只收起刷新状态
-    if (this.drag || this.data.dropSheet) {
-      if (!this.unloaded) this.setData({ refreshing: false });
-      wx.stopPullDownRefresh();
-      return;
-    }
-    this.setData({ refreshing: true });
+    // 拖动时列表不能重画，但数据还是可以后台拉：sync 会记住待补的一版，松手后再落地
+    const locked = !!(this.drag || this.dragStarting || this.data.dropSheet);
+    if (!locked && !this.unloaded) this.setData({ refreshing: true });
     try {
       await refresh({ quiet: true });
     } finally {
@@ -394,21 +399,31 @@ Page({
 
   sync() {
     const s = getState();
-    // 拖动中来同步：只有快照真的换了（20 秒轮询 / 实时流 / 别处改动）才作废 —— days 会重排；
-    // 时钟 tick、toast 这类 emit 不动数据，列表不会动，拖动继续。
-    // 确认面板开着时不打断：面板内容是自己的一份快照，列表在底下同步不影响它
-    if (this.drag && s.data !== this.lastSyncData) this.abortDrag();
-    this.lastSyncData = s.data;
+    // 量卡/拖动期间不重画列表：数据先记一笔，手势收尾后再补 sync。
+    if (this.drag || this.dragStarting) {
+      this.syncPending = true;
+      return;
+    }
+    this.syncPending = false;
     if (s.phase === 'login') {
       wx.redirectTo({ url: '/pages/login/index' });
       return;
     }
     if (!s.data) {
+      this.lastViewData = undefined;
+      this.lastViewClock = null;
       this.setData({ ready: false, syncing: true });
+      return;
+    }
+    const clock = Math.floor(s.now.getTime() / 30000);
+    if (this.lastViewData === s.data && this.lastViewClock === clock && this.data.ready) {
+      this.patchStatus(s);
       return;
     }
     const { view, groups } = buildView(s);
     this.groups = groups;
+    this.lastViewData = s.data;
+    this.lastViewClock = clock;
     const patch = { ready: true, ...view };
     if (view.tripName !== this.lastTripName) {
       this.lastTripName = view.tripName;
@@ -419,6 +434,21 @@ Page({
       this.fillThumbs();
       this.flushScrollTo();
     });
+  },
+
+  /** 数据没变时只更新顶栏两个小状态，别为一次 toast/时钟 emit 重建整页。 */
+  patchStatus(s) {
+    const patch = {};
+    if (this.data.online !== s.online) patch.online = s.online;
+    if (this.data.syncing !== s.syncing) patch.syncing = s.syncing;
+    if (Object.keys(patch).length) this.setData(patch);
+  },
+
+  /** 拖动期间被推迟的那次视图同步，等手势收尾后再落。 */
+  flushPendingSync() {
+    if (this.unloaded || this.hidden || !this.syncPending) return;
+    this.syncPending = false;
+    this.sync();
   },
 
   /* ------------------------- ⑦ 新建后滚到新卡 ------------------------- */
@@ -540,12 +570,16 @@ Page({
         // 量位置期间手指已经抬了 / 已经又起了一次拖动：作废
         if (this.dragCanceled || this.drag) {
           this.dragCanceled = false;
+          this.flushPendingSync();
           return;
         }
         const [cards, dayRects, scrollRect, innerRect] = res || [];
         const me = (cards || []).find((r) => r && r.dataset && r.dataset.id === id);
         const foundNow = this.findNode(id);
-        if (!me || !foundNow) return; // 期间被同步重排换掉了
+        if (!me || !foundNow) {
+          this.flushPendingSync(); // 期间被同步重排换掉了
+          return;
+        }
 
         // 每天末尾的空位：有卡就取当天最后一张卡的下沿，空天取这天区块的下沿
         const lastBottom = new Map();
@@ -889,10 +923,12 @@ Page({
       dropBefore: '',
       dropY: -1,
       dropSheet: null,
+    }, () => {
+      this.flushPendingSync();
     });
   },
 
-  /** 拖动中数据被同步重排（20 秒轮询等）/ 页面被盖住：复位，不提交，顺序等下一轮同步就位 */
+  /** 页面被盖住 / 卸载前：停手势并复位，不提交；下一页回到前台再补同步。 */
   abortDrag() {
     const d = this.drag;
     if (d) this.stopAutoScroll(d);
