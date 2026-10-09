@@ -83,6 +83,13 @@ node scripts\check-platform.mjs
 $env:PASS = "你的口令"
 node scripts\check-devtools.mjs           # 只读：登录 → 行程页 → 无控制台报错（打生产）
 node scripts\check-devtools.mjs --local   # 全链路：临时库上跑全功能闭环（不碰生产）
+
+# 5) 提审 / 发布（AppSecret 只放环境变量；前置说明见 miniprogram/README.md）
+$env:WX_APPSECRET = "小程序的 AppSecret"
+node scripts\release.mjs token            # 自检：AppID / AppSecret / IP 白名单（只读）
+node scripts\release.mjs submit           # 提交审核（默认提审行程页，--item 可追加）
+node scripts\release.mjs status           # 查最近一次审核状态
+node scripts\release.mjs release          # 审核通过后发布（auto --yes 适合挂计划任务）
 ```
 
 - AppID 已填：`wx991808af7e9a8e9c`（`project.config.json`）。
@@ -161,6 +168,9 @@ npm run smoke          # 每界面走一遍收控制台报错
 - **生产登录只能用「龙哥」**：用「我」测试会凭空建一个空壳成员（`check-devtools.mjs` 默认模式已固化此约束）。
 - **真机域名白名单**：微信后台「开发管理 → 开发设置 → 服务器域名」必须把 `https://travel.hclstudio.cn`
   加进 **request / uploadFile / downloadFile 三类**；导航还要加 `https://apis.map.qq.com` 到 request。
+- **提审 / 发布接口有两个前置**：AppSecret 放本机环境变量 `WX_APPSECRET`（不进仓库），并把本机公网 IP
+  加进 mp.weixin.qq.com「开发管理 → 开发设置」的 **IP 白名单**（接口报 `40164` 就是它没加，errmsg 会带出 IP）。
+  提审备注务必写明登录方式（登录口令 + 随便填个成员名），否则审核员停在登录页会被打回。脚本：`scripts/release.mjs`。
 - **token 会出现在 URL 里**：SSE、`.ics` 订阅、模板下载带不了请求头只能走 `?token=`，会进 nginx access log。
 - **HEIC 原样进原样出**：iPhone 的 HEIC 后端不会自动转原图（派生图会转 JPEG）；在意就让上传方选「兼容性最佳」拍 JPEG。
 - **照片派生图**：`data/photos/derived/` 是缩略图(320)与展示图(2048)，原图不动，删照片连派生一起删；

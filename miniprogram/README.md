@@ -56,6 +56,28 @@
    wx.setStorageSync('travel.base', 'http://127.0.0.1:7020')  // 清掉则回生产
    ```
 
+## 发布（提交审核 / 上线）
+
+代码包上传还是走开发者工具的「上传」（或 miniprogram-ci）。上传完之后，提审与发布用
+`scripts/release.mjs` —— 微信只把这两个动作开在 HTTP 接口上，需要 AppSecret + IP 白名单：
+
+```powershell
+cd D:\Project\travel\miniprogram
+$env:WX_APPSECRET = "小程序的 AppSecret"     # 只放终端会话里，不要进仓库
+
+node scripts\release.mjs token               # 先自检：AppID / AppSecret / IP 白名单（只读）
+node scripts\release.mjs submit              # 提交审核（默认提审行程页，--item 可替换成自定义）
+node scripts\release.mjs status              # 查最近一次审核状态
+node scripts\release.mjs release             # 审核通过后发布上线（会先确认）
+node scripts\release.mjs undo                # 提审信息写错了：撤回重来
+```
+
+- AppSecret 在 mp.weixin.qq.com →「开发管理 → 开发设置」；同一页把**本机公网 IP 加进「IP 白名单」**，
+  否则接口报 `40164`（脚本会把要加的 IP 报出来）。
+- `submit` / `release` / `undo` 在非交互环境（计划任务、CI）必须加 `--yes`；
+  `node scripts\release.mjs auto --yes` 适合挂计划任务：审核通过就直接发布。
+- **提交审核时备注务必写清楚登录方式**（登录口令 + 随便填一个成员名），不然审核员只能停在登录页，会被打回。
+
 ## 这一版有什么
 
 - 登录（真实调 `/api/auth/login`）
