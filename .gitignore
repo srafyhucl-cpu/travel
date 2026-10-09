@@ -26,3 +26,6 @@ Thumbs.db
 
 # 视觉辅助（brainstorming）会话的临时状态与产物，不进库
 .superpowers/
+
+# logo 渲染时顺带生成的裁圆校验图（校验产物，不是交付物）
+tools/logo/dist/logo-crop-check.png

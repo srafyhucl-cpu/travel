@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <defs>
+    <linearGradient id="rib" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#2F80ED"/>
+      <stop offset="1" stop-color="#12D6B6"/>
+    </linearGradient>
+  </defs>
+  <rect width="144" height="144" rx="32" fill="#F4F5F7"/>
+  <!-- 先居中，再整体按中心缩 0.9：保证丝带端点/图钉顶点都落在微信裁圆（r=72）内 -->
+  <g transform="translate(72,72) scale(0.9) translate(-72,-72) translate(-4,6)">
+    <path d="M32 116 C 28 86 58 94 66 76 C 74 58 100 64 110 52"
+          fill="none" stroke="url(#rib)" stroke-width="15" stroke-linecap="round"/>
+    <path d="M110 52 c-9 0-16-7-16-16 0-9.5 16-26 16-26 s16 16.5 16 26 c0 9-7 16-16 16z"
+          fill="#111827"/>
+    <circle cx="110" cy="36" r="6.5" fill="#ffffff"/>
+  </g>
+</svg>
