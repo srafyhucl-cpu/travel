@@ -72,6 +72,13 @@ Page({
       return;
     }
     const patch = { ready: true, photoCount: (s.data.photos || []).length };
+    const photoCount = patch.photoCount;
+    // 照片被删光时别停在「照片海报」：那只会出一张灰块占位图
+    if (!photoCount && this.data.mode === 'photo') patch.mode = 'long';
+    // 选中的张数超过现有张数时收敛到可用的最大档，别让禁用胶囊还亮着
+    if (photoCount >= 2 && this.data.count > photoCount) {
+      patch.count = [...this.data.counts].reverse().find((n) => n <= photoCount) || this.data.count;
+    }
     // 标题/副标题只预填一次，别把用户改过的字冲掉
     if (!this.prefilled) {
       this.prefilled = true;
@@ -79,6 +86,7 @@ Page({
       patch.subtitle = s.data.trip?.destination || '';
     }
     this.setData(patch);
+    if (patch.mode) this.generate(); // 退回长图要重出，不然预览还停在旧照片海报
     this.boot();
   },
 
@@ -97,6 +105,10 @@ Page({
   onMode(e) {
     const mode = e.currentTarget.dataset.mode;
     if (!mode || mode === this.data.mode) return;
+    if (mode === 'photo' && !this.data.photoCount) {
+      wx.showToast({ title: '还没有照片', icon: 'none' });
+      return;
+    }
     this.setData({ mode });
     this.generate();
   },
@@ -123,6 +135,10 @@ Page({
   onCount(e) {
     const count = Number(e.currentTarget.dataset.n);
     if (!count || count === this.data.count) return;
+    if (count > this.data.photoCount) {
+      wx.showToast({ title: `这趟只有 ${this.data.photoCount} 张照片`, icon: 'none' });
+      return;
+    }
     this.setData({ count });
     this.generate();
   },
@@ -172,6 +188,11 @@ Page({
           },
         });
       } else {
+        // 一张都没有时别出灰块占位海报
+        if (!(data.photos || []).length) {
+          this.setData({ busy: false, progress: '' });
+          return;
+        }
         const srcs = [];
         for (const p of (data.photos || []).slice(0, this.data.count)) {
           const u = await files.url(p.id);

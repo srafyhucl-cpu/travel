@@ -1399,7 +1399,7 @@ async function runLocalFlow(mp) {
     check('徽章网格有内容', cards.length > 0, `cards=${cards.length}`);
   }
 
-  // —— 海报链路：长图出图 → 切照片海报再出一张（canvas 2d + 导出） ——
+  // —— 海报链路：长图 → 没照片时照片海报不可用 → 传两张后照片海报出图 + 张数边界 ——
   console.log('\n== 海报链路 ==');
   {
     await mp.reLaunch('/pages/poster/index');
@@ -1414,24 +1414,81 @@ async function runLocalFlow(mp) {
     }
     let d = await page.data();
     check('行程长图出图成功', ready, `previewPath=${(d?.previewPath || '').slice(0, 40)} busy=${d?.busy}`);
+    const findPill = async (label) => {
+      for (const el of await page.$$('.pill')) {
+        if ((await el.text()).trim() === label) return el;
+      }
+      return null;
+    };
 
+    // 这一轮跑在照片链路之后：库里一张照片都没有，照片海报必须点不动
     if (ready) {
-      const pills = await page.$$('.pill');
-      let photoPill = null;
-      for (const el of pills) {
-        if ((await el.text()).trim() === '照片海报') { photoPill = el; break; }
-      }
-      if (photoPill) {
-        await photoPill.tap();
-        await sleep(4000);
-        const d2 = await page.data();
-        check('照片海报出图成功', !!d2?.previewPath && !d2?.busy, `previewPath=${(d2?.previewPath || '').slice(0, 40)}`);
-      } else {
-        check('照片海报出图成功', false, '没找到模式胶囊');
-      }
+      const longPreview = (d?.previewPath || '').slice(0, 40);
+      const photoPill = await findPill('照片海报');
+      await photoPill?.tap();
+      await sleep(1500);
+      const dNone = await page.data();
+      check(
+        '没照片时照片海报不可用',
+        !!photoPill && dNone?.photoCount === 0 && dNone?.mode === 'long' && (dNone?.previewPath || '').slice(0, 40) === longPreview,
+        `mode=${dNone?.mode} photoCount=${dNone?.photoCount}`
+      );
     } else {
-      check('照片海报出图成功', false, '长图没出来，跳过');
+      check('没照片时照片海报不可用', false, '长图没出来，跳过');
     }
+
+    // 传两张照片：模式可用、张数选项不许超过现有张数、照片海报能出图
+    const posterNodeId = (await snapshotInApp(mp, LOCAL_BASE)).data?.nodes?.[0]?.id || null;
+    const posterIds = [];
+    for (const name of ['wx-poster-1.png', 'wx-poster-2.png']) {
+      const up = await uploadBytesInApp(mp, LOCAL_BASE, { name, b64: TINY_PNG_B64, nodeId: posterNodeId });
+      const upData = parseMaybe(up.data);
+      const id = (Array.isArray(upData) ? upData[0]?.id : upData?.id) || null;
+      if (id) posterIds.push(id);
+    }
+    // 海报页自己没有下拉刷新：先回时间线把 store 拉新，再进海报
+    await mp.reLaunch('/pages/timeline/index');
+    await sleep(1200);
+    await nudgeRefresh(mp);
+    await sleep(1500);
+    await mp.reLaunch('/pages/poster/index');
+    await sleep(2500);
+    page = await mp.currentPage();
+    let posterReady = false;
+    for (let i = 0; i < 12; i++) {
+      const dd = await page.data();
+      if (dd?.previewPath && dd?.photoCount === 2) { posterReady = true; break; }
+      await sleep(2000);
+    }
+    const dTwo = await page.data();
+    check(
+      '只有两张时：张数选项收敛到两张',
+      posterIds.length === 2 && dTwo?.photoCount === 2 && dTwo?.count === 2,
+      `photos=${dTwo?.photoCount} count=${dTwo?.count} uploaded=${posterIds.length}`
+    );
+
+    const photoPill = await findPill('照片海报');
+    await photoPill?.tap();
+    let photoOut = false;
+    for (let i = 0; i < 15; i++) {
+      const dd = await page.data();
+      if (dd?.mode === 'photo' && dd?.previewPath && !dd?.busy) { photoOut = true; break; }
+      await sleep(2000);
+    }
+    const dPhoto = await page.data();
+    check('照片海报出图成功', posterReady && photoOut, `previewPath=${(dPhoto?.previewPath || '').slice(0, 40)} mode=${dPhoto?.mode}`);
+
+    const fourPill = await findPill('4 张');
+    await fourPill?.tap();
+    await sleep(1200);
+    const dFour = await page.data();
+    check(
+      '张数选项不超过现有照片数',
+      !!fourPill && dFour?.count === 2 && dFour?.mode === 'photo',
+      `count=${dFour?.count} mode=${dFour?.mode}`
+    );
+
+    for (const id of posterIds) await deletePhotoInApp(mp, LOCAL_BASE, id);
   }
 
   // —— 口令链路（副本库上改，验证新口令能用、旧口令失效） ——

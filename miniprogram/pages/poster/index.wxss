@@ -32,6 +32,12 @@
   font-weight: 600;
 }
 
+/* 条件不满足的胶囊（没照片/张数不够）：点不动，也看不出能点 */
+.pill.off {
+  color: var(--ink-3);
+  opacity: 0.5;
+}
+
 .field {
   margin-top: 24rpx;
 }

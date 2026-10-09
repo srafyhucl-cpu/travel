@@ -3,7 +3,7 @@
     <view class="card sec">
       <view class="pill-row">
         <view class="pill {{mode === 'long' ? 'on' : ''}}" data-mode="long" bindtap="onMode">行程长图</view>
-        <view class="pill {{mode === 'photo' ? 'on' : ''}}" data-mode="photo" bindtap="onMode">照片海报</view>
+        <view class="pill {{mode === 'photo' ? 'on' : ''}} {{photoCount ? '' : 'off'}}" data-mode="photo" bindtap="onMode">照片海报</view>
       </view>
 
       <view wx:if="{{mode === 'photo'}}" class="pill-row sub">
@@ -40,12 +40,12 @@
 
       <block wx:else>
         <view class="field">
-          <text class="label">照片张数（从最新开始取）</text>
+          <text class="label">照片张数（现有 {{photoCount}} 张，从最新开始取）</text>
           <view class="pill-row">
             <view
               wx:for="{{counts}}"
               wx:key="*this"
-              class="pill {{count === item ? 'on' : ''}}"
+              class="pill {{count === item && item <= photoCount ? 'on' : ''}} {{item > photoCount ? 'off' : ''}}"
               data-n="{{item}}"
               bindtap="onCount"
             >{{item}} 张</view>
