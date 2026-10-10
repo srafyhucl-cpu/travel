@@ -72,10 +72,12 @@ node scripts\release.mjs release             # 审核通过后发布上线（会
 node scripts\release.mjs undo                # 提审信息写错了：撤回重来
 ```
 
-- AppSecret 在 mp.weixin.qq.com →「开发管理 → 开发设置」；同一页把**本机公网 IP 加进「IP 白名单」**，
-  否则接口报 `40164`（脚本会把要加的 IP 报出来）。
+- AppSecret 在 mp.weixin.qq.com →「开发管理 → 开发设置」（生成/重置时才显示一次，是用环境变量传，不落文件）。
+- 同一页的「IP 白名单」加的是**跑 release.mjs 这台电脑的公网出口 IP**（IPv4，一行一个）——
+  不是 travel 后端那台服务器，服务器不调微信接口、不用加。没加会报 `40164`，errmsg 里就带着要加的 IP。
 - `submit` / `release` / `undo` 在非交互环境（计划任务、CI）必须加 `--yes`；
   `node scripts\release.mjs auto --yes` 适合挂计划任务：审核通过就直接发布。
+  计划任务里没有会话级环境变量，AppSecret 得用 `setx WX_APPSECRET "值"` 设成用户级（新开的终端才生效）。
 - **提交审核时备注务必写清楚登录方式**（登录口令 + 随便填一个成员名），不然审核员只能停在登录页，会被打回。
 
 ## 这一版有什么
