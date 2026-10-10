@@ -360,7 +360,7 @@ Page({
     refreshing: false,
   },
 
-  onLoad() {
+  onLoad(query) {
     // 图标只算一次：data URI 生成要遍历字形，别放进每轮 buildView
     this.setData({
       cameraIcon: iconDataUri('camera', '#6b7280'),
@@ -368,6 +368,10 @@ Page({
       carIcon: iconDataUri('car', '#9ca3af', 26),
       nav: readNav(),
     });
+    // 微信AI 接力：?date=YYYY-MM-DD 时，数据就绪后滚到当天第一张卡（见 flushScrollTo）
+    if (query && typeof query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) {
+      this.pendingDate = query.date;
+    }
     // scroll-view 的实时位置：拖动落点判定要按它平移（不跟 data，避免每滚一下都 setData）
     this.scrollTop = 0;
     this.syncPending = false; // 拖动期间收到 store 刷新，结束后补一次
@@ -495,6 +499,13 @@ Page({
   /* ------------------------- ⑦ 新建后滚到新卡 ------------------------- */
 
   flushScrollTo() {
+    // AI 接力按日期来：先换算成当天第一张卡，走下面同一套滚动
+    if (!this.pendingScrollTo && this.pendingDate) {
+      const date = this.pendingDate;
+      this.pendingDate = '';
+      const day = (this.data.days || []).find((d) => d.date === date);
+      this.pendingScrollTo = (day && day.nodes && day.nodes[0] && day.nodes[0].id) || '';
+    }
     const id = this.pendingScrollTo;
     if (!id || !this.data.ready || this.drag || this.data.dropSheet) return;
     this.pendingScrollTo = '';

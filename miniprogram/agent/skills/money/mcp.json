@@ -1,0 +1,220 @@
+{
+  "apis": [
+    {
+      "name": "addExpense",
+      "description": "记一笔消费（业务对象：一笔新的账目记录）。用户说「花了 xx / 买了 xx xx 块 / 付了 xx」等带明确金额的记账意图时调用。\n【金额口径】amount 必须是用户本轮说出的数字（单位：元），只有 0~1000000 之间会受理；金额不明确时先向用户确认，禁止猜测或用 0 占位。\n【类别】category 取值来自本趟旅行的消费类别表（见 getExpenseSummary / listExpenses 返回），拿不准时留空（会归入默认类别）。\n【付款人】payer 必须是同行成员名字；用户说「我付的」时不要传，默认记当前登录者。\n【挂靠】nodeId 必须取自上游接口（getDaySchedule / findItems 等）返回的 nodeId 原值，禁止编造；不确定挂哪一项就不要传。\n【时间】occurredAt 换算成 YYYY-MM-DD 或 YYYY-MM-DD HH:MM 再传；不传表示现在。\n成功后返回小程序卡片，请引导用户点击卡片查看或调整这笔记录。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "消费金额（元）。取值来自用户本轮明确说出的数字，必须大于 0 且不超过 1000000。【禁止编造】用户没说清金额时先问，不要用 0 或猜测值占位。"
+          },
+          "note": {
+            "type": "string",
+            "description": "（选填）这笔消费的说明，如「午饭」「打车」。取值来自用户原话；用户没说用途就不要传，不要编造。"
+          },
+          "category": {
+            "type": "string",
+            "description": "（选填）消费类别 key。取值来自本趟旅行的消费类别表（见 getExpenseSummary / listExpenses 返回的 byCategory[].key 或 items[].categoryLabel 对应的 key），拿不准时留空。【禁止编造】不要自造类别名；用户原话里的中文类别词不能直接当 key 传。"
+          },
+          "payer": {
+            "type": "string",
+            "description": "（选填）付款人，必须是同行成员名单里的名字（见 getTripOverview 返回的 members）。用户说「我付的」时不要传（默认记当前登录者）。【禁止编造】不要传「我」或成员名单外的名字。"
+          },
+          "occurredAt": {
+            "type": "string",
+            "description": "（选填）消费发生时间，格式 YYYY-MM-DD 或 YYYY-MM-DD HH:MM（本地时间）。用户说「昨天中午」等相对时间时先换算成具体日期时间；不传表示现在。"
+          },
+          "nodeId": {
+            "type": "string",
+            "description": "（选填）要挂靠的行程项 ID，必须取自上游接口（getDaySchedule / findItems 等）返回的 nodeId 原值。【禁止编造】禁止拿行程项名字当 ID；不确定挂哪一项就不要传。"
+          }
+        },
+        "required": ["amount"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "expenseId": { "type": "string", "description": "新账目的唯一标识（改一笔、删一笔时使用）" },
+          "amount": { "type": "number", "description": "实际存入的金额（元）" },
+          "note": { "type": "string", "description": "说明，可能为空" },
+          "category": { "type": "string", "description": "实际存入的类别 key" },
+          "categoryLabel": { "type": "string", "description": "类别中文名" },
+          "payer": { "type": "string", "description": "付款人" },
+          "whenText": { "type": "string", "description": "发生时间文案，如「10月10日 12:00」" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/expense/index" } }
+    },
+    {
+      "name": "updateExpense",
+      "description": "修改一笔已记录的消费（业务对象：已有账目）。用户说「改一下 xx 那笔 / 金额记错了 / 换付款人 / 备注改掉 / 取消挂靠」时调用。\n【先查后改】expenseId 必须取自 listExpenses 返回的 expenseId 原值，禁止编造；上下文里没有就先查。\n【只传要改的字段】没提到的字段请整体省略，接口会用原值合并出完整数据再提交；不要为了「保险」乱传字段。\n【清空语义】仅当用户本轮明确要清空时：备注传 note=null、取消挂靠传 nodeId=null；其余字段不要传 null。\n【类别/付款人】category 取值来自本趟旅行的消费类别表（见 getExpenseSummary / listExpenses 返回），拿不准时留空；payer 必须是成员名字。\n【时间】occurredAt 用 YYYY-MM-DD 或 YYYY-MM-DD HH:MM，先换算再传。\n成功后返回小程序卡片，请引导用户点击卡片查看。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expenseId": {
+            "type": "string",
+            "description": "要修改的消费 ID，必须取自 listExpenses 返回的 items[].expenseId 原值。【禁止编造】禁止从用户描述、金额或序号推断；没有 ID 时先调 listExpenses。"
+          },
+          "amount": {
+            "type": "number",
+            "description": "（选填）要改成的金额（元），必须大于 0 且不超过 1000000。仅当用户本轮明确要改金额时传；取值来自用户原话，禁止猜测。不修改请整体省略本字段。"
+          },
+          "note": {
+            "type": "string",
+            "description": "（选填）仅当用户本轮明确要改说明或删掉说明时传：改文本传新说明；清空传 null（不要传空字符串代替）。不修改请整体省略本字段。"
+          },
+          "category": {
+            "type": "string",
+            "description": "（选填）要改成的消费类别 key。取值来自本趟旅行的消费类别表（见 getExpenseSummary / listExpenses 返回），拿不准时留空（保持原类别）。【禁止编造】不要自造类别名。不修改请整体省略本字段。"
+          },
+          "payer": {
+            "type": "string",
+            "description": "（选填）要改成的付款人，必须是同行成员名单里的名字。取值来自用户原话里的成员名。【禁止编造】不要传名单外的名字。不修改请整体省略本字段。"
+          },
+          "occurredAt": {
+            "type": "string",
+            "description": "（选填）要改成的时间，格式 YYYY-MM-DD 或 YYYY-MM-DD HH:MM（本地时间）。用户说相对时间时先换算。不修改请整体省略本字段。"
+          },
+          "nodeId": {
+            "type": "string",
+            "description": "（选填）要改挂靠的行程项 ID：挂到某项传其 nodeId 原值（必须取自 getDaySchedule / findItems 等上游接口返回，禁止编造）；用户明确要取消挂靠时传 null。不修改请整体省略本字段。"
+          }
+        },
+        "required": ["expenseId"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "expenseId": { "type": "string", "description": "被修改的账目 ID" },
+          "amount": { "type": "number", "description": "修改后的金额（元）" },
+          "note": { "type": "string", "description": "修改后的说明，可能为空" },
+          "categoryLabel": { "type": "string", "description": "修改后的类别中文名" },
+          "payer": { "type": "string", "description": "修改后的付款人" },
+          "whenText": { "type": "string", "description": "修改后的时间文案" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/expense/index" } }
+    },
+    {
+      "name": "deleteExpense",
+      "description": "删除一笔消费（业务对象：已有账目；删除不可恢复）。\n【调用时机·铁律】仅当用户在本轮对话中明确表达删除意图（如「把 xx 那笔删了」「这条不要了」）时才调用；「整理一下」「看看」等模糊说法一律不调用。执行前先用一句话复述将删除的这笔（时间 + 金额/说明）向用户确认。\n【金额核对·硬闸门】amount 必须与这笔记录的实际金额一致（允许 0.001 误差），不一致会拒绝删除；请先用 listExpenses 核对 expenseId 与金额原值。\n【禁止批量】不支持批量删除；多笔要删必须逐笔指名、逐笔调用。\n【ID 约束】expenseId 必须取自 listExpenses 返回的 items[].expenseId 原值，禁止编造。\n【不可恢复】删除后找不回来，如实告知用户，不要暗示可以恢复。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expenseId": {
+            "type": "string",
+            "description": "要删除的消费 ID，必须取自 listExpenses 返回的 items[].expenseId 原值。【禁止编造】禁止从用户描述、金额或序号推断；没有 ID 时先调 listExpenses。"
+          },
+          "amount": {
+            "type": "number",
+            "description": "这笔消费的金额（元），必须与记录里的金额完全一致（允许 0.001 误差）。取值来源：listExpenses 返回的 items[].amount 原值。【禁止编造】金额对不上会拒绝删除，不要编造或沿用记忆里的数字。"
+          }
+        },
+        "required": ["expenseId", "amount"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "deleted": { "type": "boolean", "description": "是否删除成功" },
+          "expenseId": { "type": "string", "description": "被删除的账目 ID" },
+          "amount": { "type": "number", "description": "被删除账目的金额（元）" },
+          "note": { "type": "string", "description": "被删除账目的说明，可能为空" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    },
+    {
+      "name": "getExpenseSummary",
+      "description": "查看花费与预算汇总（业务对象：账本总览）。用户问「一共花了多少 / 花哪去了 / 预算还剩多少 / 超支了吗」时调用。\n【无入参】不需要任何参数。\n返回总花费、笔数、按类别与按付款人的汇总，以及预算执行情况（没有设预算时为 null）。请把关键数字转述给用户，并引导点击小程序卡片查看预算页。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "number", "description": "总花费（元）" },
+          "count": { "type": "number", "description": "消费笔数" },
+          "byCategory": {
+            "type": "array",
+            "description": "按类别汇总（金额从大到小）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string", "description": "类别 key" },
+                "label": { "type": "string", "description": "类别中文名" },
+                "amount": { "type": "number", "description": "该类别金额（元）" },
+                "count": { "type": "number", "description": "该类别笔数" }
+              }
+            }
+          },
+          "byPayer": {
+            "type": "array",
+            "description": "按付款人汇总（金额从大到小）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "description": "付款人" },
+                "amount": { "type": "number", "description": "该付款人金额（元）" },
+                "count": { "type": "number", "description": "该付款人笔数" }
+              }
+            }
+          },
+          "budget": {
+            "type": "object",
+            "description": "预算执行情况；没有设置预算时为 null",
+            "properties": {
+              "planned": { "type": "number", "description": "总预算（元）" },
+              "remaining": { "type": "number", "description": "剩余（元），超支时为负数" },
+              "over": { "type": "boolean", "description": "是否已超支" }
+            }
+          }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/budget/index" } }
+    },
+    {
+      "name": "listExpenses",
+      "description": "查看最近的消费记录（业务对象：账目列表，按时间倒序）。用户问「最近花了什么 / 有哪些消费 / 餐饮花了哪些」时调用；也是改一笔、删一笔之前拿 expenseId 与金额的上游接口。\n【数量】limit 默认 10，最多 30。\n【类别】category 取值来自本趟旅行的消费类别表（见 getExpenseSummary / listExpenses 返回），拿不准时留空查全部。\n【ID 约束】返回的 expenseId 供 updateExpense / deleteExpense 使用，禁止编造或改写。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "（选填）最多返回几笔，默认 10，可传 1~30。"
+          },
+          "category": {
+            "type": "string",
+            "description": "（选填）只看某个消费类别。取值来自本趟旅行的消费类别表（见 getExpenseSummary 返回的 byCategory[].key），拿不准时留空（查全部）。【禁止编造】不要自造类别名。"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "number", "description": "本次返回的笔数" },
+          "totalCount": { "type": "number", "description": "符合条件的总笔数（可能大于 count）" },
+          "items": {
+            "type": "array",
+            "description": "消费记录（时间倒序）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "expenseId": { "type": "string", "description": "账目唯一标识（改一笔、删一笔时使用）" },
+                "amount": { "type": "number", "description": "金额（元）" },
+                "note": { "type": "string", "description": "说明，可能为空" },
+                "categoryLabel": { "type": "string", "description": "类别中文名" },
+                "payer": { "type": "string", "description": "付款人" },
+                "whenText": { "type": "string", "description": "发生时间文案，如「10月10日 12:00」" },
+                "nodeTitle": { "type": "string", "description": "挂靠的行程项名称；没挂靠或已删除时为空" }
+              }
+            }
+          }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    }
+  ]
+}

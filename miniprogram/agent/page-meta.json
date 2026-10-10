@@ -1,0 +1,9 @@
+{
+  "pages": [
+    { "path": "pages/timeline/index", "name": "行程时间线", "description": "整趟旅行的按天时间线：行程安排、打卡状态、待办、消费与照片总入口" },
+    { "path": "pages/expense/index", "name": "记一笔", "description": "新增或修改一笔消费：金额、类别、付款人、时间、挂靠行程项" },
+    { "path": "pages/budget/index", "name": "总预算", "description": "查看和修改整趟旅行的总预算" },
+    { "path": "pages/achievements/index", "name": "成就", "description": "查看全队和个人的旅行成就徽章与进度" },
+    { "path": "pages/login/index", "name": "登录", "description": "输入旅行口令与名字，登录或加入这趟旅行" }
+  ]
+}

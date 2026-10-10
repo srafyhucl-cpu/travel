@@ -1,0 +1,173 @@
+{
+  "apis": [
+    {
+      "name": "createItem",
+      "description": "新建一个行程项（业务对象：按天时间线里的一项安排）。用户说「加一项 XX / 新增 XX / 把 XX 排进去」时调用。\n【调用时机】用户明确说出要添加的内容与日期；「今天/明天/第 N 天」先由你换算成 YYYY-MM-DD 再传。\n【按需传参】时间、地点、备注、待办只有用户明确说了才传；没说的让服务端走默认，不要自作主张补。\n【格式】时间用 24 小时制 HH:mm；checklist 用字符串数组（最多 20 条、单条最多 100 字）。\n【范围】只新建单项：不做批量建项、打卡、记账；用户要这些请走对应 SKILL 的接口。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "日期 YYYY-MM-DD，必填。用户说「今天/明天/第 N 天」时先换算成具体日期再传，禁止传自然语言。"
+          },
+          "title": {
+            "type": "string",
+            "description": "行程项名称，必填，最多 80 字，取值来自用户原话。【禁止编造】用户没说的名称不要自己取。"
+          },
+          "type": {
+            "type": "string",
+            "description": "（选填）类型 key，取值来自小程序里已有的类型（如 train / spot / food / hotel）。没有把握时不要传，默认「其他」。"
+          },
+          "startTime": {
+            "type": "string",
+            "description": "（选填）开始时间，24 小时制 HH:mm。用户没说时间就不要传，不要默认成整点。"
+          },
+          "endTime": {
+            "type": "string",
+            "description": "（选填）结束时间，24 小时制 HH:mm。用户没说结束时间就不要传。"
+          },
+          "location": {
+            "type": "string",
+            "description": "（选填）地点，最多 120 字。用户没提就不要传。"
+          },
+          "notes": {
+            "type": "string",
+            "description": "（选填）备注，最多 2000 字。用户没提就不要传。"
+          },
+          "checklist": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "（选填）随项创建的待办清单，字符串数组（最多 20 条、单条最多 100 字）。只有用户明确说要带这些待办时才传。"
+          }
+        },
+        "required": ["date", "title"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": { "type": "string", "description": "新建项的 ID（后续 updateItem / setTodo / deleteItem 用）" },
+          "date": { "type": "string", "description": "日期 YYYY-MM-DD" },
+          "dayText": { "type": "string", "description": "日期文案，如「10月12日 周一（第 3 天）」" },
+          "title": { "type": "string", "description": "已添加项的名称" },
+          "timeText": { "type": "string", "description": "如「09:00-11:00」「09:00 起」「待定」" },
+          "location": { "type": "string", "description": "地点，可能为空" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    },
+    {
+      "name": "updateItem",
+      "description": "修改已有行程项的日期 / 标题 / 时间 / 地点 / 备注（业务对象：行程项）。用户说「把 XX 改到 15:00 / 改个名字 / 挪到明天 / 换个地点」时调用。\n【先查后改】nodeId 必须取自 getDaySchedule / findItems 返回的 nodeId 原值，先查后改；禁止从用户语言推断或编造。\n【只改提到的字段】只把用户本轮明确说要改的字段传进来，其余字段一律不要传（哪怕你知道原值）；一个字段都没传会被拒绝。\n【格式】日期 YYYY-MM-DD；时间 24 小时制 HH:mm。\n【范围】不重排顺序、不顺延、不批量修改；用户要这些请引导打开小程序操作。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "行程项唯一标识，必填。取自 getDaySchedule / findItems 返回的 nodeId 原值，禁止编造；上下文里没有 nodeId 时先查询再改。"
+          },
+          "title": {
+            "type": "string",
+            "description": "（选填）新的标题，最多 80 字，取值来自用户对此项的新叫法。【禁止编造】用户没说要改标题时不要传。"
+          },
+          "date": {
+            "type": "string",
+            "description": "（选填）新的日期 YYYY-MM-DD。只有用户明确说改日期 / 挪到某天时才传。"
+          },
+          "startTime": {
+            "type": "string",
+            "description": "（选填）新的开始时间，24 小时制 HH:mm。只改开始时间时不要顺手传 endTime。"
+          },
+          "endTime": {
+            "type": "string",
+            "description": "（选填）新的结束时间，24 小时制 HH:mm。只改结束时间时不要顺手传 startTime。"
+          },
+          "location": {
+            "type": "string",
+            "description": "（选填）新的地点，最多 120 字。"
+          },
+          "notes": {
+            "type": "string",
+            "description": "（选填）新的备注，最多 2000 字。"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": { "type": "string" },
+          "title": { "type": "string", "description": "更新后的标题" },
+          "date": { "type": "string", "description": "更新后的日期 YYYY-MM-DD" },
+          "dayText": { "type": "string", "description": "更新后日期的文案" },
+          "timeText": { "type": "string", "description": "更新后的时间文案，如「15:00-16:00」" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    },
+    {
+      "name": "setTodo",
+      "description": "勾选 / 取消勾选行程项下的一条待办（业务对象：行程项待办清单里的单条待办）。用户说「XX 带上了 / 把 XX 勾掉 / XX 不用带了」时调用。\n【先查后勾】nodeId 必须取自 getDaySchedule / findItems / getTodos 返回的 nodeId 原值；itemId / itemText 优先用 getTodos 返回的原文。禁止编造。\n【定位规则】优先按 itemId 精确匹配；没有 itemId 时按 itemText 精确匹配。对不上会被拒绝，请先查最新值再试。\n【只勾已有待办】不能新增 / 删除待办条目；新增待办请在 createItem 时传 checklist，或引导用户打开小程序操作。\n【重复勾选】已经是目标状态时不会重复记录、会提示无需操作，如实转告即可。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "行程项唯一标识，必填。取自 getDaySchedule / findItems 返回的 nodeId 原值，禁止编造（getTodos 返回的 nodeId 同样可用）。"
+          },
+          "itemText": {
+            "type": "string",
+            "description": "（选填）待办文字，与该待办在清单里的文案一致（trim 后精确匹配）。取值来源：getTodos 返回的 itemText 原值或用户原话。"
+          },
+          "itemId": {
+            "type": "string",
+            "description": "（选填）待办项 ID，优先用它精确定位。取值来源：getTodos 返回的 itemId 原值。【禁止编造】"
+          },
+          "done": {
+            "type": "boolean",
+            "description": "true=勾选完成；false=取消勾选。必须是布尔值（true/false），不能传字符串。"
+          }
+        },
+        "required": ["nodeId", "done"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": { "type": "string" },
+          "nodeTitle": { "type": "string", "description": "所属行程项名称" },
+          "itemText": { "type": "string", "description": "待办文字" },
+          "done": { "type": "boolean", "description": "当前（操作后）的勾选状态" },
+          "remaining": { "type": "number", "description": "该行程项下还剩多少条未完成待办" },
+          "noop": { "type": "boolean", "description": "已经在目标状态、无需操作时为 true" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    },
+    {
+      "name": "deleteItem",
+      "description": "删除一个行程项（业务对象：按天时间线里的一项安排）。\n【删除铁律】仅当用户本轮明确表达删除意图（如「把 XX 删掉 / 不要这一项了」）才可调用；「整理一下 / 清理下行程」这类模糊说法一律不调用；并且不提供批量删除，一次只能删一项。title 必须与该行程项的实际名称完全一致（一字不差），对不上会被拒绝。\n【先查后删】nodeId 必须取自 getDaySchedule / findItems 返回的 nodeId 原值，先查后删；删除前先把要删的项复述给用户确认。禁止编造。\n【后果】删除后找不回来：如实告知用户已删除，不要暗示可以恢复。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "行程项唯一标识，必填。取自 getDaySchedule / findItems 返回的 nodeId 原值，禁止编造；上下文里没有 nodeId 时先查询。"
+          },
+          "title": {
+            "type": "string",
+            "description": "要删除项的名称原值，必填，必须与该行程项的实际名称完全一致（一字不差），对不上会被拒绝。先用 findItems / getDaySchedule 查到准确名称并向用户复述确认；禁止用简称、口语名或相近名称。"
+          }
+        },
+        "required": ["nodeId", "title"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "deleted": { "type": "boolean", "description": "是否已删除" },
+          "nodeId": { "type": "string", "description": "被删除的行程项 ID" },
+          "title": { "type": "string", "description": "被删除项的名称" },
+          "date": { "type": "string", "description": "被删除项的日期 YYYY-MM-DD" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    }
+  ]
+}

@@ -126,10 +126,30 @@ mp.weixin.qq.com 后台手动做，每次发版就两次点击：
 导航接了腾讯位置服务后，还要把 `https://apis.map.qq.com` 加进 **request** 域名，
 并在腾讯位置服务后台给 key 开 WebServiceAPI、绑定本小程序 AppID（见 `config.js` 注释）。
 
+## 微信AI（agent/ 独立分包，beta）
+
+微信AI 开发模式（小微）的原子接口都在 `agent/` 独立分包里：4 个 SKILL（行程查询 / 行程编辑 / 打卡 / 记账），
+结构见 `agent/AGENTS.md` 与各 `skills/*/SKILL.md`。编辑纪律：
+
+- 独立分包**不能 require 主包**：`agent/lib/` 是手写薄封装；`agent/lib/core/` 由
+  `sync-shared.mjs` 从 `web/src/core` 转 CommonJS 生成（勿手改）。
+- 自动化检查（不开开发者工具）：
+
+  ```powershell
+  $env:PASS = "你的口令"
+  node scripts\check-agent.mjs            # 只读：注册、结构、错误分支、汇总与快照核对
+  node scripts\check-agent.mjs --local    # 全链路：临时库上跑 建项→改项→勾待办→打卡→记账→改账→删账→删项
+  ```
+
+- 整链调试要用**微信开发者工具 Nightly Electron Build**：「编译模式 → 小程序 AI 编译」，
+  基础库 3.16.2+；真机预览的「小程序 AI 开发模式」入口在小程序胶囊菜单里。
+- beta 红线：相关代码不要合入正式提审版本。评测集在 `agent/eval/`（用法见 `agent/eval/README.md`）。
+
 ## 规则
 
 - `core/`、`store/` 是同步生成物，**不要手改**；改 `web/src` 再跑同步脚本
 - `platform/wx/` 是手写的，接口形状对照 `web/src/platform/web/`
+- `agent/`（微信AI 开发模式）与 `platform/wx/` 一样是手写的；只有 `agent/lib/core/` 是 sync-shared 生成物
 - 页面（`pages/`）每端各写一套，逻辑尽量沉到 `core/` 和 `store/`
 - **Web 已冻结**（2026-10-08）：不再加新功能，只当小程序的参考实现与共享源。
   `core/`、`store/` 的**唯一源仍是 `web/src`**——改共享逻辑去那边改、跑同步脚本；

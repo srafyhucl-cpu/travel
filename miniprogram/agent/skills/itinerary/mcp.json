@@ -1,0 +1,159 @@
+{
+  "apis": [
+    {
+      "name": "getTripOverview",
+      "description": "查看旅行概览（业务对象：整趟旅行的全貌）。用于用户问「这次旅行是什么安排 / 玩到哪天了 / 还剩多少 / 下一项是什么」等总览类问题。返回旅行名、日期范围、进度、成员、下一项未完成安排，并附带打开时间线的小程序卡片。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "tripName": { "type": "string", "description": "旅行名称" },
+          "destination": { "type": "string", "description": "目的地，可能为空" },
+          "startDate": { "type": "string", "description": "出发日期 YYYY-MM-DD" },
+          "endDate": { "type": "string", "description": "结束日期 YYYY-MM-DD" },
+          "today": { "type": "string", "description": "今天对应的行程日期文案，如「10月12日 周日（第 3 天）」" },
+          "progress": { "type": "object", "description": "{done,total,remaining}：已完成项数 / 总项数 / 剩余项数" },
+          "members": { "type": "array", "description": "同行成员名字列表" },
+          "nextItem": {
+            "type": "object",
+            "description": "下一项未完成安排；没有时为空",
+            "properties": {
+              "nodeId": { "type": "string", "description": "行程项唯一标识" },
+              "title": { "type": "string" },
+              "dateText": { "type": "string" },
+              "timeText": { "type": "string" },
+              "location": { "type": "string" }
+            }
+          },
+          "detailPath": { "type": "string", "format": "page-link", "x-link-text-field": "detailTitle", "description": "时间线页面路径（正文可内联成可点击蓝链）" },
+          "detailTitle": { "type": "string", "description": "蓝链文案" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    },
+    {
+      "name": "getDaySchedule",
+      "description": "查看某一天的行程安排（业务对象：某天的行程列表）。按时间列出当天全部项目（时间、地点、类型、状态、待办进度）。用户问「今天 / 明天 / 后天 / 第 N 天有什么安排」时调用。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "（选填）要查询的日期，格式 YYYY-MM-DD。用户说「今天/明天/后天」时按当前日期换算；说「第 3 天」时按旅行开始日期推算成具体日期再传；不传表示今天。不要传「明天」这类自然语言。"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "description": "实际查询的日期 YYYY-MM-DD" },
+          "dayText": { "type": "string", "description": "日期文案，如「10月12日 周日（第 3 天）」；行程外为「出发前 / 行程结束后」" },
+          "summary": { "type": "object", "description": "{total,done}：当天总项数与已完成项数" },
+          "items": {
+            "type": "array",
+            "description": "当天行程项，按行程顺序排列",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nodeId": { "type": "string", "description": "行程项唯一标识（打卡、改行程、挂账都用它）" },
+                "title": { "type": "string" },
+                "timeText": { "type": "string", "description": "如「09:00-11:00」「09:00 起」「待定」" },
+                "location": { "type": "string", "description": "地点，可能为空" },
+                "typeLabel": { "type": "string", "description": "类型的中文名，如「航班」「景点」" },
+                "statusText": { "type": "string", "description": "未开始 / 进行中 / 已完成 / 已跳过" },
+                "checklistText": { "type": "string", "description": "如「待办 1/3」，没有待办时为空" }
+              }
+            }
+          },
+          "detailPath": { "type": "string", "format": "page-link", "x-link-text-field": "detailTitle", "description": "当天时间线页面路径（正文可内联成可点击蓝链）" },
+          "detailTitle": { "type": "string", "description": "蓝链文案" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    },
+    {
+      "name": "findItems",
+      "description": "在整趟行程里按关键词搜索行程项（业务对象：行程项结果列表）。按标题、地点、备注模糊匹配，用于「玉龙雪山是哪天」「有没有安排看表演」这类找具体安排的问题；也用于拿某个行程项的 nodeId（打卡、挂账、改行程的上游）。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "搜索关键词，取值必须来自用户原话（如「雪山」「古城」「机场」）。【禁止编造】禁止填写用户没说过的名字。"
+          },
+          "onlyRemaining": {
+            "type": "boolean",
+            "description": "（选填）只看还没完成的项。用户说「还有哪些没去 / 没搞定的还有啥」时传 true；不传表示包含全部。"
+          }
+        },
+        "required": ["keyword"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "keyword": { "type": "string", "description": "实际使用的关键词" },
+          "total": { "type": "number", "description": "匹配总数（可能大于列表长度）" },
+          "items": {
+            "type": "array",
+            "description": "匹配的行程项（最多返回 20 条，按行程顺序）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nodeId": { "type": "string", "description": "行程项唯一标识" },
+                "title": { "type": "string" },
+                "dateText": { "type": "string", "description": "日期文案" },
+                "timeText": { "type": "string" },
+                "location": { "type": "string" },
+                "statusText": { "type": "string" }
+              }
+            }
+          },
+          "detailPath": { "type": "string", "format": "page-link", "x-link-text-field": "detailTitle", "description": "时间线页面路径（正文可内联成可点击蓝链）" },
+          "detailTitle": { "type": "string", "description": "蓝链文案" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    },
+    {
+      "name": "getTodos",
+      "description": "查看未完成的待办清单（业务对象：待办列表）。待办是挂在行程项下面的小清单（如「出行准备」里的充电宝、身份证）。默认只查今天和「出行准备」；用户说「整趟旅行的待办」时用 scope=all。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": ["today", "all"],
+            "description": "查询范围。today=今天 + 出行准备（缺省值）；all=整趟旅行所有行程项的未完成待办。"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "scope": { "type": "string", "description": "实际查询范围" },
+          "total": { "type": "number", "description": "未完成待办总数（可能大于列表长度）" },
+          "items": {
+            "type": "array",
+            "description": "未完成待办（最多 30 条）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nodeId": { "type": "string", "description": "所属行程项唯一标识" },
+                "nodeTitle": { "type": "string", "description": "所属行程项名称，如「出行准备」" },
+                "dateText": { "type": "string", "description": "所属日期文案；出行准备为空" },
+                "itemId": { "type": "string", "description": "待办项唯一标识（勾选时回传给 setTodo）" },
+                "itemText": { "type": "string", "description": "待办文字" }
+              }
+            }
+          },
+          "detailPath": { "type": "string", "format": "page-link", "x-link-text-field": "detailTitle", "description": "时间线页面路径（正文可内联成可点击蓝链）" },
+          "detailTitle": { "type": "string", "description": "蓝链文案" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "cases": [
+    { "intent": "这次旅行一共安排了多少天，玩到哪天了？" },
+    { "intent": "整体进度怎么样，完成多少了，下一项是什么？" },
+    { "intent": "今天有什么安排？", "tags": ["relative-time"] },
+    { "intent": "明天几点出发，上午有安排吗？", "tags": ["relative-time"] },
+    { "intent": "后天上午的安排几点结束，中午之前能赶回酒店吗", "tags": ["relative-time"] },
+    { "intent": "8 月 25 日那天都安排了什么", "tags": ["absolute-time"] },
+    { "intent": "第 3 天有哪些安排？" },
+    { "intent": "玉龙雪山安排在哪天，几点开始？" },
+    { "intent": "行程里有没有安排看演出或者逛古城这类活动" },
+    { "intent": "还有哪些安排了但还没完成的项目？" },
+    { "intent": "出行准备还差什么没弄好？" },
+    { "intent": "整趟旅行还有哪些待办没勾掉？" },
+    { "intent": "我们到玉龙雪山了，打个卡" },
+    { "intent": "从酒店出发了，去下一个地方" },
+    { "intent": "古城逛完了，下一项是啥" },
+    { "intent": "帮我后天加一项：去束河古镇，下午两点到五点，记得带上学生证", "tags": ["relative-time"] },
+    { "intent": "新建一个 9 月 8 日的安排：返程，上午 9 点出发去机场", "tags": ["absolute-time"] },
+    { "intent": "把玉龙雪山那项改到下午三点开始" },
+    { "intent": "把「出发去丽江」改到第二天上午" },
+    { "intent": "出行准备里的充电宝已经装好了，帮我勾掉" },
+    { "intent": "取消勾选「订民宿」这条待办" },
+    { "intent": "把古城闲逛那项删掉" },
+    { "intent": "帮我记一笔，高铁票 640 块" },
+    { "intent": "记一下：昨天中午吃饭花了 128，我付的", "tags": ["relative-time"] },
+    { "intent": "刚才那笔高铁票记错了，改成 620" },
+    { "intent": "把昨天那笔午饭的账删掉", "tags": ["relative-time"] },
+    { "intent": "现在一共花了多少钱？光是吃饭花了多少？" },
+    { "intent": "最近几笔消费都买了啥？" },
+    { "intent": "帮我看看我的行程安排（新用户，还没登录过）", "tags": ["unregistered"] },
+    { "intent": "查一下我的历史消费记录（新用户，还没登录过）", "tags": ["unregistered"] }
+  ],
+  "entities": [
+    {
+      "type": "node",
+      "content": { "title": "玉龙雪山", "date": "2026-10-13", "startTime": "08:00" },
+      "source": "findItems"
+    },
+    {
+      "type": "node",
+      "content": { "title": "古城闲逛", "date": "2026-10-14" },
+      "source": "getDaySchedule"
+    },
+    {
+      "type": "todo",
+      "content": { "nodeTitle": "出行准备", "itemText": "充电宝" },
+      "source": "getTodos"
+    },
+    {
+      "type": "expense",
+      "content": { "note": "高铁票", "amount": 640 },
+      "source": "listExpenses"
+    }
+  ]
+}
