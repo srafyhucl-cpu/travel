@@ -84,11 +84,8 @@ $env:PASS = "你的口令"
 node scripts\check-devtools.mjs           # 只读：登录 → 行程页 → 无控制台报错（打生产）
 node scripts\check-devtools.mjs --local   # 全链路：临时库上跑全功能闭环（不碰生产）
 
-# 5) 提审 / 发布（首次先：setx WX_APPSECRET "小程序的 AppSecret"，只做一次）
-node scripts\release.mjs token            # 自检：AppID / AppSecret / IP 白名单（只读）
-node scripts\release.mjs submit           # 提交审核（默认提审行程页；--feedback 写登录方式）
-node scripts\release.mjs status           # 查最近一次审核状态
-node scripts\release.mjs release          # 审核通过后发布（auto --yes 适合挂计划任务）
+# 5) 提审 / 发布：没有面向普通账号的 API（仅第三方平台，实测 86000）——
+#    上传后在 mp.weixin.qq.com「版本管理」手动提交审核、手动发布，备注写登录方式；见 miniprogram/README.md
 ```
 
 - AppID 已填：`wx991808af7e9a8e9c`（`project.config.json`）。
@@ -167,9 +164,10 @@ npm run smoke          # 每界面走一遍收控制台报错
 - **生产登录只能用「龙哥」**：用「我」测试会凭空建一个空壳成员（`check-devtools.mjs` 默认模式已固化此约束）。
 - **真机域名白名单**：微信后台「开发管理 → 开发设置 → 服务器域名」必须把 `https://travel.hclstudio.cn`
   加进 **request / uploadFile / downloadFile 三类**；导航还要加 `https://apis.map.qq.com` 到 request。
-- **提审 / 发布接口有两个前置**：AppSecret 放本机环境变量 `WX_APPSECRET`（不进仓库），并把本机公网 IP
-  加进 mp.weixin.qq.com「开发管理 → 开发设置」的 **IP 白名单**（接口报 `40164` 就是它没加，errmsg 会带出 IP）。
-  提审备注务必写明登录方式（登录口令 + 随便填个成员名），否则审核员停在登录页会被打回。脚本：`scripts/release.mjs`。
+- **提审 / 发布没有面向普通小程序的 API**：`wxa/submit_audit` / `wxa/get_latest_auditstatus` / `wxa/release`
+  仅「第三方平台」（服务商）可调，普通账号用 AppSecret 调一律报 `86000 should be called only from third party`
+  （2026-10-10 实测；`miniprogram-ci`、开发者工具 CLI 只能上传）。流程：开发者工具上传 → mp 后台手动提交审核
+  （备注写登录方式：沙盒口令 `1234` + 成员名随便填，否则审核员停在登录页会被打回）→ 通过后手动发布。
 - **token 会出现在 URL 里**：SSE、`.ics` 订阅、模板下载带不了请求头只能走 `?token=`，会进 nginx access log。
 - **HEIC 原样进原样出**：iPhone 的 HEIC 后端不会自动转原图（派生图会转 JPEG）；在意就让上传方选「兼容性最佳」拍 JPEG。
 - **照片派生图**：`data/photos/derived/` 是缩略图(320)与展示图(2048)，原图不动，删照片连派生一起删；

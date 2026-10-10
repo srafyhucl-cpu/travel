@@ -58,32 +58,20 @@
 
 ## 发布（提交审核 / 上线）
 
-代码包上传还是走开发者工具的「上传」（或 miniprogram-ci）。上传完之后，提审与发布用
-`scripts/release.mjs` —— 微信只把这两个动作开在 HTTP 接口上，需要 AppSecret + IP 白名单：
+代码包上传走开发者工具的「上传」。上传之后，「提交审核」和「发布」**没有面向普通小程序的 API**——
+这几个接口（`wxa/submit_audit`、`wxa/get_latest_auditstatus`、`wxa/release` 等）只对「第三方平台」
+（服务商，需企业主体）开放，普通小程序用 AppSecret 调用一律报
+`86000 should be called only from third party`（2026-10-10 实测，官方文档同样注明）；
+`miniprogram-ci` / 开发者工具 CLI 也只做上传。所以最后两步在网页后台手动做，每次发版就两次点击：
 
-```powershell
-cd D:\Project\travel\miniprogram
-setx WX_APPSECRET "小程序的 AppSecret"       # 一次性：存成用户级环境变量（不要进仓库）
-# 或只给当前终端临时用：$env:WX_APPSECRET = "小程序的 AppSecret"
+1. mp.weixin.qq.com →「管理 → 版本管理 → 开发版本」→「提交审核」：
+   - 版本描述照填；
+   - **备注里务必写清楚登录方式**，不然审核员只能停在登录页、会被打回：
+     `登录口令：1234；成员名随便填（如：审核员）`。
+     （`1234` 进的是克隆出来的「测试」行程沙盒，审核员随便点不会碰真实数据；审核结束前别把沙盒删了。）
+2. 审核通过后，到「版本管理 → 审核版本」→「发布」（全量发布）。
 
-node scripts\release.mjs token               # 先自检：AppID / AppSecret / IP 白名单（只读）
-node scripts\release.mjs submit              # 提交审核（--item 换页面，--feedback 写登录备注）
-node scripts\release.mjs status              # 查最近一次审核状态
-node scripts\release.mjs release             # 审核通过后发布上线（会先确认）
-node scripts\release.mjs undo                # 提审信息写错了：撤回重来
-```
-
-- AppSecret 在 mp.weixin.qq.com →「开发管理 → 开发设置」（生成/重置时才显示一次，是用环境变量传，不落文件）。
-- 同一页的「IP 白名单」加的是**跑 release.mjs 这台电脑的公网出口 IP**（IPv4，一行一个）——
-  不是 travel 后端那台服务器，服务器不调微信接口、不用加。没加会报 `40164`，errmsg 里就带着要加的 IP。
-- `submit` / `release` / `undo` 在非交互环境（计划任务、CI）必须加 `--yes`；
-  `node scripts\release.mjs auto --yes` 适合挂计划任务：审核通过就直接发布。
-- AppSecret 用 `setx` 存一次用户级即可：脚本会兜底读它（Windows 上直接读 `HKCU\Environment`），
-  没重开的终端和计划任务都能立即用，不用每个窗口重新设置。
-- **提交审核时备注务必写清楚登录方式**（登录口令 + 随便填一个成员名），不然审核员只能停在登录页，会被打回。
-  submit 时用 `--feedback` 传，例如：
-  `node scripts\release.mjs submit --feedback "登录口令：<当前口令>；成员名随便填（如：审核员）"`；
-  不写的话脚本会再提醒一次（不会拦）。
+> 曾尝试用 `scripts/release.mjs` 走 HTTP 接口自动提审 / 发布，实测普通账号不可行，脚本已撤下。
 
 ## 这一版有什么
 
