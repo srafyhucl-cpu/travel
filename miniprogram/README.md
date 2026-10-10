@@ -144,6 +144,11 @@ mp.weixin.qq.com 后台手动做，每次发版就两次点击：
 
 - 整链调试要用**微信开发者工具 Nightly Electron Build**：「编译模式 → 小程序 AI 编译」，
   基础库 3.16.2+；真机预览的「小程序 AI 开发模式」入口在小程序胶囊菜单里。
+- 环境实测（2026-10）：稳定版工具的 `cli agent tool` 能完整驱动原子接口（读写都行）；
+  `cli agent chat` 的对话回环目前只有 Nightly 版能跑通。
+- 安全习惯：Agent 运行时读的就是 IDE 里小程序的登录态（`travel.token`）——跑写测试前
+  先把会话切到测试行程；HTTP 层的全链路写测试用 `node scripts\check-agent.mjs --local`
+  （临时库，绝不碰线上）。
 - beta 红线：相关代码不要合入正式提审版本。评测集在 `agent/eval/`（用法见 `agent/eval/README.md`）。
 
 ## 规则
