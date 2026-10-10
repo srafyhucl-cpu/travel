@@ -87,7 +87,7 @@ node scripts\check-devtools.mjs --local   # 全链路：临时库上跑全功能
 # 5) 提审 / 发布（AppSecret 只放环境变量；前置说明见 miniprogram/README.md）
 $env:WX_APPSECRET = "小程序的 AppSecret"
 node scripts\release.mjs token            # 自检：AppID / AppSecret / IP 白名单（只读）
-node scripts\release.mjs submit           # 提交审核（默认提审行程页，--item 可追加）
+node scripts\release.mjs submit           # 提交审核（默认提审行程页；--feedback 写登录方式）
 node scripts\release.mjs status           # 查最近一次审核状态
 node scripts\release.mjs release          # 审核通过后发布（auto --yes 适合挂计划任务）
 ```

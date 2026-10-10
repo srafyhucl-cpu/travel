@@ -13,6 +13,7 @@
  *   node scripts/release.mjs status       # 看最近一次审核状态（只读）
  *   node scripts/release.mjs submit       # 提交最新开发版审核（默认只提审行程页）
  *   node scripts/release.mjs submit --item "pages/timeline/index|行程时间线|旅行 记录" --desc "首个正式版本"
+ *   node scripts/release.mjs submit --feedback "登录口令：xxx；成员名随便填（如：审核员）"
  *   node scripts/release.mjs release      # 审核通过后发布上线
  *   node scripts/release.mjs undo         # 撤回审核（提审信息写错了用）
  *   node scripts/release.mjs auto --yes   # 给计划任务用：审核通过就直接发布
@@ -21,6 +22,8 @@
  *   - 写操作（submit / release / undo / auto 走到发布那步）在交互终端里会先确认；
  *     非交互环境（计划任务、CI）必须显式加 --yes，防止手滑。
  *   - --item 可重复，最多 5 条，格式：页面路径|标题|标签（标题、标签可省略）。
+ *   - --feedback 写「审核备注」（至多 200 字）：登录类小程序务必写清登录方式，
+ *     否则审核员进不去会被打回；--desc 是版本说明，两者都会出现在审核材料里。
  *   - --dry-run 只打印将要发送的请求，不联网。
  *   - 环境变量：WX_APPSECRET（必填）；WX_APPID 覆盖 project.config.json 的 appid；
  *     WX_API_BASE 换接口地址（联调测试用，默认 https://api.weixin.qq.com）。
@@ -214,18 +217,27 @@ async function cmdStatus() {
 
 async function cmdSubmit() {
   const items = parseItems();
-  const body = { item_list: items };
   const desc = valueOf('--desc');
+  const feedback = valueOf('--feedback');
+  if (feedback && [...feedback].length > 200) fail('--feedback（审核备注）至多 200 字');
+  const body = { item_list: items };
   if (desc) body.version_desc = desc;
+  if (feedback) body.feedback_info = feedback;
 
   console.log(`AppID：${appId()}`);
   console.log('即将提交审核：');
   for (const it of items) console.log(`  - ${it.address}  「${it.title || ''}」${it.tag ? ` # ${it.tag}` : ''}`);
   if (desc) console.log(`  版本说明：${desc}`);
+  if (feedback) console.log(`  审核备注：${feedback}`);
 
   if (DRY_RUN) {
     console.log(`\n（--dry-run）将发送：POST /wxa/submit_audit\n${JSON.stringify(body, null, 2)}`);
     return;
+  }
+
+  if (!feedback) {
+    console.log('提示：这个小程序要登录才能看内容，审核备注里没写登录方式的话，审核员会停在登录页被打回；');
+    console.log('      想补就把 --feedback "登录口令：…；成员名随便填（如：审核员）" 加在命令里。');
   }
 
   const token = await getToken();
@@ -315,6 +327,11 @@ function usage() {
   node scripts/release.mjs release      审核通过后发布上线
   node scripts/release.mjs undo         撤回审核
   node scripts/release.mjs auto         查状态：通过就直接发布（计划任务用）
+
+  submit 常用参数：
+    --item "pages/timeline/index|行程时间线|旅行 记录"   提审页面，可重复，最多 5 条
+    --desc "首个正式版本"                                 版本说明
+    --feedback "登录口令：…；成员名随便填（如：审核员）"    审核备注，登录类小程序必写
 
   写操作加 --yes 跳过确认；--dry-run 只打印将发送的请求，不联网。
 

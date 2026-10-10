@@ -66,7 +66,7 @@ cd D:\Project\travel\miniprogram
 $env:WX_APPSECRET = "小程序的 AppSecret"     # 只放终端会话里，不要进仓库
 
 node scripts\release.mjs token               # 先自检：AppID / AppSecret / IP 白名单（只读）
-node scripts\release.mjs submit              # 提交审核（默认提审行程页，--item 可替换成自定义）
+node scripts\release.mjs submit              # 提交审核（--item 换页面，--feedback 写登录备注）
 node scripts\release.mjs status              # 查最近一次审核状态
 node scripts\release.mjs release             # 审核通过后发布上线（会先确认）
 node scripts\release.mjs undo                # 提审信息写错了：撤回重来
@@ -79,6 +79,9 @@ node scripts\release.mjs undo                # 提审信息写错了：撤回重
   `node scripts\release.mjs auto --yes` 适合挂计划任务：审核通过就直接发布。
   计划任务里没有会话级环境变量，AppSecret 得用 `setx WX_APPSECRET "值"` 设成用户级（新开的终端才生效）。
 - **提交审核时备注务必写清楚登录方式**（登录口令 + 随便填一个成员名），不然审核员只能停在登录页，会被打回。
+  submit 时用 `--feedback` 传，例如：
+  `node scripts\release.mjs submit --feedback "登录口令：<当前口令>；成员名随便填（如：审核员）"`；
+  不写的话脚本会再提醒一次（不会拦）。
 
 ## 这一版有什么
 
