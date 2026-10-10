@@ -84,8 +84,7 @@ $env:PASS = "你的口令"
 node scripts\check-devtools.mjs           # 只读：登录 → 行程页 → 无控制台报错（打生产）
 node scripts\check-devtools.mjs --local   # 全链路：临时库上跑全功能闭环（不碰生产）
 
-# 5) 提审 / 发布（AppSecret 只放环境变量；前置说明见 miniprogram/README.md）
-$env:WX_APPSECRET = "小程序的 AppSecret"
+# 5) 提审 / 发布（首次先：setx WX_APPSECRET "小程序的 AppSecret"，只做一次）
 node scripts\release.mjs token            # 自检：AppID / AppSecret / IP 白名单（只读）
 node scripts\release.mjs submit           # 提交审核（默认提审行程页；--feedback 写登录方式）
 node scripts\release.mjs status           # 查最近一次审核状态

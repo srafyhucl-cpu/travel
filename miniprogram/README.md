@@ -63,7 +63,8 @@
 
 ```powershell
 cd D:\Project\travel\miniprogram
-$env:WX_APPSECRET = "小程序的 AppSecret"     # 只放终端会话里，不要进仓库
+setx WX_APPSECRET "小程序的 AppSecret"       # 一次性：存成用户级环境变量（不要进仓库）
+# 或只给当前终端临时用：$env:WX_APPSECRET = "小程序的 AppSecret"
 
 node scripts\release.mjs token               # 先自检：AppID / AppSecret / IP 白名单（只读）
 node scripts\release.mjs submit              # 提交审核（--item 换页面，--feedback 写登录备注）
@@ -77,7 +78,8 @@ node scripts\release.mjs undo                # 提审信息写错了：撤回重
   不是 travel 后端那台服务器，服务器不调微信接口、不用加。没加会报 `40164`，errmsg 里就带着要加的 IP。
 - `submit` / `release` / `undo` 在非交互环境（计划任务、CI）必须加 `--yes`；
   `node scripts\release.mjs auto --yes` 适合挂计划任务：审核通过就直接发布。
-  计划任务里没有会话级环境变量，AppSecret 得用 `setx WX_APPSECRET "值"` 设成用户级（新开的终端才生效）。
+- AppSecret 用 `setx` 存一次用户级即可：脚本会兜底读它（Windows 上直接读 `HKCU\Environment`），
+  没重开的终端和计划任务都能立即用，不用每个窗口重新设置。
 - **提交审核时备注务必写清楚登录方式**（登录口令 + 随便填一个成员名），不然审核员只能停在登录页，会被打回。
   submit 时用 `--feedback` 传，例如：
   `node scripts\release.mjs submit --feedback "登录口令：<当前口令>；成员名随便填（如：审核员）"`；

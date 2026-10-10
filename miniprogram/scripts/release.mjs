@@ -7,7 +7,8 @@
  * 代码包上传不在这里做：先在开发者工具里「上传」，再回来提审。
  *
  * 用法（在 miniprogram/ 下）：
- *   $env:WX_APPSECRET = "小程序的 AppSecret"
+ *   首次设置：setx WX_APPSECRET "小程序的 AppSecret"   # 用户级变量，之后所有终端/计划任务自动带上
+ *   （或只给当前会话：$env:WX_APPSECRET = "小程序的 AppSecret"）
  *
  *   node scripts/release.mjs token        # 验证 AppID / AppSecret / IP 白名单（只读）
  *   node scripts/release.mjs status       # 看最近一次审核状态（只读）
@@ -25,20 +26,41 @@
  *   - --feedback 写「审核备注」（至多 200 字）：登录类小程序务必写清登录方式，
  *     否则审核员进不去会被打回；--desc 是版本说明，两者都会出现在审核材料里。
  *   - --dry-run 只打印将要发送的请求，不联网。
- *   - 环境变量：WX_APPSECRET（必填）；WX_APPID 覆盖 project.config.json 的 appid；
- *     WX_API_BASE 换接口地址（联调测试用，默认 https://api.weixin.qq.com）。
+ *   - 环境变量：WX_APPSECRET（没有时 Windows 上会兜底读 setx 设的用户级变量，免得每开一个终端重设）；
+ *     WX_APPID 覆盖 project.config.json 的 appid；WX_API_BASE 换接口地址（默认 https://api.weixin.qq.com）。
  *
  * 退出码：0 成功 / 1 微信侧拒绝或状态不满足 / 2 用法、网络或脚本自身问题。
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT = path.resolve(HERE, '..');
 const API_BASE = (process.env.WX_API_BASE || 'https://api.weixin.qq.com').replace(/\/+$/, '');
-const SECRET = process.env.WX_APPSECRET || '';
+
+/**
+ * AppSecret：优先用进程环境变量；Windows 上再兜底读用户级环境变量
+ * （setx WX_APPSECRET "…" 写进 HKCU\Environment 的那个）。
+ * 这样 setx 一次之后：没重开的终端、计划任务、CI 都能直接用，不用每处重设。
+ */
+function readSecret() {
+  if (process.env.WX_APPSECRET) return process.env.WX_APPSECRET;
+  if (process.platform !== 'win32') return '';
+  try {
+    const out = execFileSync('reg.exe', ['query', 'HKCU\\Environment', '/v', 'WX_APPSECRET'], {
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+    const m = out.match(/WX_APPSECRET\s+REG_\w+\s+(.*?)\s*$/m);
+    return m ? m[1].trim() : '';
+  } catch {
+    return '';
+  }
+}
+const SECRET = readSecret();
 
 /** 审核状态：官方文档当前取值；没见过的值原样显示，不猜。 */
 const STATUS_TEXT = {
@@ -130,7 +152,11 @@ function assertOk(data, what) {
 
 async function getToken() {
   if (!SECRET) {
-    fail('缺少 WX_APPSECRET 环境变量。先设置：$env:WX_APPSECRET = "小程序的 AppSecret"', 2);
+    fail(
+      '缺少 WX_APPSECRET。一次性设置：setx WX_APPSECRET "小程序的 AppSecret"（之后所有终端/计划任务自动带上）；' +
+        '临时设置：$env:WX_APPSECRET = "小程序的 AppSecret"',
+      2
+    );
   }
   const data = await request('GET', '/cgi-bin/token', {
     query: { grant_type: 'client_credential', appid: appId(), secret: SECRET },
