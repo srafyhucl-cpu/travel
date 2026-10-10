@@ -166,8 +166,10 @@ npm run smoke          # 每界面走一遍收控制台报错
   加进 **request / uploadFile / downloadFile 三类**；导航还要加 `https://apis.map.qq.com` 到 request。
 - **提审 / 发布没有面向普通小程序的 API**：`wxa/submit_audit` / `wxa/get_latest_auditstatus` / `wxa/release`
   仅「第三方平台」（服务商）可调，普通账号用 AppSecret 调一律报 `86000 should be called only from third party`
-  （2026-10-10 实测；`miniprogram-ci`、开发者工具 CLI 只能上传）。流程：开发者工具上传 → mp 后台手动提交审核
-  （备注写登录方式：沙盒口令 `1234` + 成员名随便填，否则审核员停在登录页会被打回）→ 通过后手动发布。
+  （2026-10-10 实测；开放平台文档核实：这组接口挂在「第三方平台 API → 代商家管理小程序」目录下，
+  「适用范围」写明其他账号类型均不可调用）。流程：上传（开发者工具；或 miniprogram-ci——官方只支持上传/预览）→
+  mp 后台手动提交审核（备注写登录方式，否则审核员停在登录页会被打回）→ 通过后手动发布（管理员微信会收到通知；
+  手机上的「小程序助手」也能发布）。全自动只剩一条官方路：注册开放平台「第三方平台」做服务商（企业主体，大工程，不值得）。
 - **token 会出现在 URL 里**：SSE、`.ics` 订阅、模板下载带不了请求头只能走 `?token=`，会进 nginx access log。
 - **HEIC 原样进原样出**：iPhone 的 HEIC 后端不会自动转原图（派生图会转 JPEG）；在意就让上传方选「兼容性最佳」拍 JPEG。
 - **照片派生图**：`data/photos/derived/` 是缩略图(320)与展示图(2048)，原图不动，删照片连派生一起删；

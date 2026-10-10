@@ -61,15 +61,21 @@
 代码包上传走开发者工具的「上传」。上传之后，「提交审核」和「发布」**没有面向普通小程序的 API**——
 这几个接口（`wxa/submit_audit`、`wxa/get_latest_auditstatus`、`wxa/release` 等）只对「第三方平台」
 （服务商，需企业主体）开放，普通小程序用 AppSecret 调用一律报
-`86000 should be called only from third party`（2026-10-10 实测，官方文档同样注明）；
-`miniprogram-ci` / 开发者工具 CLI 也只做上传。所以最后两步在网页后台手动做，每次发版就两次点击：
+`86000 should be called only from third party`（2026-10-10 实测；开放平台文档核实：
+[提交代码审核](https://developers.weixin.qq.com/doc/oplatform/Third-party_Platforms/2.0/api/code/submit_audit.html)
+的错误码表里有 `86000`，[发布已通过审核的小程序](https://developers.weixin.qq.com/doc/oplatform/openApi/miniprogram-management/code-management/api_release.html)
+与[查询最新一次审核单状态](https://developers.weixin.qq.com/doc/oplatform/openApi/miniprogram-management/code-management/getLatestAuditStatus.html)
+的「适用范围」均写明：仅第三方平台可代调用、其他账号类型均不可调用）；
+`miniprogram-ci` / 开发者工具 CLI 也只做上传（官方能力表里没有提审/发布）。所以最后两步在
+mp.weixin.qq.com 后台手动做，每次发版就两次点击：
 
 1. mp.weixin.qq.com →「管理 → 版本管理 → 开发版本」→「提交审核」：
    - 版本描述照填；
    - **备注里务必写清楚登录方式**，不然审核员只能停在登录页、会被打回：
      `登录口令：1234；成员名随便填（如：审核员）`。
      （`1234` 进的是克隆出来的「测试」行程沙盒，审核员随便点不会碰真实数据；审核结束前别把沙盒删了。）
-2. 审核通过后，到「版本管理 → 审核版本」→「发布」（全量发布）。
+2. 审核通过后，管理员的微信会先收到结果通知；到「版本管理 → 审核版本」→「发布」（全量发布）。
+   手机上也可以：微信里打开官方「小程序助手」小程序，能切小程序、发布上线。
 
 > 曾尝试用 `scripts/release.mjs` 走 HTTP 接口自动提审 / 发布，实测普通账号不可行，脚本已撤下。
 
