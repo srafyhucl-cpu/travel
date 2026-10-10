@@ -13,6 +13,7 @@
  *
  *   --local（全链路，不碰生产）：
  *     PASS=你的口令 node scripts/check-devtools.mjs --local
+ *       （本地库没口令时：加 --fresh-seed，用内置测试口令在副本里预填云南行程再跑）
  *     - 把 server/data 整份复制到临时目录，另起 7042 端口的后端；
  *     - 小程序里把 travel.base 指向它，登录随便建成员（副本库）；
  *     - 行程页断言；打卡（checkins +1）；行程编辑（改标题/新建/删除/上移）；
@@ -33,7 +34,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
@@ -54,6 +55,9 @@ const LOCAL_PORT = 7042;
 const LOCAL_BASE = `http://127.0.0.1:${LOCAL_PORT}`;
 const PROD_BASE = 'https://travel.hclstudio.cn'; // 和 platform/wx/net.js 里的生产地址一致
 const LOCAL = process.argv.includes('--local');
+/** --local 时可选：副本里用内置测试口令预填一趟云南行程（本地开发库没有可用口令时也能跑全链路） */
+const FRESH_SEED = process.argv.includes('--fresh-seed');
+const SEED_FALLBACK_PASS = 'agent-seed-2026';
 
 // 上传用：1×1 的合法 PNG（服务端要过魔数校验，大小无所谓）
 const TINY_PNG_B64 =
@@ -72,7 +76,7 @@ function findHeicSample() {
   return null;
 }
 
-const PASS = process.env.PASS;
+const PASS = (process.env.PASS || (LOCAL && FRESH_SEED ? SEED_FALLBACK_PASS : '')).trim();
 if (!PASS) {
   console.error('缺少 PASS 环境变量：先设置这趟旅行的口令再跑，例如  PASS=你的口令 node scripts/check-devtools.mjs');
   process.exit(2);
@@ -619,6 +623,20 @@ async function bootLocalServer() {
   fs.rmSync(TEMP_DATA, { recursive: true, force: true });
   copyDir(SRC_DATA, TEMP_DATA);
   console.log(`数据副本：${TEMP_DATA}`);
+
+  // 本地开发库的口令可能与生产不同（pepper 各自生成）：--fresh-seed 时用种子脚本
+  // 在副本里预填一趟已知口令的云南行程，登录页就能用内置测试口令走通全链路
+  if (FRESH_SEED) {
+    const seed = spawnSync('node', ['src/seed/run.js', PASS], {
+      cwd: SERVER_DIR,
+      env: { ...process.env, DATA_DIR: TEMP_DATA },
+      encoding: 'utf8',
+    });
+    if (seed.status !== 0) {
+      throw new Error(`--fresh-seed 预填失败（code ${seed.status}）：${(seed.stdout || '') + (seed.stderr || '')}`);
+    }
+    console.log(`副本库已预填测试行程（口令 ${PASS}）`);
+  }
 
   const child = spawn('node', ['src/index.js'], {
     cwd: SERVER_DIR,

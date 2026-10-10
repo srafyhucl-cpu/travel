@@ -38,6 +38,7 @@
    $env:PASS = "你的口令"
    node scripts\check-devtools.mjs            # 只读：登录 → 行程页 → 无控制台报错
    node scripts\check-devtools.mjs --local    # 全链路：临时库上跑全功能闭环
+   node scripts\check-devtools.mjs --local --fresh-seed   # 本地库没有可用口令时：副本里预填测试行程再跑
    ```
 
    `--local` 覆盖：打卡、行程编辑（改/新建/删除/上移）、照片上传删除、HEIC 全链路、
