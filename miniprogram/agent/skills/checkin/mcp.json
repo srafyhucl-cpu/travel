@@ -2,7 +2,7 @@
   "apis": [
     {
       "name": "checkIn",
-      "description": "对行程项打卡（业务对象：行程项上的打卡记录）。用户说「我们到了 / 出发了 / 离开 XX 了 / XX 完成了」时调用。\n【执行顺序】nodeId 必须取自 getDaySchedule / findItems / getTodos 返回的 nodeId 原值，先查后打；禁止从用户语言推断或编造。\n【动作选择】到达 → arrived；出发、离开 → departed；完成、搞定 → done。拿不准时先用一句话问用户是「到了、离开还是完成」再调用。\n【重复打卡】已完成的项再报 done 不会重复记录、会提示已完成；到了/离开可多次记录。\n【范围】只做打卡，不改行程、不删打卡、不顺延时间；用户要这些请引导到 tripPlan 的能力或打开小程序操作。",
+      "description": "对行程项打卡（业务对象：行程项上的打卡记录）。用户说「我们到了 / 出发了 / 离开 XX 了 / XX 完成了」时调用。\n【执行顺序】nodeId 必须取自 getDaySchedule / findItems / getTodos 返回的 nodeId 原值，先查后打；禁止从用户语言推断或编造。\n【动作选择】到达 → arrived；出发、离开 → departed；完成、搞定 → done。拿不准时先用一句话问用户是「到了、离开还是完成」再调用。\n【重复打卡】已完成的项也可以照常打卡：用户点名「到了/离开」时必须调用（arrived/departed 可多次记录）；只有「完成」对已完成项会去重、返回 alreadyDone，如实转告即可。\n【范围】只做打卡，不改行程、不删打卡、不顺延时间；用户要这些请引导到 tripPlan 的能力或打开小程序操作。",
       "inputSchema": {
         "type": "object",
         "properties": {
