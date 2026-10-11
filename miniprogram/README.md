@@ -148,7 +148,9 @@ mp.weixin.qq.com 后台手动做，每次发版就两次点击：
   单实例锁，同时只能开一个，换用时先退另一个）。agent 命令报 `INVALID_LOGIN, access_token expired`
   即登录已过期，重新扫码登录即可。
 - 环境实测（2026-10）：稳定版工具的 `cli agent tool` 能完整驱动原子接口（读写都行）；
-  `cli agent chat` 的对话回环目前只有 Nightly 版能跑通。
+  `cli agent chat` 的对话回环只有 Nightly 跑得通，且需要两个前置：`cli agent debug --enabled false`
+  （关单步确认）＋ 面板 Skill 多选中勾上要测的技能（默认只勾第一个 `tripItinerary`）。
+  2026-10-11 夜 4 技能对话级验收全通，详见 `HANDOVER.md` §5.5。
 - 安全习惯：Agent 运行时读的就是 IDE 里小程序的登录态（`travel.token`）——跑写测试前
   先把会话切到测试行程；HTTP 层的全链路写测试用 `node scripts\check-agent.mjs --local`
   （临时库，绝不碰线上）。
