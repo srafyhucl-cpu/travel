@@ -144,6 +144,9 @@ mp.weixin.qq.com 后台手动做，每次发版就两次点击：
 
 - 整链调试要用**微信开发者工具 Nightly Electron Build**：「编译模式 → 小程序 AI 编译」，
   基础库 3.16.2+；真机预览的「小程序 AI 开发模式」入口在小程序胶囊菜单里。
+- 本机 Nightly 装在 `D:\微信开发者工具-Nightly`（免安装解包版；与稳定版**互斥**——两套共用
+  单实例锁，同时只能开一个，换用时先退另一个）。agent 命令报 `INVALID_LOGIN, access_token expired`
+  即登录已过期，重新扫码登录即可。
 - 环境实测（2026-10）：稳定版工具的 `cli agent tool` 能完整驱动原子接口（读写都行）；
   `cli agent chat` 的对话回环目前只有 Nightly 版能跑通。
 - 安全习惯：Agent 运行时读的就是 IDE 里小程序的登录态（`travel.token`）——跑写测试前
