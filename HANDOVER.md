@@ -12,22 +12,16 @@
 
 ---
 
-## 2. 当前状态快照（截至 2026-10-09）
+## 2. 当前状态快照（截至 2026-10-11）
 
 | 项 | 值 |
 | --- | --- |
 | 工作目录 | `D:\Project\travel` |
-| 分支 | `main`（纯本地仓库，最新提交看 `git log`） |
+| 分支 | **`feature/wechat-ai-agent`**（微信AI 开发模式；相对 `main` 领先 4 个提交，`main`=9599fbd 未动） |
 | 远端 | **未配置 remote**（纯本地仓库，推服务器靠 `scp/tar`，见 `DEPLOY.md`） |
-| 工作区 | 有**已 staged、未提交**的改动：小程序 Logo（见下），可直接 commit |
+| 工作区 | 干净（Logo 已提交 `b0409e2`） |
 | 线上后端 | `https://travel.hclstudio.cn`（nginx 443 → 本机 7020，systemd `travel`） |
-
-**待提交的 staged 内容**（就是最近一次工作，接手先决定是否 commit）：
-
-- `tools/logo/logo.svg` + `tools/logo/render.mjs`（resvg 渲染脚本）
-- `tools/logo/dist/logo-144.png`（小程序头像主交付物）/ 288 / 576
-- `docs/superpowers/specs/2026-10-08-miniprogram-logo-design.md`（定稿说明）
-- `.gitignore` 加了一行，忽略裁圆校验图
+| 微信AI | `agent/` 独立分包已实现并大量实测；**唯一挂起**：真实账号扫码后的对话级验收（见 §5.5） |
 
 ---
 
@@ -45,7 +39,8 @@ travel/
     core/ store/   ← 自动同步生成物，勿手改
     platform/wx/   手写的平台实现（session/persist/net/files/device/services/canvas/icons）
     pages/         每端各写一套 UI：login/timeline/expense/node/nodepick/budget/achievements/settings/poster
-    scripts/       sync-shared.mjs / check-platform.mjs / check-devtools.mjs
+    agent/         微信AI 开发模式的独立分包（4 SKILL / 14 原子接口；详见 §5.5）
+    scripts/       sync-shared.mjs / check-platform.mjs / check-devtools.mjs / check-agent.mjs
   docs/specs/      设计文档（前端打磨、小程序骨架、照片派生图、成就系统）
   docs/superpowers/specs/  Logo 设计稿
   tools/logo/      Logo 矢量源 + 渲染脚本 + 成品
@@ -138,6 +133,31 @@ npm run smoke          # 每界面走一遍收控制台报错
 
 ---
 
+## 5.5 微信AI 开发模式（`agent/` 独立分包，beta）
+
+把旅行助手接进微信AI（小微）：4 个 SKILL / 14 个原子接口——行程查询、行程编辑、打卡、
+记账（读+写都覆盖；删除类接口带防误删硬闸门）。全部在分支 `feature/wechat-ai-agent`。
+**beta 红线：不要合入正式提审版本**（官方内测期不允许提审该模式代码）。
+
+- 结构：`miniprogram/agent/`（`AGENTS.md` 全局提示词 / `page-meta.json` / `skills/*/`）；
+  独立分包不能 require 主包，`agent/lib/core/` 是 `sync-shared.mjs` 从 `web/src/core` 转
+  CommonJS 的生成物（勿手改，改共享逻辑照旧去 `web/src`）。
+- 自动化检查（不开开发者工具，已全绿）：`PASS=... node scripts\check-agent.mjs`（只读）/
+  `check-agent.mjs --local`（临时库全链路写测试）；`check-devtools.mjs --local --fresh-seed`
+  可对副本库预填测试行程后跑全 UI 回归。
+- 开发者工具：agent 能力要用 **Nightly**（本机：`D:\微信开发者工具-Nightly`；与稳定版
+  **互斥**，同时只能开一个）。`cli agent tool` 单接口直调两版通用；`cli agent chat` 对话级
+  回环只有 Nightly 跑得通（实测稳定版 2.02.2608 会卡在工具派发）。
+- 登录：agent 需要**真实微信账号**（游客态没有 access_token，权限校验过不去）。
+  远程拿码：`cli login --qr-output x.png`；微信只允许**摄像头实拍扫**（长按/相册/链接全被拒）。
+- ⚠️ Agent 运行时读的登录态就是 IDE 里小程序的 `travel.token`——**写测试前先切到测试行程**
+  （1234 沙盒口令）；注入做法：IDE 关闭时把 token 写进 `WeappStorage\storage_*.json` 的
+  `travel.token/tripId/memberName`。
+- 评测：`agent/eval/cases.json` 已备 52 条（自测起步可先跑子集）；Nightly 评测插件自测，
+  提审评测等官方开放开发模式提审后再说。
+- 待办：① 真实账号扫码 → `cli agent chat` 对话级验收；② 评测插件第一轮自测；
+  ③ 原子组件（小微当前不渲染组件，暂缓）；④ 知识库（可选）。
+
 ## 6. 还没做 / 待打磨（接手切入点）
 
 **明确遗留：**
@@ -183,13 +203,18 @@ npm run smoke          # 每界面走一遍收控制台报错
   值要和 Web 的 `styles/tokens.css` 保持一致。
 - **浏览器已装在 `D:\Tools\playwright-browsers`**（用户级 `PLAYWRIGHT_BROWSERS_PATH`），别再往临时目录下一份（曾重复下 705MB）。
 - **口令/password 不入库**：测试脚本口令走 `PASS` 环境变量；`data/.pepper`、`data/.session-secret` 丢了就登不了录，备份 `data/` 必须带上。
+- **两套开发者工具互斥**：稳定版与 Nightly 共用单实例锁，同时只能开一个（换用时先退另一个）。
+- **微信AI 必须真实账号登录**：游客态没有 access_token、agent 权限校验过不去；扫码只支持
+  摄像头实拍（相册/长按/分享链接都会被微信拒绝），远程可用 `cli login --qr-output` 出图让手机扫屏。
+- **agent 写测试别打真实行程**：Agent 运行时用的就是 IDE 里小程序的登录态，先切到 1234
+  沙盒行程再跑；HTTP 层全链路写测试用 `check-agent.mjs --local`（临时库，绝不碰线上）。
 
 ---
 
 ## 8. 给下一位的开场建议
 
 1. 先读：`HANDOVER.md`（本文）→ `miniprogram/README.md` → `DEPLOY.md` → `docs/specs/2026-10-07-miniprogram-spike-design.md`。
-2. 决定 staged 的 Logo 改动是否先 commit（`git status` 可见）。
+2. 先 `git status` 确认工作区干净；微信AI 工作都在 `feature/wechat-ai-agent` 分支上（见 §5.5），其余工作以 `main` 为基线。
 3. 跑一遍基线：`cd miniprogram && node scripts\sync-shared.mjs && $env:PASS="..."; node scripts\check-devtools.mjs --local`，确认全绿再动手。
 4. 动手时守三铁律：**不改生成物、共享逻辑只改 `web/src`、Web 不加新功能**。
 5. 每改一处，同步脚本 + 对应检查脚本 + `--local` 全链路，通过再提交；提交信息沿用仓库现有的
@@ -197,3 +222,4 @@ npm run smoke          # 每界面走一遍收控制台报错
 6. 对接外部平台能力（API / SDK / CLI）**先核实再定方向**：① 这个账号类型能不能调（教训：小程序提审 /
    发布仅「第三方平台」可用，普通账号报 `86000`，见第 7 节）；② 字段与请求方式；③ 前置条件
    （类目 / 白名单 / 密钥）。再用一个最小只读调用做探针验证权限，最后才写功能——别凭记忆或旧博客直接搭。
+7. 微信AI 分支还剩最后一哆嗦：真实账号扫码 → `cli agent chat` 对话级验收（细节见 §5.5）。

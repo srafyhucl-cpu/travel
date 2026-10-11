@@ -29,7 +29,29 @@
     { "intent": "现在一共花了多少钱？光是吃饭花了多少？" },
     { "intent": "最近几笔消费都买了啥？" },
     { "intent": "帮我看看我的行程安排（新用户，还没登录过）", "tags": ["unregistered"] },
-    { "intent": "查一下我的历史消费记录（新用户，还没登录过）", "tags": ["unregistered"] }
+    { "intent": "查一下我的历史消费记录（新用户，还没登录过）", "tags": ["unregistered"] },
+    { "intent": "帮我看看行程总览：一共多少项、完成得怎么样了、哪天安排最满" },
+    { "intent": "第 2 天和最后一天分别都安排了什么？" },
+    { "intent": "我们已经到大理了，打个卡" },
+    { "intent": "刚才那班火车晚点了，把出发时间往后调一个小时", "tags": ["relative-time"] },
+    { "intent": "后天下午帮我加两项安排：三点去束河古镇，五点半回民宿休息", "tags": ["relative-time"] },
+    { "intent": "大理古城那项不去了，帮我删掉" },
+    { "intent": "记一笔：昨晚住的民宿 268 元", "tags": ["relative-time"] },
+    { "intent": "把刚才记的民宿那笔改成 318" },
+    { "intent": "把昨晚那笔民宿的费用挂到「入住民宿」这项的账上", "tags": ["relative-time"] },
+    { "intent": "取消勾选「收拾行李」这条待办" },
+    { "intent": "整体进度怎么样？还没勾的待办还有哪些？" },
+    { "intent": "8 月 25 日都安排了什么，哪些还没完成？", "tags": ["absolute-time"] },
+    { "intent": "最近三天都花了哪些钱？", "tags": ["relative-time"] },
+    { "intent": "这趟吃饭一共花了多少？住酒店呢？" },
+    { "intent": "我们现在进行到哪一项了？下一步要干嘛？" },
+    { "intent": "把「出发去丽江」改到 10 月 11 日出发", "tags": ["absolute-time"] },
+    { "intent": "新增一条：10 月 14 日上午 9 点返程去机场", "tags": ["absolute-time"] },
+    { "intent": "机票 640 记一下，挂在返程那一项上" },
+    { "intent": "最近 5 笔消费都记在哪几项上了？" },
+    { "intent": "今天已经完成的项目有哪些？", "tags": ["relative-time"] },
+    { "intent": "离出发还有几天？现在是不是已经在旅途中了？" },
+    { "intent": "帮我查一下还剩多少预算没花" }
   ],
   "entities": [
     {
@@ -43,13 +65,28 @@
       "source": "getDaySchedule"
     },
     {
+      "type": "node",
+      "content": { "title": "大理古城", "date": "2026-10-02" },
+      "source": "findItems"
+    },
+    {
       "type": "todo",
       "content": { "nodeTitle": "出行准备", "itemText": "充电宝" },
       "source": "getTodos"
     },
     {
+      "type": "todo",
+      "content": { "nodeTitle": "出行准备", "itemText": "收拾行李" },
+      "source": "getTodos"
+    },
+    {
       "type": "expense",
       "content": { "note": "高铁票", "amount": 640 },
+      "source": "listExpenses"
+    },
+    {
+      "type": "expense",
+      "content": { "note": "民宿", "amount": 268 },
       "source": "listExpenses"
     }
   ]
