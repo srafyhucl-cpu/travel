@@ -101,6 +101,8 @@ function toCard(n, vocab, currentId, expRows, hasPrev) {
     icon: iconDataUri(meta.icon, meta.color),
     location: n.location || '',
     navKeyword: n.nav_keyword || '',
+    lat: Number.isFinite(n.lat) ? n.lat : null,
+    lng: Number.isFinite(n.lng) ? n.lng : null,
     done: n.isDone ? 1 : 0,
     started: n.isStarted && !n.isDone ? 1 : 0,
     doneAt: n.isDone ? hhmm(n.actual_end) : '',
@@ -1277,9 +1279,10 @@ Page({
     wx.navigateTo({ url: '/pages/budget/index' });
   },
 
-  /** 导航：复制地名（见 platform/wx/services.js 的说明） */
+  /** 导航：有坐标直接开地图；没坐标按地名解析，失败回退复制（见 platform/wx/services.js） */
   onNav(e) {
-    openMap(e.currentTarget.dataset.kw || '');
+    const d = e.currentTarget.dataset;
+    openMap(d.kw || '', { lat: d.lat, lng: d.lng });
   },
 
   /** 勾选待办：走真实写接口 —— 这条路径验证了鉴权、请求、刷新整条链路 */

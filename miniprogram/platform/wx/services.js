@@ -26,14 +26,37 @@ function copyAndHint(text, title) {
 }
 
 /**
- * 打开地图：
- * - 配了腾讯位置服务 key：先用 WebServiceAPI 把地名解析成坐标，再 wx.openLocation
- *   直接打开地图；解析不到、网络错误或域名没加白名单（真机会被拦），都回退到复制。
- * - 没配 key：保持旧行为 —— 复制地名、引导去地图 App 里搜。
+ * 打开地图（按优先级三条路）：
+ * 1. 有坐标（编辑页「在地图上选点」存的 lat/lng）：直接 wx.openLocation —— 不解析、不吃配额、最准；
+ * 2. 没坐标但配了腾讯位置服务 key：用 WebServiceAPI 把地名解析成坐标再打开；
+ * 3. 解析不到 / 没 key / 网络或白名单被拦：复制地名，引导去地图 App 里搜。
  * key 的申请与域名配置见根目录 config.js 的注释。
  */
-export function openMap(keyword) {
+export function openMap(keyword, coords) {
   const text = String(keyword || '').trim();
+  const lat = Number(coords?.lat);
+  const lng = Number(coords?.lng);
+  const hasCoord =
+    coords?.lat !== null &&
+    coords?.lat !== undefined &&
+    coords?.lat !== '' &&
+    coords?.lng !== null &&
+    coords?.lng !== undefined &&
+    coords?.lng !== '' &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180;
+  if (hasCoord) {
+    wx.openLocation({
+      latitude: lat,
+      longitude: lng,
+      name: text || '选好的地点',
+      scale: 16,
+      fail: () => copyAndHint(text || '选好的地点', '打不开地图，地名已复制'),
+    });
+    return;
+  }
   if (!text) return;
   const key = String(TENCENT_MAP_KEY || '').trim();
   if (!key) {

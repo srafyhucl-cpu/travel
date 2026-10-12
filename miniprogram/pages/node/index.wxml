@@ -90,6 +90,30 @@
       />
     </view>
 
+    <!-- 导航坐标：拖地图把中心对准地点，比按地名解析准；不选也能用（走复制地名/解析回退） -->
+    <view class="field">
+      <view class="label-row">
+        <text class="label">导航坐标</text>
+        <text class="field-act {{showMap ? 'on' : ''}}" bindtap="onToggleMap">{{showMap ? '收起地图' : '在地图上选点'}}</text>
+      </view>
+      <text class="hint">{{hasCoord ? '已记住坐标：点「导航」会直接打开地图' : '没选坐标：点「导航」时按地名解析，失败就复制地名'}}</text>
+      <view wx:if="{{showMap}}" class="map-wrap">
+        <map
+          id="pickMap"
+          class="pick-map"
+          latitude="{{pickLat}}"
+          longitude="{{pickLng}}"
+          scale="14"
+          bindregionchange="onMapRegion"
+        ></map>
+        <text class="map-tip">拖动地图，把中心十字对准地点</text>
+        <view class="map-btns">
+          <view class="map-btn" bindtap="onMapUse">用中心点</view>
+          <view class="map-btn {{hasCoord ? '' : 'off'}}" bindtap="onMapClear">清除坐标</view>
+        </view>
+      </view>
+    </view>
+
     <button
       class="btn-primary {{canSave ? '' : 'off'}}"
       hover-class="{{canSave ? 'btn-press' : 'none'}}"

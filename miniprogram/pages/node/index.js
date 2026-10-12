@@ -30,6 +30,13 @@ Page({
     location: '',
     navKeyword: '',
     showNav: false,
+    // 导航坐标（GCJ-02）：地图选点存下来的；pickLat/pickLng 是地图当前中心
+    lat: null,
+    lng: null,
+    hasCoord: false,
+    showMap: false,
+    pickLat: 26.8721, // 默认落在丽江（本行程）；用户拖一下就换
+    pickLng: 100.2299,
     transportMinutes: '',
     checklist: [],
     types: [],
@@ -81,6 +88,54 @@ Page({
 
   onToggleNav() {
     this.setData({ showNav: !this.data.showNav });
+  },
+
+  /* ------------------------------ 地图选点 ------------------------------ */
+  // 拖地图把中心对准地点 → 「用中心点」记住坐标。比按地名解析准，也不吃地理编码配额。
+  // 取中心点优先用 regionchange（end 阶段带 centerLocation，基础库 2.3.0 起），
+  // 没拖过地图时退到 MapContext.getCenterLocation（老基础库没有就提示再拖一下）。
+
+  onToggleMap() {
+    const showMap = !this.data.showMap;
+    const hasLat = typeof this.data.lat === 'number' && Number.isFinite(this.data.lat);
+    const hasLng = typeof this.data.lng === 'number' && Number.isFinite(this.data.lng);
+    this.setData({
+      showMap,
+      pickLat: hasLat ? this.data.lat : this.data.pickLat,
+      pickLng: hasLng ? this.data.lng : this.data.pickLng,
+    });
+  },
+
+  onMapRegion(e) {
+    const c = e?.detail?.centerLocation;
+    if (c && Number.isFinite(c.latitude) && Number.isFinite(c.longitude)) {
+      this.mapCenter = { latitude: c.latitude, longitude: c.longitude };
+    }
+  },
+
+  onMapUse() {
+    const take = (latitude, longitude) => {
+      this.setData({ lat: Number(latitude.toFixed(6)), lng: Number(longitude.toFixed(6)), hasCoord: true });
+      wx.showToast({ title: '坐标已记住', icon: 'success' });
+    };
+    if (this.mapCenter) {
+      take(this.mapCenter.latitude, this.mapCenter.longitude);
+      return;
+    }
+    const ctx = wx.createMapContext('pickMap', this);
+    if (typeof ctx?.getCenterLocation === 'function') {
+      ctx.getCenterLocation({
+        success: (r) => take(r.latitude, r.longitude),
+        fail: () => wx.showToast({ title: '没取到中心点，再拖一下地图', icon: 'none' }),
+      });
+      return;
+    }
+    wx.showToast({ title: '这个基础库取不到中心点，拖一下地图再试', icon: 'none' });
+  },
+
+  onMapClear() {
+    this.setData({ lat: null, lng: null, hasCoord: false });
+    wx.showToast({ title: '坐标已清除', icon: 'none' });
   },
 
   onTransport(e) {
@@ -154,6 +209,8 @@ Page({
       endTime: this.data.endTime || null,
       location: this.data.location.trim() || null,
       navKeyword: this.data.navKeyword.trim() || this.data.location.trim() || null,
+      lat: this.data.hasCoord ? this.data.lat : null,
+      lng: this.data.hasCoord ? this.data.lng : null,
       transportMinutes: this.data.transportMinutes === '' ? null : Number(this.data.transportMinutes),
       checklist,
     };
@@ -217,6 +274,11 @@ Page({
           endTime: n.end_time || '',
           location: n.location || '',
           navKeyword: n.nav_keyword || '',
+          lat: Number.isFinite(n.lat) ? n.lat : null,
+          lng: Number.isFinite(n.lng) ? n.lng : null,
+          hasCoord: Number.isFinite(n.lat) && Number.isFinite(n.lng),
+          pickLat: Number.isFinite(n.lat) ? n.lat : 26.8721,
+          pickLng: Number.isFinite(n.lng) ? n.lng : 100.2299,
           transportMinutes: n.transport_minutes ?? '',
           checklist: normalizeItems(n.checklist),
           types: toTypePills(data.vocab, n.type || 'spot'),

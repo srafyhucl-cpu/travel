@@ -216,7 +216,7 @@
                 <view wx:else class="act-btn done-chip">✓ {{n.doneAt || '已完成'}}</view>
                 <view class="act-btn" data-id="{{n.id}}" bindtap="onAddPhoto"><image class="act-ic" src="{{cameraIcon}}" mode="aspectFit" />照片</view>
                 <view class="act-btn" data-id="{{n.id}}" bindtap="onAddExpense"><image class="act-ic" src="{{walletIcon}}" mode="aspectFit" />记一笔</view>
-                <view wx:if="{{n.navKeyword}}" class="act-btn" data-kw="{{n.navKeyword}}" bindtap="onNav">导航</view>
+                <view wx:if="{{n.navKeyword || n.lat}}" class="act-btn" data-kw="{{n.navKeyword}}" data-lat="{{n.lat}}" data-lng="{{n.lng}}" bindtap="onNav">导航</view>
               </view>
             </view>
           </view>
