@@ -10,6 +10,7 @@
 | 数据库 | `/opt/apps/travel/data/travel.db` |
 | 上传的照片 | `/opt/apps/travel/data/photos/` |
 | 日志 | `/opt/apps/travel/logs/app.log`、`app.error.log` |
+| nginx 访问日志（已做 token 遮蔽） | `/var/log/nginx/travel.access.log` |
 | 环境变量 | `/opt/apps/travel/.env` |
 | systemd 单元 | `/etc/systemd/system/travel.service` |
 | nginx 站点 | `/etc/nginx/sites-available/travel.hclstudio.cn` |
@@ -156,8 +157,11 @@ node scripts\check-platform.mjs   # 不用开发者工具，先在 Node 里把 p
   放后面的话 `/api/trip/stream` 会被先拒掉，前端无限重连。
 - **预算是一个总数，不再按类别分行。** 「已花」明细直接按实际记账类别汇总，不做预算行冲抵；
   界面上只维护一条 `budgets` 记录（类别写「总预算」），改预算就是改那一个数。
-- **token 会出现在 URL 里。** SSE 流、`.ics` 订阅、模板下载没法带请求头，只能走 `?token=`，
-  于是会进 nginx 的 access log。要么给这几条路径单独关日志，要么定期换口令（App 里现在能换）。
+- **token 会出现在 URL 里。** SSE 流、`.ics` 订阅、模板/备份下载、照片直链没法带请求头，只能走 `?token=`。
+  **已做日志遮蔽（2026-10-12）**：站点配置里用 `map $request_uri $travel_safe_uri` 把 `token=xxx` 掩成
+  `token=***`，本站访问日志单独落 `/var/log/nginx/travel.access.log`（别再翻 access.log 找本服务）。
+  改 nginx 时别把 `map` / `log_format` 两段删了；配置备份在
+  `sites-available/travel.hclstudio.cn.bak-20261012-tokenmask`。定期换口令仍然是个好习惯。
 - **HEIC 原样进原样出。** iPhone 传的 HEIC 只有苹果设备能解码，安卓看是破图、长图也画不出。
   在意的话让上传方在系统设置里选「兼容性最佳」（拍 JPEG）。
 - **深色主题的挂载点是 `<html data-theme>`**（`styles/tokens.css` 里两套 token）。
