@@ -1,7 +1,7 @@
 import express from 'express';
 import { db, nowISO } from '../db.js';
 import { requireAuth, verifyToken } from '../auth.js';
-import { addClient, broadcast } from '../events.js';
+import { addClient, broadcast, currentRev } from '../events.js';
 import { addDays } from './auth.js';
 import { vocabFor } from '../vocab.js';
 import { parseChecklist } from '../checklist.js';
@@ -59,6 +59,8 @@ function parseJSON(value, fallback) {
 /** 一次性拉取整趟旅行的全部数据（离线优先的"快照"） */
 router.get('/snapshot', (req, res) => {
   const tripId = req.auth.tid;
+  // 版本号在读数之前取：数据只会比它更新，客户端据它决定下次要不要再拉（宁可多拉一次）
+  const rev = currentRev(tripId);
   const trip = db.prepare('SELECT * FROM trips WHERE id = ?').get(tripId);
   if (!trip) return res.status(404).json({ error: 'not_found', message: '旅行不存在' });
 
@@ -103,12 +105,19 @@ router.get('/snapshot', (req, res) => {
     expenses,
     checkins,
     photos,
-vocab: vocabFor(tripId),
+    vocab: vocabFor(tripId),
     serverTime: nowISO(),
+    // 轻量版本号：轮询端对比它决定要不要重新拉快照（见 events.js）
+    rev,
     me: req.auth.name,
     // 「我是谁」不能只看名字：改名之后 token 里的旧名字就对不上了
     meId: req.auth.mid || null,
   });
+});
+
+/** 轻量数据版本号：轮询端对比它决定要不要拉全量快照（任何写操作都会让它自增） */
+router.get('/rev', (req, res) => {
+  res.json({ rev: currentRev(req.auth.tid) });
 });
 
 /** 更新旅行基本信息（名称、目的地、日期、主题色） */

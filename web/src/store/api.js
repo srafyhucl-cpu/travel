@@ -76,6 +76,8 @@ export function createApi(platform) {
 
     /* ---- 数据 ---- */
     snapshot: () => get('/api/trip/snapshot'),
+    // 轻量版本号：后台轮询先对比它，没变就不拉全量快照（见 store.js 的 refresh）
+    rev: () => get('/api/trip/rev'),
 
     /* ---- 行程节点 ---- */
     createNode: (payload) => post('/api/nodes', payload),

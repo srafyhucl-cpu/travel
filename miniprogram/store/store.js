@@ -30,6 +30,7 @@ let tickTimer = null;
 let stream = null;
 let reconnectTimer = null;
 let lastSnapshotFingerprint = null;
+let lastKnownRev = null; // 服务端轻量版本号（quiet 轮询用它预检，见 refresh）
 
 function emit() {
   for (const l of listeners) l();
@@ -197,8 +198,29 @@ function snapshotFingerprint(data) {
 export async function refresh({ quiet = false } = {}) {
   if (!platform.session.getToken()) return;
   if (!quiet) set({ syncing: true });
+
+  /*
+   * 后台轮询（小程序 20s 轮询 / 回到前台）先比轻量版本号：没变就直接结束，
+   * 不拉全量快照 —— 轮询只花一个几十字节的请求。
+   * 拿不到版本号（服务端还没部署 /rev，或网络抖了）就退回全量，行为同以前。
+   */
+  if (quiet && lastKnownRev !== null) {
+    try {
+      const { rev } = await api.rev();
+      if (rev === lastKnownRev) {
+        set({ syncing: false });
+        return;
+      }
+    } catch {
+      /* 退回全量拉取 */
+    }
+  }
+
   try {
-    const data = normalizeSnapshot(await api.snapshot());
+    const raw = await api.snapshot();
+    // 以后对比用的是快照里带回来的版本号（服务端可能暂时还没有这个字段，容忍缺失）
+    if (raw && typeof raw.rev === 'number') lastKnownRev = raw.rev;
+    const data = normalizeSnapshot(raw);
     const fingerprint = snapshotFingerprint(data);
     if (fingerprint !== null && fingerprint === lastSnapshotFingerprint) {
       set({ phase: 'ready', syncing: false, error: null });
@@ -286,6 +308,7 @@ async function run(fn, { quiet = false } = {}) {
 /** 登录成功：把令牌、旅行、名字写进平台会话存储 */
 function applySession({ token, trip, member }) {
   lastSnapshotFingerprint = null;
+  lastKnownRev = null;
   platform.session.setToken(token);
   if (trip?.id) platform.session.setTripId(trip.id);
   if (member?.name) platform.session.setMemberName(member.name);
@@ -313,6 +336,7 @@ export const actions = {
   logout: async () => {
     disconnectLive();
     lastSnapshotFingerprint = null;
+    lastKnownRev = null;
     const tripId = platform.session.getTripId();
     if (tripId) await platform.storage.dropSnapshot(tripId).catch(() => {});
     /*
