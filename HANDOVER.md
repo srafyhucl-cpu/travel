@@ -256,6 +256,15 @@ npm run smoke          # 每界面走一遍收控制台报错
 
 ---
 
+- **`check-devtools --local` 的两个已知环境问题（都不是断言失败，别当产品问题）**：
+  ① **HEIC 注入偶发 automator 超时**：把 382KB base64 一次性注入小程序那一步，约 1/3 概率报
+     `timeout waiting for automator response`，表现是 exit 2、约 36 次调用 / 101s；重跑即过。
+  ② **用户目录写满**：测试往 `wx.env.USER_DATA_PATH` 写 PNG / HEIC，撞上限后 `writeFileSync` 报
+     `maximum size of the file storage limit is exceeded`，上传类断言连带全红。脚本现在每轮按前缀
+     （`wx-check*` / `wx-poster*` / `check.heic`）清掉自己写的文件，并在跑前 / 跑后打印占用。
+     实测 storage 侧上限 10240KB；文件系统侧在 1325KB 时报过超限、清到 832KB 后恢复，**具体上限待观察**。
+     App 自己的 `img-thumb-*.jpg` 缩略图缓存不在清理范围内（每轮约 +4 个文件 / 20KB）。
+
 ## 8. 给下一位的开场建议
 
 1. 先读：`HANDOVER.md`（本文）→ `miniprogram/README.md` → `DEPLOY.md` → `docs/specs/2026-10-07-miniprogram-spike-design.md`。
