@@ -947,6 +947,74 @@ async function runDefaultFlow(mp) {
   check('时间线清单渲染完整', blocks.length === expect, `checks=${blocks.length} 应有=${expect}`);
 }
 
+/* ------------------------------ 小程序用户目录（10MB 上限） ------------------------------ */
+// 全链路会往 wx.env.USER_DATA_PATH 写测试文件（1×1 PNG、382KB 的 HEIC 样本、海报用的 PNG）。
+// 这些文件不删会一轮轮堆积，撞上 10MB 上限后 writeFileSync 直接失败、上传类断言连带全红
+// （2026-10-12 实测：跑到第 N 轮出现 "maximum size of the file storage limit is exceeded"）。
+// 规矩：起跑前清掉自己上一轮漏下的、收尾再清一次，只按前缀精确删，绝不碰用户数据。
+const TEST_FILE_PREFIXES = ['wx-check', 'wx-poster', 'check.heic'];
+
+const fmtKB = (n) => `${Math.round((n || 0) / 1024)}KB`;
+
+/** 读小程序用户目录占用：文件数 + 总字节 + 文件名单（最多 40 个，用来一眼看出谁在漏） */
+function userDataUsageInApp(mp) {
+  return evalInApp(mp, () =>
+    new Promise((resolve) => {
+      try {
+        const dir = wx.env.USER_DATA_PATH;
+        const fsm = wx.getFileSystemManager();
+        const names = fsm.readdirSync(dir) || [];
+        let bytes = 0;
+        for (const n of names) {
+          try {
+            bytes += fsm.statSync(`${dir}/${n}`).size || 0;
+          } catch {
+            /* 目录或读不到的都跳过 */
+          }
+        }
+        resolve({ dir, count: names.length, bytes, names: names.slice(0, 40) });
+      } catch (e) {
+        resolve({ error: e.errMsg || String(e) });
+      }
+    })
+  );
+}
+
+/** 清掉测试自己写进用户目录的文件（按前缀精确匹配，返回删掉的名单与字节数） */
+function cleanTestFilesInApp(mp) {
+  return evalInApp(mp,
+    (prefixes) =>
+      new Promise((resolve) => {
+        const dir = wx.env.USER_DATA_PATH;
+        const fsm = wx.getFileSystemManager();
+        const removed = [];
+        let bytes = 0;
+        try {
+          for (const n of fsm.readdirSync(dir) || []) {
+            if (!prefixes.some((p) => n.startsWith(p))) continue;
+            let size = 0;
+            try {
+              size = fsm.statSync(`${dir}/${n}`).size || 0;
+            } catch {
+              /* 拿不到大小也照样删 */
+            }
+            try {
+              fsm.unlinkSync(`${dir}/${n}`);
+              removed.push(n);
+              bytes += size;
+            } catch {
+              /* 删不掉就算了，别把整轮带崩 */
+            }
+          }
+        } catch (e) {
+          return resolve({ error: e.errMsg || String(e), removed, bytes });
+        }
+        resolve({ removed, bytes });
+      }),
+    TEST_FILE_PREFIXES
+  );
+}
+
 async function runLocalFlow(mp) {
   console.log('\n== --local 模式：本机临时后端，全链路 ==');
 
@@ -966,6 +1034,38 @@ async function runLocalFlow(mp) {
     throw new Error(`当前页不是 travel 小程序（${p0?.path || '读不到页面'}）；--local 会写小程序存储，请先把本项目切到前台`);
   }
 
+  // 用户目录只有 10MB：起跑前先报占用、清掉自己上一轮漏下的测试文件（只按前缀删，不碰用户数据）
+  const usageBefore = await userDataUsageInApp(mp);
+  const cleanedBefore = await cleanTestFilesInApp(mp);
+  const usageCleaned = await userDataUsageInApp(mp);
+  console.log(`用户目录：${usageBefore.dir || '（读不到）'}`);
+  console.log(
+    `用户目录：跑前 ${usageBefore.count ?? '?'} 个文件 / ${fmtKB(usageBefore.bytes)}${usageBefore.error ? `（读失败：${usageBefore.error}）` : ''}`
+  );
+  console.log(
+    `用户目录：清掉测试文件 ${cleanedBefore.removed?.length || 0} 个 / ${fmtKB(cleanedBefore.bytes)}` +
+      (cleanedBefore.removed?.length ? `（${cleanedBefore.removed.slice(0, 8).join(', ')}${cleanedBefore.removed.length > 8 ? ' …' : ''}）` : '')
+  );
+  console.log(`用户目录：清理后 ${usageCleaned.count ?? '?'} 个文件 / ${fmtKB(usageCleaned.bytes)}`);
+  if (usageCleaned.names?.length) console.log(`用户目录：现存 ${usageCleaned.names.join(', ')}`);
+
+  // 顺手把「上限到底多少」量出来：storage 的 currentSize/limitSize（KB）和文件系统占用（KB）
+  const storageInfo = await evalInApp(mp, () => {
+    try {
+      const s = wx.getStorageInfoSync();
+      return { count: (s.keys || []).length, currentKB: s.currentSize, limitKB: s.limitSize };
+    } catch (e) {
+      return { error: e.errMsg || String(e) };
+    }
+  });
+  console.log(
+    `小程序 storage：${storageInfo.count ?? '?'} 个 key / ${storageInfo.currentKB ?? '?'}KB（上限 ${storageInfo.limitKB ?? '?'}KB）` +
+      (storageInfo.error ? `（读失败：${storageInfo.error}）` : '')
+  );
+  console.log(
+    `文件系统占用：${fmtKB(usageCleaned.bytes)} / ${usageCleaned.count ?? '?'} 个文件（writeFileSync 超限时报的是文件系统这一侧，不是 storage 那侧）`
+  );
+
   // 先存下你原来的会话：本机开发库和生产库的密钥不同（各自的 pepper/secret），
   // 切到本机后端后生产会话必然 401；跑完要原样还回去。
   const saved = await evalInApp(mp, (localBase) => {
@@ -983,15 +1083,32 @@ async function runLocalFlow(mp) {
   // 注意：reLaunch 不要塞进 evaluate —— 路由切换会拆掉小程序上下文，evaluate 的
   // 响应就此丢失（automator 侧表现为 "timeout waiting for automator response"）。
   // 用 SDK 自带的 reLaunch：它把 {url} 包好、等路由切换、再返回新页面。
+  //
+  // 同时清掉陈旧会话：上一轮被中断时 travel.base/token 还指着已经删掉的临时后端，
+  // 不清就会每轮都从「连不上、30 秒没对齐」的脏状态起跑（saved 已存好，收尾会还回去）。
   await evalInApp(mp, (base) => {
     wx.setStorageSync('travel.base', base);
+    wx.removeStorageSync('travel.token');
+    wx.removeStorageSync('travel.tripId');
+    wx.removeStorageSync('travel.memberName');
   }, LOCAL_BASE);
   await mp.reLaunch('/pages/timeline/index');
   await sleep(1500);
 
   // 会话对齐：看到行程页不等于会话有效 —— 页面上可能还挂着上一次的旧数据
-  const sessionReady = await ensureSession(mp, { base: LOCAL_BASE, name: '我', hint: '副本库，随便建成员' });
-  check('会话已对齐到本机后端', sessionReady, sessionReady ? '快照 200' : '30 秒内没对齐');
+  let sessionReady = await ensureSession(mp, { base: LOCAL_BASE, name: '我', hint: '副本库，随便建成员' });
+  if (!sessionReady) {
+    // 自愈：脏存储（旧 base/旧 token/半截快照）会让对齐一直失败，清一次再试一轮
+    console.log('  · 30 秒没对齐：清一次小程序存储、重设 base 后再试一轮');
+    await evalInApp(mp, (base) => {
+      wx.clearStorageSync();
+      wx.setStorageSync('travel.base', base);
+    }, LOCAL_BASE);
+    await mp.reLaunch('/pages/timeline/index');
+    await sleep(1500);
+    sessionReady = await ensureSession(mp, { base: LOCAL_BASE, name: '我', hint: '副本库，随便建成员' });
+  }
+  check('会话已对齐到本机后端', sessionReady, sessionReady ? '快照 200' : '清存储重试后仍未对齐');
 
   // 对齐后再刷一次，确保页面数据也来自本机库（旧数据可能是上一次会话的）
   await nudgeRefresh(mp);
@@ -1395,6 +1512,56 @@ async function runLocalFlow(mp) {
     await sleep(1200);
     const dGone = (await (await mp.currentPage()).data()) || {};
     check('准备卡：节点删掉后卡片消失', !dGone.prep, dGone.prep ? '卡片还在' : 'ok');
+  }
+
+  // —— 坐标链路：编辑页「在地图上选点」存下来的 lat/lng（只测数据层，地图交互留给真机） ——
+  console.log('\n== 坐标链路（数据层） ==');
+  {
+    const coordDate = '2026-10-01'; // 行程内已有的一天：别为这两条临时卡新开一天
+    const withCoord = await createNodeInApp(mp, LOCAL_BASE, {
+      date: coordDate,
+      title: '坐标检查·有坐标',
+      type: 'other',
+      lat: 26.671391,
+      lng: 100.246441,
+    });
+    const coordId = withCoord?.data?.id || null;
+    check(
+      '坐标：带坐标建卡后响应一致',
+      withCoord.status === 201 && withCoord?.data?.lat === 26.671391 && withCoord?.data?.lng === 100.246441,
+      `status=${withCoord.status} lat=${withCoord?.data?.lat} lng=${withCoord?.data?.lng}`
+    );
+
+    const noCoord = await createNodeInApp(mp, LOCAL_BASE, { date: coordDate, title: '坐标检查·无坐标', type: 'other' });
+    const noId = noCoord?.data?.id || null;
+    check(
+      '坐标：不带坐标时读回 null',
+      noCoord.status === 201 && noCoord?.data?.lat === null && noCoord?.data?.lng === null,
+      `status=${noCoord.status} lat=${noCoord?.data?.lat} lng=${noCoord?.data?.lng}`
+    );
+
+    const snapCoord = await snapshotInApp(mp, LOCAL_BASE);
+    const rowCoord = (snapCoord.data?.nodes || []).find((n) => n.id === coordId);
+    const rowNo = (snapCoord.data?.nodes || []).find((n) => n.id === noId);
+    check(
+      '坐标：快照里经纬度读回一致',
+      rowCoord?.lat === 26.671391 && rowCoord?.lng === 100.246441 && rowNo?.lat === null && rowNo?.lng === null,
+      `有坐标 lat=${rowCoord?.lat} lng=${rowCoord?.lng} / 无坐标 lat=${rowNo?.lat} lng=${rowNo?.lng}`
+    );
+
+    const patched = await patchNodeInApp(mp, LOCAL_BASE, coordId, { lat: 25, lng: 102 });
+    const bad = await patchNodeInApp(mp, LOCAL_BASE, coordId, { lat: 999, lng: 999 });
+    check(
+      '坐标：PATCH 能改坐标，越界值不落库',
+      patched?.data?.lat === 25 && patched?.data?.lng === 102 && bad?.data?.lat === 25 && bad?.data?.lng === 102,
+      `改后 lat=${patched?.data?.lat} lng=${patched?.data?.lng} / 越界后 lat=${bad?.data?.lat} lng=${bad?.data?.lng}`
+    );
+
+    for (const id of [coordId, noId]) {
+      if (!id) continue;
+      const del = await deleteNodeInApp(mp, LOCAL_BASE, id);
+      check('坐标：清掉造出来的节点', del.status === 200, `status=${del.status}`);
+    }
   }
 
   console.log('\n== 照片链路（数据层） ==');
@@ -1908,6 +2075,18 @@ async function runLocalFlow(mp) {
       check('改口令后新口令能用', false, '入口没找到，跳过');
     }
   }
+
+  // 收尾：自己写的测试文件用完即删，再报一次占用（跑后应回到跑前水平；照片缓存不归我们管，只记数）
+  const cleanedEnd = await cleanTestFilesInApp(mp);
+  const usageEnd = await userDataUsageInApp(mp);
+  console.log(
+    `用户目录：跑完清掉测试文件 ${cleanedEnd.removed?.length || 0} 个 / ${fmtKB(cleanedEnd.bytes)}` +
+      (cleanedEnd.removed?.length ? `（${cleanedEnd.removed.slice(0, 8).join(', ')}${cleanedEnd.removed.length > 8 ? ' …' : ''}）` : '')
+  );
+  console.log(
+    `用户目录：跑完 ${usageEnd.count ?? '?'} 个文件 / ${fmtKB(usageEnd.bytes)}（跑前 ${usageBefore.count ?? '?'} 个 / ${fmtKB(usageBefore.bytes)}）`
+  );
+  if (usageEnd.names?.length) console.log(`用户目录：跑完现存 ${usageEnd.names.join(', ')}`);
 
   // 收尾：把跑测试前的会话与 base 原样还回去（IDE 里重启小程序即可回到原会话）
   await restoreSessionInApp(mp, saved);

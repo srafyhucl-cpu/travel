@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   end_time          TEXT,
   location          TEXT,
   nav_keyword       TEXT,
+  lat               REAL,
+  lng               REAL,
   notes             TEXT,
   checklist         TEXT,
   transport_minutes INTEGER,
@@ -175,6 +177,11 @@ ensureColumn('vocab', 'created_at', "TEXT NOT NULL DEFAULT ''");
 // 「首页模块」标记：打了这个标的那条会搬进顶部常驻块（前置准备），时间线上不再重复。
 // 同一趟只留一个，写入时服务端会把别处的标记收掉。
 ensureColumn('nodes', 'role', 'TEXT');
+
+// 导航坐标：编辑页「在地图上选点」存下来的经纬度（GCJ-02）。老库启动时补列，现有数据留 NULL，
+// 前端约定「没坐标就走复制地名的回退」，不回填。
+ensureColumn('nodes', 'lat', 'REAL');
+ensureColumn('nodes', 'lng', 'REAL');
 
 // 成就归属：打卡和照片是谁做的。新写入从 token 的 mid 落；老数据启动时追认。
 ensureColumn('checkins', 'member_id', 'TEXT');
