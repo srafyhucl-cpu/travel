@@ -1506,10 +1506,16 @@ async function runLocalFlow(mp) {
         check('当前挂靠项打勾', !!onRow, onRow ? 'ok' : '没有 .pick-row.on');
         const noneBtn = pickPage ? await pickPage.$('.pick-none') : null;
         if (noneBtn) await noneBtn.tap();
-        const backPage = (await waitPage(mp, 'pages/expense/index')) || editPage;
-        const backField = await backPage.$('.node-field');
+        // 退回编辑页实测要 ~10s（2026-10-12 探针：9.7s / 10.3s，IDE 自动化里 navigateBack 延迟生效），
+        // 所以给足 20s；等不到就如实失败 —— 不能拿旧句柄兜底，旧句柄的视图数据是旧的，只会读出空文本。
+        const backPage = await waitPage(mp, 'pages/expense/index', 40, 500);
+        const backField = backPage ? await backPage.$('.node-field-text') : null;
         const fieldText = backField ? (await backField.text()).trim() : '';
-        check('选「不指定」后回填', fieldText.includes('不指定'), `text=${fieldText}`);
+        check(
+          '选「不指定」后回填',
+          fieldText.includes('不指定'),
+          `text=${fieldText}${backPage ? '' : '（20s 内没退回编辑页）'}`
+        );
       } else {
         check('节点选择页打开', false, '编辑页没有 .node-field');
         check('当前挂靠项打勾', false, '跳过');
@@ -1517,9 +1523,10 @@ async function runLocalFlow(mp) {
       }
 
       // 改金额 + 改时间（原生 picker 弹层自动化点不了，直接改页面数据）→ 保存
-      const editPage2 = (await waitPage(mp, 'pages/expense/index')) || editPage;
-      const editAmount2 = (await editPage2.$('.amount-input')) || editAmount;
-      if (editAmount2) {
+      // 同上：只用当前页的新句柄，不拿 editPage 兜底
+      const editPage2 = await waitPage(mp, 'pages/expense/index', 40, 500);
+      const editAmount2 = editPage2 ? (await editPage2.$('.amount-input')) || editAmount : null;
+      if (editPage2 && editAmount2) {
         await editAmount2.input('99');
         await sleep(300);
         await editPage2.setData({ time: '07:35' });
