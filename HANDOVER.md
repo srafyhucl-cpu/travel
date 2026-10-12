@@ -17,7 +17,7 @@
 | 项 | 值 |
 | --- | --- |
 | 工作目录 | `D:\Project\travel` |
-| 分支 | **`feature/wechat-ai-agent`**（微信AI 开发模式；`main`=b1306e9 未动，本分支领先 12 个提交；现算用 `git rev-list --count main..HEAD`） |
+| 分支 | **`feature/wechat-ai-agent`**（微信AI 开发模式；`main`=b1306e9 未动，本分支领先 13 个提交；同时落后 `main` 3 个提交——`45b828c` rev 轮询 / `8ceadde` checkup.mjs / `b1306e9` nginx 日志遮蔽，**发布或合并前要先并回来**；现算用 `git rev-list --count main..HEAD` 与 `git log --oneline HEAD..main`） |
 | 远端 | **未配置 remote**（纯本地仓库，推服务器靠 `scp/tar`，见 `DEPLOY.md`） |
 | 工作区 | 干净（Logo 已提交 `b0409e2`） |
 | 线上后端 | `https://travel.hclstudio.cn`（nginx 443 → 本机 7020，systemd `travel`） |
