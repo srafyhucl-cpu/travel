@@ -12,12 +12,12 @@
 
 ---
 
-## 2. 当前状态快照（截至 2026-10-11）
+## 2. 当前状态快照（截至 2026-10-12）
 
 | 项 | 值 |
 | --- | --- |
 | 工作目录 | `D:\Project\travel` |
-| 分支 | **`feature/wechat-ai-agent`**（微信AI 开发模式；相对 `main` 领先 4 个提交，`main`=9599fbd 未动） |
+| 分支 | **`feature/wechat-ai-agent`**（微信AI 开发模式；`main`=b1306e9 未动，本分支领先 12 个提交；现算用 `git rev-list --count main..HEAD`） |
 | 远端 | **未配置 remote**（纯本地仓库，推服务器靠 `scp/tar`，见 `DEPLOY.md`） |
 | 工作区 | 干净（Logo 已提交 `b0409e2`） |
 | 线上后端 | `https://travel.hclstudio.cn`（nginx 443 → 本机 7020，systemd `travel`） |
