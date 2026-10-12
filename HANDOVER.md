@@ -89,6 +89,17 @@ node scripts\check-devtools.mjs --local   # 全链路：临时库上跑全功能
   设置（旅行信息/口令）、成就、海报（长图 + 照片海报）；跑完还原会话与 base。
 - HEIC 全链路需要样本：把 `.heic` 放进 `scripts/fixtures/`（不入库）或设 `HEIC_SAMPLE=<路径>`，没有则自动跳过。
 
+### 本地私密配置：腾讯位置服务 key 不进 git
+
+`miniprogram/config.js` 里的 `TENCENT_MAP_KEY` 是**本机私密配置**，用 `git update-index --skip-worktree miniprogram/config.js` 钉住：
+本地文件里是真 key，仓库里那一行永远是空串（`git show HEAD:miniprogram/config.js` 可验证）。
+
+- key 来源：团队密钥 `TENCENT_MAP_KEY`（DSH 里读 `$env:DSH_SECRET_TENCENT_MAP_KEY`），填 `config.js:14`。
+- 换机器 / 重新 clone 后：`git update-index --no-skip-worktree miniprogram/config.js` → 从密钥把 key 填回第 14 行 → 再 `git update-index --skip-worktree miniprogram/config.js`。
+- 换 key：同上流程（key 在腾讯位置服务控制台可轮换）。
+- 注意：`skip-worktree` 只挡本机提交；`git pull` / `checkout` 碰到这个文件会提示冲突，按上面流程重填即可。
+- 这个 key 会随小程序包一起发布，按「可轮换的客户端 key」管：**不写进 commit、不贴群、不打印**。
+
 ### Web（改共享逻辑后自测）
 
 ```powershell
@@ -189,6 +200,9 @@ npm run smoke          # 每界面走一遍收控制台报错
   2. 微信后台把 `https://apis.map.qq.com` 加进 request 合法域名；
   3. 填 key 到 config.js。
   三步缺一都会静默回退成「复制地名」。
+- **提审前把地理编码改成走自家后端代理（P1）**：`https://travel.hclstudio.cn` 已经在 request 合法域名里、后端也在跑；
+  改由后端持 key 调 `apis.map.qq.com`、小程序只打自家接口 —— 好处是 key 不进包、可随时轮换、配额也看得住。
+  现在不做，提审前别忘。
 
 **可继续打磨的方向（建议排期，非硬性）：**
 
