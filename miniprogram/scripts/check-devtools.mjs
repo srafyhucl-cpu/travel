@@ -95,6 +95,70 @@ try {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/* ------------------------------ 自动化桥瞬时故障重试 ------------------------------ */
+/*
+ * 背景（2026-10-12 实测，Nightly 2.02.2610092）：mp.evaluate 走的 App.callFunction 会间歇性
+ * 直接返回错误 —— "Uncaught wx is not defined" / "Uncaught Promise is not defined"，
+ * 同一会话里同样的调用下一次就好（实测：单跑 20/20 成功；照抄脚本前缀 6 次里 5 次失败）。
+ * 这属于自动化桥抽风，不是断言失败，所以只对这几个瞬时特征重试，其余错误照原样抛。
+ * 证据显示失败后同一条连接仍然可用（同一连接上失败的下一条就成功了），故原地重试，不重连。
+ */
+const BRIDGE_FLAKE_PATTERNS = [
+  /Uncaught wx is not defined/i,
+  /Uncaught Promise is not defined/i,
+  /timeout waiting for automator response/i,
+  /Connection closed, check if wechat web devTools is still running/i,
+  /WebSocket is not open|socket hang up|ECONNRESET|EPIPE/i,
+];
+const BRIDGE_MAX_ATTEMPTS = 6; // 首次 + 最多 5 次重试
+// 实测坏窗口是「成段」的：同一时刻各种函数体一起失败，好窗口又一起成功（60s 采样 60/60 成功，
+// 另一段 24 次里 16 次失败）。所以间隔取规格上限，尽量熬过窗口。
+const BRIDGE_RETRY_DELAYS = [400, 600, 800, 800, 800]; // 小幅退避，都在 300–800ms
+
+let bridgeCalls = 0; // 逻辑调用次数（一个 evaluate 算一次）
+let bridgeRetries = 0; // 其中因瞬时故障重试的次数
+let bridgeGiveUp = 0; // 重试耗尽仍失败
+
+function isBridgeFlake(e) {
+  const msg = String(e?.message ?? e ?? '');
+  return BRIDGE_FLAKE_PATTERNS.some((re) => re.test(msg));
+}
+
+/** mp.evaluate 的封装：只兜桥的瞬时故障，耗尽后抛最初那条原始错误 */
+async function evalInApp(mp, fn, ...args) {
+  bridgeCalls += 1;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await mp.evaluate(fn, ...args);
+    } catch (e) {
+      const flake = isBridgeFlake(e);
+      if (!flake || attempt >= BRIDGE_MAX_ATTEMPTS) {
+        if (flake) {
+          bridgeGiveUp += 1;
+          console.log(`  ! 桥瞬时故障重试 ${BRIDGE_MAX_ATTEMPTS - 1} 次仍失败，报原始错误：${e.message}`);
+          if (/Uncaught wx is not defined|Uncaught Promise is not defined/i.test(String(e.message))) {
+            console.log(
+              '  · 疑似环境问题：注入函数里只要调用 wx API 就失败、不碰 wx 的函数却全过（实测 15/15 vs 0/15）——' +
+                '多半是 IDE 停在「微信AI 编译模式」，wx 调用被拦到没有 wx 的沙箱。切回普通编译模式或重启 IDE 后重跑。'
+            );
+          }
+        }
+        throw e;
+      }
+      bridgeRetries += 1;
+      const wait = BRIDGE_RETRY_DELAYS[Math.min(attempt - 1, BRIDGE_RETRY_DELAYS.length - 1)];
+      console.log(`  · 桥瞬时故障（${e.message}），${wait}ms 后原地重试（第 ${attempt} 次）`);
+      await sleep(wait);
+    }
+  }
+}
+
+function printBridgeStats() {
+  console.log(
+    `桥重试统计：重试 ${bridgeRetries} 次 / 共 ${bridgeCalls} 次调用（重试耗尽仍失败 ${bridgeGiveUp} 次）`
+  );
+}
+
 let failures = 0;
 /** runLocalFlow 登记的收尾动作：无论跑成还是炸了，都把小程序存储还回去 */
 let localRestore = null;
@@ -347,14 +411,14 @@ async function ensureSession(mp, { base, name, hint }) {
       ok = await snapOk();
       break;
     }
-    const hasToken = await mp.evaluate(() => !!wx.getStorageSync('travel.token'));
+    const hasToken = await evalInApp(mp, () => !!wx.getStorageSync('travel.token'));
     if (hasToken) {
       await nudgeRefresh(mp);
     } else if (rawTried < 2) {
       rawTried += 1;
       const raw = await rawLoginInApp(mp, base, PASS, name);
       if (raw.status === 200 && raw.token) {
-        await mp.evaluate(
+        await evalInApp(mp,
           (s) => {
             wx.setStorageSync('travel.token', s.token);
             if (s.tripId) wx.setStorageSync('travel.tripId', s.tripId);
@@ -393,7 +457,7 @@ function watchErrors(mp) {
 /* ------------------------------ 小程序内取数（evaluate 里走 wx.request） ------------------------------ */
 
 function snapshotInApp(mp, base) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -408,7 +472,7 @@ function snapshotInApp(mp, base) {
 }
 
 function patchNodeInApp(mp, base, id, payload) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, nodeId, body) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -432,7 +496,7 @@ function patchNodeInApp(mp, base, id, payload) {
 /** 用 automator 的元素 API 拿一批元素的位置/尺寸（顺序与 page.$$ 一致；避开 evaluate 的序列化坑） */
 /** 建一条节点（--local 专用：造 role=module 的「出行准备」来验准备卡） */
 function createNodeInApp(mp, base, payload) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, body) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -453,7 +517,7 @@ function createNodeInApp(mp, base, payload) {
 }
 
 function deleteNodeInApp(mp, base, id) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, nodeId) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -497,7 +561,7 @@ async function rectsOfElements(els) {
 
 /** 把一段 base64 写进小程序用户目录并上传（wx.uploadFile 的真实链路） */
 function uploadBytesInApp(mp, base, { name, b64, nodeId }) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, o) =>
       new Promise((resolve) => {
         const filePath = `${wx.env.USER_DATA_PATH}/${o.name}`;
@@ -524,7 +588,7 @@ function uploadBytesInApp(mp, base, { name, b64, nodeId }) {
 
 /** 直接打登录接口拿会话（存储里没有令牌、等不到 401 顶回登录页时的兜底） */
 function rawLoginInApp(mp, base, passphrase, name) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, p, n) =>
       new Promise((resolve) => {
         wx.request({
@@ -550,7 +614,7 @@ function rawLoginInApp(mp, base, passphrase, name) {
 
 /** 请求某个变体，返回状态 / Content-Type / 字节数（验证服务端派生图） */
 function variantInApp(mp, base, photoId, variant) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, pid, v) =>
       new Promise((resolve) => {
         wx.request({
@@ -573,7 +637,7 @@ function variantInApp(mp, base, photoId, variant) {
 }
 
 function deletePhotoInApp(mp, base, id) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, pid) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -591,7 +655,7 @@ function deletePhotoInApp(mp, base, id) {
 
 /** 把跑测试前存的会话与 base 写回去（正常收尾和中断兜底共用） */
 function restoreSessionInApp(mp, saved) {
-  return mp.evaluate((s) => {
+  return evalInApp(mp, (s) => {
     if (s.base) wx.setStorageSync('travel.base', s.base);
     else wx.removeStorageSync('travel.base');
     if (s.token) wx.setStorageSync('travel.token', s.token);
@@ -767,7 +831,7 @@ async function runLocalFlow(mp) {
 
   // 先存下你原来的会话：本机开发库和生产库的密钥不同（各自的 pepper/secret），
   // 切到本机后端后生产会话必然 401；跑完要原样还回去。
-  const saved = await mp.evaluate((localBase) => {
+  const saved = await evalInApp(mp, (localBase) => {
     const b = wx.getStorageSync('travel.base') || '';
     return {
       base: b === localBase ? '' : b, // 上次中断可能漏下本机地址，当成没有
@@ -782,7 +846,7 @@ async function runLocalFlow(mp) {
   // 注意：reLaunch 不要塞进 evaluate —— 路由切换会拆掉小程序上下文，evaluate 的
   // 响应就此丢失（automator 侧表现为 "timeout waiting for automator response"）。
   // 用 SDK 自带的 reLaunch：它把 {url} 包好、等路由切换、再返回新页面。
-  await mp.evaluate((base) => {
+  await evalInApp(mp, (base) => {
     wx.setStorageSync('travel.base', base);
   }, LOCAL_BASE);
   await mp.reLaunch('/pages/timeline/index');
@@ -1703,7 +1767,7 @@ async function runLocalFlow(mp) {
 
   // 收尾：把跑测试前的会话与 base 原样还回去（IDE 里重启小程序即可回到原会话）
   await restoreSessionInApp(mp, saved);
-  const restored = await mp.evaluate(() => ({
+  const restored = await evalInApp(mp, () => ({
     base: wx.getStorageSync('travel.base') || '',
     token: wx.getStorageSync('travel.token') || '',
   }));
@@ -1766,6 +1830,7 @@ async function main() {
       /* 断不干净也不影响退出码 */
     }
     if (server) await shutdownLocalServer(server);
+    printBridgeStats(); // 最后一行：下次一眼看出重试到底有没有生效
   }
 }
 
