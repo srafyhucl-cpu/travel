@@ -28,11 +28,13 @@
  *
  * 环境变量：CLI_PATH 覆盖 cli.bat 路径；PROJECT 覆盖小程序工程路径。
  * 退出码：0 全通 / 1 有失败（含连不上开发者工具）/ 2 脚本自己炸了（用法、缺依赖等）。
+ * 单实例：--local 起跑前会查 7042 与 D:\Temp\wx-devtools.lock，占用就 exit 2（绝不 rmSync 别人的临时目录）。
  *
  * 依赖：miniprogram-automator 装在 web/node_modules（web/package.json 的 devDependency），
  * 与 sync-shared.mjs 加载 esbuild 的方式一致，用 createRequire 过去拿，这里不另装一份。
  */
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -47,6 +49,8 @@ const SRC_DATA = path.join(SERVER_DIR, 'data');
 
 // 临时数据放仓库所在的盘（和 web/scripts/_harness.cjs 一个做法）
 const TEMP_DATA = path.join(path.parse(REPO_ROOT).root.replace(/[\\/]$/, ''), 'Temp', 'wx-devtools-testdata');
+// 单实例锁：故意放在临时目录外层 —— 那个目录每次起跑都会被 rmSync，锁得活下来才拦得住第二个实例
+const LOCK_PATH = path.join(path.dirname(TEMP_DATA), 'wx-devtools.lock');
 
 const CLI_PATH = process.env.CLI_PATH || 'D:\\微信web开发者工具\\cli.bat';
 const WS_PORT = 9420;
@@ -679,11 +683,142 @@ function copyDir(src, dst) {
   }
 }
 
+/* ------------------------------ 单实例前置检查 ------------------------------ */
+// 临时库目录、7042、IDE 自动化桥都是全局独占资源：并行跑会互删目录、互相污染数据。
+// 老做法是 bootLocalServer 一上来就 rmSync(TEMP_DATA) —— 那会把在跑实例的 photos/ 抹掉，
+// 上传随即 400 server_error（2026-10-12 的定性实验：删掉 photos/ 后上传 400、GET /api/photos 仍 200）。
+// 所以先查，查不过就退出，绝不删别人的临时目录。
+
+function readLock() {
+  try {
+    return JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeLock() {
+  try {
+    fs.writeFileSync(
+      LOCK_PATH,
+      JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), tempData: TEMP_DATA })
+    );
+  } catch {
+    /* 写不了锁不拦路：还有端口检查和进程扫描 */
+  }
+}
+
+function releaseLock() {
+  try {
+    fs.rmSync(LOCK_PATH, { force: true });
+  } catch {
+    /* 已经不在了 */
+  }
+}
+
+function pidAlive(pid) {
+  if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 扫本机 node 进程里命令行带 check-devtools 的（排除自己）；返回 null 表示扫描不可用 */
+function otherCheckDevtoolsPids() {
+  if (process.platform !== 'win32') return null;
+  try {
+    const ps = spawnSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -like '*check-devtools*' } | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }",
+      ],
+      { encoding: 'utf8', timeout: 15000 }
+    );
+    if (ps.status !== 0) return null;
+    const self = new Set([process.pid, process.ppid]);
+    return (ps.stdout || '')
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => {
+        const [pid, ...rest] = l.split('\t');
+        return { pid: Number(pid), cmd: rest.join('\t') };
+      })
+      .filter((p) => Number.isFinite(p.pid) && !self.has(p.pid));
+  } catch {
+    return null;
+  }
+}
+
+/** 7042 是否有人：先问健康接口，再退化成 TCP 连接探测（占着端口但没起来的服务也拦） */
+async function localPortBusy() {
+  try {
+    const r = await fetch(`${LOCAL_BASE}/api/health`, { signal: AbortSignal.timeout(800) });
+    if (r.ok) return true;
+  } catch {
+    /* 没应答，继续 TCP 探测 */
+  }
+  return await new Promise((resolve) => {
+    const sock = net.connect({ host: '127.0.0.1', port: LOCAL_PORT });
+    const done = (v) => {
+      try {
+        sock.destroy();
+      } catch {
+        /* 已经断了 */
+      }
+      resolve(v);
+    };
+    sock.setTimeout(800);
+    sock.once('connect', () => done(true));
+    sock.once('timeout', () => done(false));
+    sock.once('error', () => done(false));
+  });
+}
+
+/** 独占前置检查：不过就打印原因并 exit 2，绝不碰临时目录 */
+async function assertLocalExclusive() {
+  const reasons = [];
+  const lock = readLock();
+  if (lock?.pid && lock.pid !== process.pid) {
+    const others = otherCheckDevtoolsPids();
+    if (!pidAlive(lock.pid)) {
+      console.log(`· 发现陈旧锁（pid ${lock.pid} 已不在），清掉后继续`);
+      releaseLock();
+    } else if (others === null || others.some((p) => p.pid === lock.pid)) {
+      // others === null：进程扫描不可用，宁可保守地当成真锁
+      reasons.push(
+        `另一个 check-devtools 实例还在跑（pid ${lock.pid}，${lock.startedAt || '启动时间未知'}，临时目录 ${lock.tempData || TEMP_DATA}）`
+      );
+    } else {
+      console.log(`· 锁里的 pid ${lock.pid} 活着但不是 check-devtools（pid 被复用），按陈旧锁清掉`);
+      releaseLock();
+    }
+  }
+  if (await localPortBusy()) reasons.push(`127.0.0.1:${LOCAL_PORT} 已被监听（别的实例或别的服务在跑）`);
+
+  if (reasons.length) {
+    console.error('');
+    console.error('== 单实例前置检查未通过：这次不跑 ==');
+    for (const r of reasons) console.error(`  · ${r}`);
+    console.error(`  · 临时目录 ${TEMP_DATA} 是单实例独占的：本脚本不会 rmSync 别人的临时目录，直接退出。`);
+    console.error('  · 等上面那个实例跑完再重跑；全链路一次只许一个实例。');
+    process.exit(2);
+  }
+}
+
 async function bootLocalServer() {
   console.log('\n== 准备本机临时后端 ==');
+  await assertLocalExclusive(); // 必须在 rmSync 之前：绝不删别人正在用的临时目录
   if (!fs.existsSync(path.join(SRC_DATA, 'travel.db'))) {
     throw new Error(`没找到 ${SRC_DATA}\\travel.db，先确认 server/data 是否完整`);
   }
+  writeLock(); // 检查已通过：先立锁，再动临时目录
   fs.rmSync(TEMP_DATA, { recursive: true, force: true });
   copyDir(SRC_DATA, TEMP_DATA);
   console.log(`数据副本：${TEMP_DATA}`);
@@ -741,6 +876,7 @@ async function bootLocalServer() {
     } catch {
       /* 留着也不影响结果 */
     }
+    releaseLock();
     throw e;
   }
 }
@@ -766,6 +902,7 @@ async function shutdownLocalServer(child) {
   console.log(
     cleaned ? `临时后端已关闭，数据副本已删（${TEMP_DATA}）` : `临时后端已关闭，但副本没删干净：${TEMP_DATA}（不影响结果，可手动删）`
   );
+  releaseLock();
 }
 
 /* ------------------------------ 两种流程 ------------------------------ */
@@ -1837,8 +1974,17 @@ async function main() {
       /* 断不干净也不影响退出码 */
     }
     if (server) await shutdownLocalServer(server);
+    releaseLock(); // 兜底：中途炸了、没走到 shutdown 也要放锁
     printBridgeStats(); // 最后一行：下次一眼看出重试到底有没有生效
   }
+}
+
+// 中断也要放锁；万一残留，下次起跑的前置检查会当陈旧锁清掉
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => {
+    releaseLock();
+    process.exit(sig === 'SIGINT' ? 130 : 143);
+  });
 }
 
 main().then((code) => process.exit(code));
