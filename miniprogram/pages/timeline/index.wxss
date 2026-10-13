@@ -445,7 +445,8 @@
   display: flex;
   align-items: center;
   gap: 12rpx;
-  padding: 8rpx 0;
+  /* 命中框 88rpx（44px 标准）：整行可点，勾选不再只靠那 36rpx 的圆圈 */
+  padding: 24rpx 0;
 }
 
 .checkbox {
@@ -534,7 +535,11 @@
   display: inline-flex;
   align-items: center;
   gap: 8rpx;
-  padding: 8rpx 20rpx;
+  /* 只加高不加宽：这一行 6 个胶囊本来就在换行边缘，加宽会翻车。
+     WXSS 的 min-height 是 content-box 语义，必须配 border-box 才是 88rpx 总高 */
+  padding: 12rpx 20rpx;
+  box-sizing: border-box;
+  min-height: 88rpx;
   border-radius: 999rpx;
   background: var(--surface-2, var(--line));
   color: var(--ink-2);
@@ -714,7 +719,9 @@
 .foot-btn {
   font-size: 26rpx;
   color: var(--accent);
-  padding: 4rpx 8rpx;
+  /* 命中框撑到 88rpx：增量用等量负 margin 抵回，占位与文字坐标不变 */
+  padding: 26rpx 20rpx;
+  margin: -22rpx -12rpx;
 }
 
 /* ---------- 卡片里的账目行 ---------- */

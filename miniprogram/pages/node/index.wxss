@@ -64,7 +64,12 @@
 
 .check-del {
   flex: none;
-  padding: 8rpx 14rpx;
+  /* 命中框尽量撑大：只扩竖向（水平外扩会抢旁边输入框右缘的点击）。
+     上限受行距约束——编辑行距 43px，超过就会和上下两行的同款「✕」重叠，
+     那对破坏性操作更危险，所以取 82rpx（43px 内不重叠的最大值）。
+     增量用等量负 margin 抵回，占位与文字坐标不变 */
+  padding: 21rpx 14rpx;
+  margin: -13rpx 0;
   color: var(--ink-3);
   font-size: 28rpx;
 }
