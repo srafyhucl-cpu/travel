@@ -264,6 +264,10 @@ npm run smoke          # 每界面走一遍收控制台报错
      （`wx-check*` / `wx-poster*` / `check.heic`）清掉自己写的文件，并在跑前 / 跑后打印占用。
      实测 storage 侧上限 10240KB；文件系统侧在 1325KB 时报过超限、清到 832KB 后恢复，**具体上限待观察**。
      App 自己的 `img-thumb-*.jpg` 缩略图缓存不在清理范围内（每轮约 +4 个文件 / 20KB）。
+- **坐标 0 一律无效（有意取舍，别当 bug 改回去）**：`(0,0)` 是地名解析失败 / 地图没就绪最常见的退化值，
+  服务端还踩过 `Number(loc && loc.lat)` 在 `loc=false` 时变成 `0` 的陷阱。前后端逐轴都按「0 = 无效」处理
+  （`server/src/routes/nodes.js` 的 `coord()`、`platform/wx/services.js` 的 `openMap`、编辑页地图选点）；
+  赤道 `lat=0` / 格林尼治 `lng=0` 这类合法点会被一起拒掉，本行程用不到。
 
 ## 7.5 导航坐标 · 真机验收步骤
 
