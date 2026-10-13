@@ -13,6 +13,8 @@ page {
   --radius: 26rpx;
   /* 未选中的胶囊 / 图标块的中性填充（与 web tokens 同一语义） */
   --surface-2: rgba(17, 24, 39, 0.05);
+  /* 复选框描边：node/timeline 两页共用一个 token，深色自动提亮 */
+  --checkbox-line: rgba(17, 24, 39, 0.25);
 
   background: var(--bg);
   color: var(--ink);
@@ -35,6 +37,7 @@ page {
     --ok: #3dbb70;
     --danger: #ef6b60;
     --surface-2: rgba(255, 255, 255, 0.07);
+    --checkbox-line: rgba(255, 255, 255, 0.35);
   }
 }
 

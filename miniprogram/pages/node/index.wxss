@@ -40,7 +40,7 @@
   height: 36rpx;
   flex: none;
   border-radius: 50%;
-  border: 3rpx solid rgba(17, 24, 39, 0.25);
+  border: 3rpx solid var(--checkbox-line);
   color: #ffffff;
   font-size: 24rpx;
   line-height: 30rpx;

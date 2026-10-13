@@ -387,13 +387,6 @@
   flex: none;
 }
 
-/* 深色下复选框的描边要提亮，不然跟卡片糊在一起 */
-@media (prefers-color-scheme: dark) {
-  .checkbox {
-    border-color: rgba(255, 255, 255, 0.35);
-  }
-}
-
 .type-name {
   font-size: 24rpx;
   font-weight: 600;
@@ -460,7 +453,7 @@
   height: 36rpx;
   flex: none;
   border-radius: 50%;
-  border: 3rpx solid rgba(17, 24, 39, 0.25);
+  border: 3rpx solid var(--checkbox-line);
   color: #ffffff;
   font-size: 24rpx;
   line-height: 30rpx;
