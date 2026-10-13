@@ -27,6 +27,36 @@ const EDGE_TICK_MS = 40;
 /** 迷你拖拽卡相对手指上抬的高度（px）：卡片小一条，别压在手指底下 */
 const DRAG_LIFT = 56;
 
+/* 卡片底部中性小图标（照片/记一笔/车程）的烙色：与 app.wxss 的 --ink-2 浅深两档对齐。
+   SVG data URI 的颜色烙在图形里，WXSS 变量救不了它，切换主题只能整套重算。 */
+const ICON_COLORS = { light: '#6b7280', dark: '#a0a6b0' };
+
+/** 当前深浅色：优先 getAppBaseInfo().theme，老基础库回退 getSystemInfoSync()，再没有按浅色 */
+function themeOf() {
+  try {
+    const a = wx.getAppBaseInfo ? wx.getAppBaseInfo() : null;
+    if (a && a.theme) return a.theme;
+  } catch {
+    /* 继续 */
+  }
+  try {
+    const s = wx.getSystemInfoSync ? wx.getSystemInfoSync() : null;
+    if (s && s.theme) return s.theme;
+  } catch {
+    /* 继续 */
+  }
+  return 'light';
+}
+
+/** 三个中性图标整套重烙一次色（onLoad 与 onThemeChange 共用） */
+function iconSetFor(color) {
+  return {
+    cameraIcon: iconDataUri('camera', color),
+    walletIcon: iconDataUri('wallet', color),
+    carIcon: iconDataUri('car', color, 26),
+  };
+}
+
 /** 从触摸列表里挑出指定手指（多指时别被第二根手指把拖动拽跑；没给 identifier 就取第一根） */
 function pickTouch(list, identifier) {
   if (!list || !list.length) return null;
@@ -364,12 +394,12 @@ Page({
 
   onLoad(query) {
     // 图标只算一次：data URI 生成要遍历字形，别放进每轮 buildView
-    this.setData({
-      cameraIcon: iconDataUri('camera', '#6b7280'),
-      walletIcon: iconDataUri('wallet', '#6b7280'),
-      carIcon: iconDataUri('car', '#9ca3af', 26),
-      nav: readNav(),
-    });
+    this.setData({ ...iconSetFor(ICON_COLORS[themeOf() === 'dark' ? 'dark' : 'light']), nav: readNav() });
+    // 深浅色切换跟随系统：切的时候把这三个 data URI 重新烙色（老基础库没有 API 就跳过）
+    if (wx.onThemeChange) {
+      this.themeHandler = () => this.setData(iconSetFor(ICON_COLORS[themeOf() === 'dark' ? 'dark' : 'light']));
+      wx.onThemeChange(this.themeHandler);
+    }
     // 微信AI 接力：?date=YYYY-MM-DD 时，数据就绪后滚到当天第一张卡（见 flushScrollTo）
     if (query && typeof query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) {
       this.pendingDate = query.date;
@@ -419,6 +449,7 @@ Page({
     this.unloaded = true;
     this.syncPending = false;
     this.unsub?.();
+    if (wx.offThemeChange && this.themeHandler) wx.offThemeChange(this.themeHandler);
     this.cancelHold();
     if (this.dragStarting) this.dragCanceled = true;
     if (this.drag) this.stopAutoScroll(this.drag);
