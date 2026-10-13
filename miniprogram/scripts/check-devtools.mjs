@@ -1557,7 +1557,37 @@ async function runLocalFlow(mp) {
       `改后 lat=${patched?.data?.lat} lng=${patched?.data?.lng} / 越界后 lat=${bad?.data?.lat} lng=${bad?.data?.lng}`
     );
 
-    for (const id of [coordId, noId]) {
+    // 「坐标为 0 一律无效」是**有意取舍**（别当 bug 改回去）：
+    // (0,0) 是地名解析失败 / 地图未就绪最常见的退化值；服务端还踩过 `Number(loc && loc.lat)`
+    // 在 loc=false 时变成 0 的陷阱。逐轴规则：赤道 lat=0 / 格林尼治 lng=0 的合法点会被一起拒，本行程用不到。
+    const zeroBoth = await createNodeInApp(mp, LOCAL_BASE, {
+      date: coordDate,
+      title: '坐标检查·(0,0)',
+      type: 'other',
+      lat: 0,
+      lng: 0,
+    });
+    const zeroBothId = zeroBoth?.data?.id || null;
+    const zeroOne = await createNodeInApp(mp, LOCAL_BASE, {
+      date: coordDate,
+      title: '坐标检查·单轴 0',
+      type: 'other',
+      lat: 0,
+      lng: 100.246441,
+    });
+    const zeroOneId = zeroOne?.data?.id || null;
+    check(
+      '坐标：(0,0) 不落库（有意取舍：退化解一律无效）',
+      zeroBoth.status === 201 && zeroBoth?.data?.lat === null && zeroBoth?.data?.lng === null,
+      `status=${zeroBoth.status} lat=${zeroBoth?.data?.lat} lng=${zeroBoth?.data?.lng}`
+    );
+    check(
+      '坐标：单轴 0 也判无效（逐轴规则，有意取舍）',
+      zeroOne.status === 201 && zeroOne?.data?.lat === null && zeroOne?.data?.lng === 100.246441,
+      `status=${zeroOne.status} lat=${zeroOne?.data?.lat} lng=${zeroOne?.data?.lng}`
+    );
+
+    for (const id of [coordId, noId, zeroBothId, zeroOneId]) {
       if (!id) continue;
       const del = await deleteNodeInApp(mp, LOCAL_BASE, id);
       check('坐标：清掉造出来的节点', del.status === 200, `status=${del.status}`);

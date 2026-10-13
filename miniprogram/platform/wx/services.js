@@ -36,6 +36,8 @@ export function openMap(keyword, coords) {
   const text = String(keyword || '').trim();
   const lat = Number(coords?.lat);
   const lng = Number(coords?.lng);
+  // 经纬度任一为 0 一律当无效：(0,0) 是解析失败/地图未就绪最常见的退化值，不是任何真实地点。
+  // 这是有意取舍 —— 赤道 lat 0 / 格林尼治 lng 0 这类合法点会被一起拒掉，本行程用不到；别当成 bug 改回去。
   const hasCoord =
     coords?.lat !== null &&
     coords?.lat !== undefined &&
@@ -45,6 +47,8 @@ export function openMap(keyword, coords) {
     coords?.lng !== '' &&
     Number.isFinite(lat) &&
     Number.isFinite(lng) &&
+    lat !== 0 &&
+    lng !== 0 &&
     Math.abs(lat) <= 90 &&
     Math.abs(lng) <= 180;
   if (hasCoord) {
@@ -68,11 +72,18 @@ export function openMap(keyword, coords) {
     url,
     success: (res) => {
       const data = res && res.data;
-      const loc = data && data.status === 0 && data.result && data.result.location;
-      const lat = Number(loc && loc.lat);
-      const lng = Number(loc && loc.lng);
+      // 先拆开判：status 非 0（例如 121 配额用尽、112 IP 未授权）或 result/location 缺失时，
+      // loc 不能再短路成布尔的 false —— 否则 Number(false) === 0 会被当成合法坐标，直接打开 (0,0) 的海面。
+      const loc = data && data.status === 0 && data.result ? data.result.location : null;
+      const lat = typeof loc?.lat === 'number' ? loc.lat : Number(loc?.lat);
+      const lng = typeof loc?.lng === 'number' ? loc.lng : Number(loc?.lng);
       const ok =
-        Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+        Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        lat !== 0 &&
+        lng !== 0 &&
+        Math.abs(lat) <= 90 &&
+        Math.abs(lng) <= 180;
       if (!ok) {
         copyAndHint(text, '没找到这个地点，地名已复制');
         return;

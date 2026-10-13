@@ -108,14 +108,22 @@ Page({
 
   onMapRegion(e) {
     const c = e?.detail?.centerLocation;
-    if (c && Number.isFinite(c.latitude) && Number.isFinite(c.longitude)) {
+    // 0 视为「地图还没就绪」的退化值，不记；否则会在空白底图上存出一个 (0,0)
+    if (c && Number.isFinite(c.latitude) && Number.isFinite(c.longitude) && c.latitude !== 0 && c.longitude !== 0) {
       this.mapCenter = { latitude: c.latitude, longitude: c.longitude };
     }
   },
 
   onMapUse() {
     const take = (latitude, longitude) => {
-      this.setData({ lat: Number(latitude.toFixed(6)), lng: Number(longitude.toFixed(6)), hasCoord: true });
+      const lat = Number(Number(latitude).toFixed(6));
+      const lng = Number(Number(longitude).toFixed(6));
+      // 拿不到有效中心点（NaN / 0 / 退化到 0）就明确提示，不落库
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 || lng === 0) {
+        wx.showToast({ title: '没取到有效中心点，拖一下地图再试', icon: 'none' });
+        return;
+      }
+      this.setData({ lat, lng, hasCoord: true });
       wx.showToast({ title: '坐标已记住', icon: 'success' });
     };
     if (this.mapCenter) {

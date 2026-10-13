@@ -14,13 +14,16 @@ return /^[\w一-龥-]+$/.test(s) ? s : null;
 }
 
 /**
- * 经纬度（GCJ-02，地图选点存的）：空值 → null；非有限数或超范围 → null。
+ * 经纬度（GCJ-02，地图选点存的）：空值 → null；非有限数、0 或超范围 → null。
  * 宁可存 null（前端走复制地名回退）也不落一个坏坐标，不然点「导航」会打开一个错地方。
+ * 0 一律当无效：退化坐标（尤其 (0,0)）会让人打开一片海面。
+ * 与客户端同一取舍 —— 赤道/格林尼治这类恰好为 0 的合法点会被一起拒掉，本行程用不到。
  */
 function coord(v, limit) {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
-  return Number.isFinite(n) && Math.abs(n) <= limit ? n : null;
+  if (!Number.isFinite(n) || n === 0 || Math.abs(n) > limit) return null;
+  return n;
 }
 const STATUSES = new Set(['planned', 'done', 'skipped']);
 
