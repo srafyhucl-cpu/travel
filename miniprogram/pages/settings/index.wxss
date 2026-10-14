@@ -433,12 +433,17 @@ button.btn-primary[disabled] {
 }
 
 .member-sub-badge {
-  font-size: 20rpx;
-  display: inline-block;
-  margin-top: 4rpx;
-  padding: 2rpx 10rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  height: 40rpx;
+  padding: 0 14rpx;
+  font-size: 22rpx;
+  line-height: 1;
   border-radius: 8rpx;
-  width: fit-content;
+  white-space: nowrap;
+  margin-top: 6rpx;
 }
 
 .badge-virtual {
@@ -472,14 +477,25 @@ button.btn-primary[disabled] {
 
 .share-actions {
   display: flex;
-  gap: 16rpx;
-  margin-top: 6rpx;
+  gap: 20rpx;
+  align-items: stretch;
 }
 
-.share-btn {
+.share-actions .share-btn {
   flex: 1;
-  text-align: center;
+  width: auto !important;
   margin: 0 !important;
+  height: 84rpx;
+  padding: 0 16rpx;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 600;
+  line-height: 1 !important;
+  white-space: nowrap;
+  border-radius: 20rpx;
+  box-sizing: border-box;
 }
 
 .code-info-row {
@@ -489,19 +505,25 @@ button.btn-primary[disabled] {
 /* -------------------- 行程状态与分支 -------------------- */
 .status-chips {
   display: flex;
-  gap: 14rpx;
+  gap: 16rpx;
   margin-top: 10rpx;
 }
 
 .status-pill {
   flex: 1;
-  text-align: center;
-  padding: 14rpx 0;
-  border-radius: 16rpx;
-  background: var(--surface-2);
-  color: var(--ink-2);
+  height: 72rpx;
+  padding: 0 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 26rpx;
   font-weight: 600;
+  line-height: 1;
+  border-radius: 16rpx;
+  box-sizing: border-box;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--ink-2);
   border: 1rpx solid transparent;
   transition: all 150ms ease;
 }

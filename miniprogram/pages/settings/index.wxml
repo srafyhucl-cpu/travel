@@ -68,9 +68,7 @@
           <view class="avatar" style="color:{{item.color}};background:{{item.tint}}">{{item.initial}}</view>
           <view class="grow member-info">
             <text class="strong">{{item.name}}<text wx:if="{{item.me}}" class="me-tag">我</text></text>
-            <text class="member-sub-badge {{item.isVirtual ? 'badge-virtual' : 'badge-real'}}">
-              {{item.isVirtual ? '虚拟记账同伴（待认领）' : (item.role === 'owner' ? '创建者' : (item.role === 'viewer' ? '只读围观' : '已绑微信'))}}
-            </text>
+            <text class="member-sub-badge {{item.isVirtual ? 'badge-virtual' : 'badge-real'}}">{{item.role === 'owner' ? '创建者' : (item.isVirtual ? '虚拟同伴 · 待认领' : (item.role === 'viewer' ? '只读围观' : '已绑微信'))}}</text>
           </view>
           <text wx:if="{{!isReadOnly && item.isVirtual}}" class="del-member-btn" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="onRemoveMember">✕</text>
         </view>
@@ -100,12 +98,8 @@
     <view class="card sec share-box">
       <view class="share-desc">把行程分享给同行伙伴，实时同步节点安排与账单分摊；或者分享只读版本给亲友围观。</view>
       <view class="share-actions">
-        <button wx:if="{{!isReadOnly}}" class="btn-primary sm share-btn" open-type="share" data-mode="invite" hover-class="btn-press">
-          微信邀请同伴共同编辑
-        </button>
-        <button class="btn-plain sm share-btn" open-type="share" data-mode="view" hover-class="btn-press">
-          分享只读行程卡片
-        </button>
+        <button wx:if="{{!isReadOnly}}" class="btn-primary sm share-btn" open-type="share" data-mode="invite" hover-class="btn-press">邀请同伴共同编辑</button>
+        <button class="btn-plain sm share-btn" open-type="share" data-mode="view" hover-class="btn-press">分享只读行程卡片</button>
       </view>
       <view wx:if="{{trip.invite_code}}" class="code-info-row">
         <text class="tiny dim">邀请口令码：{{trip.invite_code}}</text>
@@ -125,9 +119,7 @@
             class="status-pill {{trip.status === item.key ? 'on' : ''}} {{isReadOnly ? 'disabled' : ''}}"
             data-status="{{item.key}}"
             bindtap="{{isReadOnly ? '' : 'onSwitchStatus'}}"
-          >
-            {{item.label}}
-          </view>
+          >{{item.label}}</view>
         </view>
       </view>
 

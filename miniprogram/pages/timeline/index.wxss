@@ -1280,26 +1280,23 @@
 
 .drawer-mask {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 100;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 900;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
 .drawer-sheet {
-  width: 100%;
+  background: var(--card, #ffffff);
+  border-radius: 32rpx 32rpx 0 0;
+  padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
   max-height: 80vh;
-  background: var(--surface-1);
-  border-top-left-radius: 36rpx;
-  border-top-right-radius: 36rpx;
-  padding: 32rpx 28rpx 48rpx;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  box-shadow: 0 -12rpx 48rpx rgba(0, 0, 0, 0.16);
 }
 
 .drawer-header {
@@ -1313,7 +1310,7 @@
 .drawer-title {
   font-size: 34rpx;
   font-weight: 700;
-  color: var(--ink-1);
+  color: var(--ink);
 }
 
 .drawer-close {
@@ -1357,7 +1354,7 @@
 .drawer-trip-name {
   font-size: 30rpx;
   font-weight: 700;
-  color: var(--ink-1);
+  color: var(--ink);
 }
 
 .drawer-trip-badge {
@@ -1382,17 +1379,24 @@
 .drawer-actions {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
-  margin-top: 16rpx;
+  gap: 20rpx;
+  margin-top: 24rpx;
 }
 
+.drawer-actions button,
 .drawer-btn {
   width: 100% !important;
-  border-radius: 20rpx;
+  margin: 0 !important;
+  height: 88rpx;
+  padding: 0 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   font-size: 30rpx;
   font-weight: 600;
-  padding: 20rpx 0;
-  text-align: center;
+  border-radius: 20rpx;
+  box-sizing: border-box;
 }
 
 .btn-primary {
@@ -1407,9 +1411,9 @@
 }
 
 .btn-outline {
-  background: transparent;
-  color: var(--ink-2);
-  border: 1rpx solid var(--line);
+  background: var(--surface-2, #f1f5f9) !important;
+  color: var(--ink, #1e293b) !important;
+  border: 2rpx solid var(--line, rgba(0, 0, 0, 0.08)) !important;
 }
 
 /* 弹窗居中 */
@@ -1422,10 +1426,11 @@
 
 .modal-card {
   width: 100%;
-  background: var(--surface-1);
+  background: var(--card, #ffffff);
   border-radius: 28rpx;
   padding: 36rpx 28rpx;
   box-sizing: border-box;
+  box-shadow: 0 20rpx 60rpx rgba(0, 0, 0, 0.25);
 }
 
 .modal-header {
@@ -1525,12 +1530,12 @@
 }
 
 .claim-chip {
-  padding: 12rpx 20rpx;
+  padding: 12rpx 24rpx;
   border-radius: 999rpx;
-  background: var(--surface-1);
+  background: var(--surface-2, #f1f5f9);
   border: 1rpx solid var(--line);
   font-size: 24rpx;
-  color: var(--ink-1);
+  color: var(--ink);
 }
 
 .claim-chip.is-selected {

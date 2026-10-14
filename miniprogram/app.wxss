@@ -31,6 +31,10 @@ page {
   --hero-bg: linear-gradient(160deg, #ffffff 0%, #f4f8fe 100%);
   --stat-card-bg: rgba(17, 24, 39, 0.03);
   --stat-card-border: 1rpx solid rgba(17, 24, 39, 0.05);
+  --surface-1: var(--card);
+  --ink-1: var(--ink);
+  --fg: var(--ink);
+  --border: var(--line);
 
   background: var(--bg);
   color: var(--ink);
@@ -70,6 +74,10 @@ page {
     --hero-bg: linear-gradient(160deg, #161a22 0%, #121822 100%);
     --stat-card-bg: rgba(255, 255, 255, 0.04);
     --stat-card-border: 1rpx solid rgba(255, 255, 255, 0.07);
+    --surface-1: var(--card);
+    --ink-1: var(--ink);
+    --fg: var(--ink);
+    --border: var(--line);
   }
 }
 
