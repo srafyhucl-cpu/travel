@@ -391,6 +391,8 @@ Page({
     scrollTop: 0,
     refreshing: false,
     // 多时间线与微信权限相关
+    isEmptyState: false,
+    members: [],
     tripDrawerOpen: false,
     tripFilterTab: 'active',
     createModalOpen: false,
@@ -503,6 +505,23 @@ Page({
       wx.redirectTo({ url: '/pages/login/index' });
       return;
     }
+    const allTrips = s.trips || [];
+    if (s.phase === 'ready' && (!s.activeTripId || !s.data) && allTrips.length === 0) {
+      this.lastViewData = undefined;
+      this.lastViewClock = null;
+      this.setData({
+        ready: true,
+        isEmptyState: true,
+        trips: [],
+        activeTripId: '',
+        syncing: false,
+        tripName: '旅行助手',
+        user: s.user || null,
+        myRole: 'owner',
+        isReadOnly: false,
+      });
+      return;
+    }
     if (!s.data) {
       this.lastViewData = undefined;
       this.lastViewClock = null;
@@ -520,10 +539,18 @@ Page({
     this.lastViewClock = clock;
     const myRole = s.data?.me?.role || s.data?.trip?.role || (s.trips?.find((t) => t.id === s.activeTripId)?.role) || 'editor';
     const isReadOnly = myRole === 'viewer';
-    const allTrips = s.trips || [];
+    const members = (s.data?.members || []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      avatarUrl: m.avatar_url || m.avatarUrl || '',
+      color: m.color || '#2F80ED',
+      initial: (m.name || '?').trim().slice(0, 1),
+    }));
     const patch = {
       ready: true,
+      isEmptyState: false,
       ...view,
+      members,
       trips: allTrips,
       activeTripId: s.activeTripId || s.data?.trip?.id || '',
       myRole,
@@ -1409,6 +1436,24 @@ Page({
     if (next) actions.refreshTrips().catch(() => {});
   },
 
+  onSwitchTripTab(e) {
+    const tab = e?.currentTarget?.dataset?.tab;
+    if (tab && tab !== this.data.tripFilterTab) {
+      this.setData({ tripFilterTab: tab });
+    }
+  },
+
+  async onCreateDemoTrip() {
+    try {
+      wx.showLoading({ title: '正在生成示例…' });
+      await actions.createDemoTrip();
+    } catch (e) {
+      wx.showToast({ title: e?.message || '生成失败', icon: 'none' });
+    } finally {
+      wx.hideLoading();
+    }
+  },
+
   async onSelectTrip(e) {
     const id = e.currentTarget.dataset.id;
     if (!id || id === this.data.activeTripId) {
@@ -1473,15 +1518,16 @@ Page({
     }
   },
 
-  openJoinWithCode(code = '') {
+  openJoinWithCode(eOrCode = '') {
+    const code = typeof eOrCode === 'string' ? eOrCode : (eOrCode?.currentTarget?.dataset?.code || '');
     this.setData({
       tripDrawerOpen: false,
       joinModalOpen: true,
-      joinCodeInput: typeof code === 'string' ? code : '',
+      joinCodeInput: code,
       joinPreview: null,
       selectedClaimId: '',
     });
-    if (code && typeof code === 'string') this.onQueryJoinPreview();
+    if (code) this.onQueryJoinPreview();
   },
 
   onCloseJoinModal() {

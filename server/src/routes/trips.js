@@ -80,11 +80,7 @@ router.use(requireAuth);
 /** 获取当前用户的所有旅行时间线列表 */
 router.get('/', (req, res) => {
   if (req.user) {
-    let trips = getUserTrips(req.user.id);
-    if (trips.length === 0) {
-      createDefaultTripForUser(req.user.id, req.user.nickname, req.user.avatar_url);
-      trips = getUserTrips(req.user.id);
-    }
+    const trips = getUserTrips(req.user.id);
     const activeTripId =
       req.user.last_trip_id && trips.some((t) => t.id === req.user.last_trip_id)
         ? req.user.last_trip_id
@@ -98,6 +94,15 @@ router.get('/', (req, res) => {
   }
 
   res.json({ trips: [], activeTripId: '' });
+});
+
+/** 主动生成示例行程体验 */
+router.post('/demo', (req, res) => {
+  const userId = req.user ? req.user.id : null;
+  const userName = req.user?.nickname || '旅行者';
+  const userAvatar = req.user?.avatar_url || '';
+  const result = createDefaultTripForUser(userId, userName, userAvatar);
+  res.status(201).json(result);
 });
 
 /** 新建行程时间线 */
@@ -237,8 +242,7 @@ router.delete('/:id', (req, res) => {
   let nextTripId = '';
   const remaining = getUserTrips(req.user.id);
   if (remaining.length === 0) {
-    const def = createDefaultTripForUser(req.user.id, req.user.nickname, req.user.avatar_url);
-    nextTripId = def.tripId;
+    nextTripId = '';
   } else {
     nextTripId = remaining[0].id;
   }

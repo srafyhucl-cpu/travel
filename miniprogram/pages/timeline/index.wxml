@@ -18,8 +18,27 @@
   </view>
 
   <block wx:if="{{ready}}">
+    <!-- 零时间线欢迎空状态（Empty State） -->
+    <view class="empty-welcome-wrap" wx:if="{{isEmptyState}}">
+      <view class="empty-welcome-card">
+        <view class="ew-icon-box">
+          <text class="ew-icon">✈️</text>
+        </view>
+        <view class="ew-title">开启你的下一段旅程</view>
+        <view class="ew-desc">制定每日时间线、与同行好友实时同步待办、轻松记录旅行账单与 AA 分摊，一键生成 Vlog 长图海报。</view>
+        <view class="ew-actions">
+          <button class="ew-btn ew-btn-primary" data-mode="new" bindtap="onOpenCreateModal">+ 创建我的第一条时间线</button>
+          <button class="ew-btn ew-btn-secondary" bindtap="openJoinWithCode">输入邀请码 / 口令加入同伴行程</button>
+        </view>
+        <view class="ew-demo-link" bindtap="onCreateDemoTrip">
+          还不确定怎么排？点击生成「大理丽江 4 日游」示例模板体验 ›
+        </view>
+      </view>
+    </view>
+
     <!-- 整页交给 scroll-view：拖动/确认面板时锁滚动，由页面自己控制 scrollTop（边缘自动滚动） -->
     <scroll-view
+      wx:else
       class="scroll"
       scroll-y="{{!dragging}}"
       scroll-top="{{scrollTop}}"
@@ -36,12 +55,23 @@
           <view class="readonly-clone-btn" data-mode="clone" bindtap="onOpenCreateModal">复制为我的行程</view>
         </view>
         <!-- ② 总结卡：状态 + 日期范围 + 大标题 + 总进度 + 三格统计（已花可点开明细） -->
-        <view class="sum-card">
+        <view class="sum-card hero-card">
           <view class="sum-top">
-            <text class="sum-status tone-{{summary.tone}}">{{summary.status}}</text>
-            <text wx:if="{{summary.range}}" class="sum-dates">{{summary.range}}</text>
-            <text wx:if="{{!online}}" class="flag off">离线中</text>
-            <text wx:elif="{{syncing}}" class="flag">同步中…</text>
+            <view class="sum-top-left">
+              <text class="sum-status tone-{{summary.tone}}">{{summary.status}}</text>
+              <text wx:if="{{summary.range}}" class="sum-dates">{{summary.range}}</text>
+              <text wx:if="{{!online}}" class="flag off">离线中</text>
+              <text wx:elif="{{syncing}}" class="flag">同步中…</text>
+            </view>
+            <view class="sum-top-right">
+              <view class="hero-avatar-stack" wx:if="{{members && members.length > 0}}">
+                <block wx:for="{{members}}" wx:key="id" wx:if="{{index < 4}}">
+                  <image wx:if="{{item.avatarUrl}}" class="stack-avatar img" src="{{item.avatarUrl}}" mode="aspectFill" style="z-index: {{4 - index}};" />
+                  <view wx:else class="stack-avatar txt" style="background: {{item.color || '#2F80ED'}}; z-index: {{4 - index}};">{{item.initial}}</view>
+                </block>
+              </view>
+              <button class="hero-invite-pill" open-type="share" data-mode="invite" wx:if="{{!isReadOnly}}">+ 邀请</button>
+            </view>
           </view>
 
           <view class="sum-title">{{now.title || tripName}}</view>
@@ -310,8 +340,8 @@
       </view>
     </view>
 
-    <!-- 右下角快捷入口：传照片（不指定进随手记）/ 加一项 -->
-    <view wx:if="{{!isReadOnly}}" class="fab" hover-class="fab-press" bindtap="onQuickAdd">＋</view>
+    <!-- 右下角快捷入口：胶囊样式 + 记行程，语义清晰 -->
+    <view wx:if="{{!isReadOnly && !isEmptyState}}" class="fab-pill" hover-class="fab-press" bindtap="onQuickAdd">＋ 记行程</view>
 
     <!-- ⑧ 多时间线工作台半屏抽屉 -->
     <view class="drawer-mask" wx:if="{{tripDrawerOpen}}" bindtap="onToggleTripDrawer">
@@ -321,29 +351,44 @@
           <text class="drawer-close" bindtap="onToggleTripDrawer">✕</text>
         </view>
 
+        <!-- 抽屉分段 Tab（进行/筹备中 vs 已归档） -->
+        <view class="drawer-tabs">
+          <view class="drawer-tab {{tripFilterTab === 'active' ? 'is-active' : ''}}" data-tab="active" bindtap="onSwitchTripTab">进行/筹备中</view>
+          <view class="drawer-tab {{tripFilterTab === 'archived' ? 'is-active' : ''}}" data-tab="archived" bindtap="onSwitchTripTab">已归档</view>
+        </view>
+
         <scroll-view scroll-y class="drawer-trip-list">
-          <view
-            wx:for="{{trips}}"
-            wx:key="id"
-            class="drawer-trip-card {{item.id === activeTripId ? 'is-active' : ''}}"
-            data-id="{{item.id}}"
-            bindtap="onSelectTrip"
-          >
-            <view class="drawer-trip-main">
-              <view class="drawer-trip-name-row">
-                <text class="drawer-trip-name">{{item.name}}</text>
-                <text class="drawer-trip-badge">{{item.role === 'owner' ? '创建者' : (item.role === 'viewer' ? '只读' : '协作')}}</text>
+          <block wx:for="{{trips}}" wx:key="id">
+            <view
+              wx:if="{{(tripFilterTab === 'active' && item.status !== 'archived') || (tripFilterTab === 'archived' && item.status === 'archived')}}"
+              class="drawer-trip-card {{item.id === activeTripId ? 'is-active' : ''}}"
+              data-id="{{item.id}}"
+              bindtap="onSelectTrip"
+            >
+              <view class="drawer-trip-main">
+                <view class="drawer-trip-name-row">
+                  <text class="drawer-trip-name">{{item.name}}</text>
+                  <text class="drawer-trip-badge">{{item.role === 'owner' ? '创建者' : (item.role === 'viewer' ? '只读' : '协作')}}</text>
+                </view>
+                <text class="drawer-trip-meta">{{item.destination || '未设目的地'}} · {{item.startDate}} 至 {{item.endDate}}</text>
               </view>
-              <text class="drawer-trip-meta">{{item.destination || '未设目的地'}} · {{item.startDate}} 至 {{item.endDate}}</text>
+              <view class="drawer-trip-side">
+                <view
+                  class="drawer-trip-clone-btn"
+                  wx:if="{{item.id === activeTripId && item.role !== 'viewer'}}"
+                  catchtap="onOpenCreateModal"
+                  data-mode="clone"
+                >衍生 Plan B</view>
+                <text class="drawer-trip-check" wx:if="{{item.id === activeTripId}}">当前</text>
+              </view>
             </view>
-            <text class="drawer-trip-check" wx:if="{{item.id === activeTripId}}">当前</text>
-          </view>
+          </block>
         </scroll-view>
 
-        <view class="drawer-actions">
-          <button class="drawer-btn btn-primary" data-mode="new" bindtap="onOpenCreateModal">+ 新建时间线</button>
-          <button class="drawer-btn btn-secondary" data-mode="clone" bindtap="onOpenCreateModal">衍生备选分支 (Plan B)</button>
-          <button class="drawer-btn btn-outline" bindtap="openJoinWithCode">输入口令 / 邀请码加入行程</button>
+        <!-- 抽屉底栏：横向并排双按钮 -->
+        <view class="drawer-actions-row">
+          <button class="drawer-btn btn-primary btn-flex-main" data-mode="new" bindtap="onOpenCreateModal">+ 新建时间线</button>
+          <button class="drawer-btn btn-outline btn-flex-sub" bindtap="openJoinWithCode">口令/邀请码加入</button>
         </view>
       </view>
     </view>

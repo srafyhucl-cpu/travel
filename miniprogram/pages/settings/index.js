@@ -98,8 +98,28 @@ Page({
       { key: 'ongoing', label: '进行中' },
       { key: 'archived', label: '已归档' },
     ],
+    // 折叠状态（默认折叠）
+    vocabFolded: true,
+    exportFolded: true,
+    hasActiveTrip: false,
     virtualModalOpen: false,
     virtualNameInput: '',
+  },
+
+  onToggleVocabFold() {
+    this.setData({ vocabFolded: !this.data.vocabFolded });
+  },
+
+  onToggleExportFold() {
+    this.setData({ exportFolded: !this.data.exportFolded });
+  },
+
+  onCopyCode(e) {
+    const code = e.currentTarget.dataset.code;
+    if (code) {
+      copyText(code);
+      wx.showToast({ title: '已复制', icon: 'success' });
+    }
   },
 
   onLoad() {
@@ -584,8 +604,12 @@ Page({
       success: async (r) => {
         if (!r.confirm) return;
         try {
-          await actions.deleteOrLeaveTrip(this.data.trip.id);
-          wx.navigateBack();
+          const res = await actions.deleteOrLeaveTrip(this.data.trip.id);
+          if (!res?.nextTripId) {
+            wx.reLaunch({ url: '/pages/timeline/index' });
+          } else {
+            wx.navigateBack();
+          }
         } catch (err) {
           wx.showToast({ title: err?.message || '操作失败', icon: 'none' });
         }
@@ -616,29 +640,28 @@ Page({
       wx.reLaunch({ url: '/pages/login/index' });
       return;
     }
-    if (!s.data) {
-      if (this.data.ready) this.setData({ ready: false });
-      return;
-    }
     const data = s.data;
-    const { trip, members } = data;
-    const dayCount = Math.max(1, daysBetween(trip.start_date, trip.end_date) + 1);
-    const chips = toVocabChips(data.vocab);
+    const hasActiveTrip = !!(data && data.trip && data.trip.id);
+    const trip = data?.trip || {};
+    const members = data?.members || [];
+    const dayCount = (trip.start_date && trip.end_date) ? Math.max(1, daysBetween(trip.start_date, trip.end_date) + 1) : 1;
+    const chips = toVocabChips(data?.vocab);
     const custom = [
-      ...(data.vocab?.nodeTypes || []).filter((t) => t.custom).map((t) => ({ ...t, kind: 'node_type', kindLabel: '行程类型' })),
-      ...(data.vocab?.categories || []).filter((c) => c.custom).map((c) => ({ ...c, kind: 'expense_category', kindLabel: '消费类别' })),
+      ...(data?.vocab?.nodeTypes || []).filter((t) => t.custom).map((t) => ({ ...t, kind: 'node_type', kindLabel: '行程类型' })),
+      ...(data?.vocab?.categories || []).filter((c) => c.custom).map((c) => ({ ...c, kind: 'expense_category', kindLabel: '消费类别' })),
     ].map((c) => ({ id: c.id, label: c.label, kindLabel: c.kindLabel }));
 
-    const achv = computeAchievements(data);
-    const meId = data.meId || achv.memberList.find((m) => m.name === data.me)?.id || null;
+    const achv = data ? computeAchievements(data) : { memberList: [], byMember: {}, team: [] };
+    const meId = data?.meId || achv.memberList.find((m) => m.name === data?.me)?.id || null;
     const mine = achv.byMember[meId] || [];
 
-    const myRole = data.me?.role || trip.role || (s.trips?.find((t) => t.id === trip.id)?.role) || 'editor';
+    const myRole = data?.me?.role || trip.role || (s.trips?.find((t) => t.id === trip.id)?.role) || 'editor';
     const isReadOnly = myRole === 'viewer';
     const currentUser = s.user || null;
 
     this.setData({
       ready: true,
+      hasActiveTrip,
       trip,
       dayCount,
       isReadOnly,
@@ -646,14 +669,14 @@ Page({
       user: currentUser,
       userNickname: currentUser?.nickname || '',
       userAvatarUrl: currentUser?.avatarUrl || '',
-      statsLine: `${(data.nodes || []).length} 行程 · ${(data.expenses || []).length} 消费 · ${(data.photos || []).length} 照片`,
+      statsLine: data ? `${(data.nodes || []).length} 行程 · ${(data.expenses || []).length} 消费 · ${(data.photos || []).length} 照片` : '',
       members: members.map((m) => ({
         id: m.id,
         name: m.name,
         color: m.color || MEMBER_COLORS[0],
         tint: tintOf(m.color || MEMBER_COLORS[0]),
         initial: (m.name || '?').trim().slice(0, 1),
-        me: (data.meId ? m.id === data.meId : m.name === data.me) && m.name !== '我',
+        me: (data?.meId ? m.id === data.meId : m.name === data?.me) && m.name !== '我',
         userId: m.user_id || null,
         isVirtual: !m.user_id,
         role: m.role || 'editor',
@@ -661,7 +684,7 @@ Page({
       types: chips.types,
       cats: chips.cats,
       custom,
-      achvText: `我的 ${mine.filter((b) => b.done).length}/${mine.length} · 全队 ${achv.team.filter((b) => b.done).length}/${achv.team.length}`,
+      achvText: data ? `我的 ${mine.filter((b) => b.done).length}/${mine.length} · 全队 ${achv.team.filter((b) => b.done).length}/${achv.team.length}` : '暂无数据',
     });
   },
 });

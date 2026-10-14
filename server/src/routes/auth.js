@@ -273,9 +273,11 @@ router.post('/wx-login', async (req, res) => {
     }
   }
 
+  let isNewUser = false;
   let user = db.prepare('SELECT * FROM users WHERE openid = ?').get(openid);
   const now = nowISO();
   if (!user) {
+    isNewUser = true;
     const id = genUserId();
     db.prepare(
       `INSERT INTO users (id, openid, unionid, nickname, avatar_url, is_profile_set, last_trip_id, created_at, updated_at)
@@ -285,14 +287,18 @@ router.post('/wx-login', async (req, res) => {
   }
 
   let trips = getUserTrips(user.id);
-  if (trips.length === 0) {
+  if (isNewUser && trips.length === 0) {
     createDefaultTripForUser(user.id, user.nickname, user.avatar_url);
     trips = getUserTrips(user.id);
     user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
   }
 
-  let activeTripId = user.last_trip_id;
-  if (!activeTripId || !trips.some((t) => t.id === activeTripId)) {
+  let activeTripId = user.last_trip_id || '';
+  if (activeTripId && !trips.some((t) => t.id === activeTripId)) {
+    activeTripId = trips[0]?.id || '';
+    db.prepare('UPDATE users SET last_trip_id = ?, updated_at = ? WHERE id = ?').run(activeTripId, now, user.id);
+    user.last_trip_id = activeTripId;
+  } else if (!activeTripId && trips.length > 0) {
     activeTripId = trips[0].id;
     db.prepare('UPDATE users SET last_trip_id = ?, updated_at = ? WHERE id = ?').run(activeTripId, now, user.id);
     user.last_trip_id = activeTripId;

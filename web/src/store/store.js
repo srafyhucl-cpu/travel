@@ -173,6 +173,16 @@ export async function switchTrip(targetTripId) {
         });
         toast('原行程已不可用，已自动切换', 'info');
         if (fallbackId !== targetTripId) await switchTrip(fallbackId);
+      } else {
+        platform.session.setTripId('');
+        stopStream();
+        set({
+          trips: [],
+          activeTripId: '',
+          data: null,
+          phase: 'ready',
+          switchingTrip: false,
+        });
       }
     } else if (!cached && state.phase !== 'ready') {
       set({ phase: 'login' });
@@ -192,15 +202,27 @@ export async function boot() {
   const savedTripId = platform.session.getTripId();
   const savedUser = typeof platform.session.getUser === 'function' ? platform.session.getUser() : null;
 
-  if (token && savedTripId) {
-    const cached = await platform.storage.loadSnapshot(savedTripId).catch(() => null);
-    set({
-      user: savedUser,
-      activeTripId: savedTripId,
-      ...(cached ? { data: normalizeSnapshot(cached), phase: 'ready' } : {}),
-    });
-    actions.refreshTrips().catch(() => {});
-    await switchTrip(savedTripId);
+  if (token) {
+    set({ user: savedUser });
+    const trips = (await actions.refreshTrips().catch(() => [])) || [];
+    if (!trips || trips.length === 0) {
+      platform.session.setTripId('');
+      stopStream();
+      set({
+        activeTripId: '',
+        data: null,
+        phase: 'ready',
+        switchingTrip: false,
+        trips: [],
+      });
+    } else {
+      const effectiveTripId = savedTripId && trips.some((t) => t.id === savedTripId) ? savedTripId : trips[0].id;
+      const cached = await platform.storage.loadSnapshot(effectiveTripId).catch(() => null);
+      if (cached) {
+        set({ data: normalizeSnapshot(cached), phase: 'ready' });
+      }
+      await switchTrip(effectiveTripId);
+    }
     startClock();
     platform.device.onNetwork(({ online }) => (online ? handleOnline() : handleOffline()));
     platform.device.onResume(handleVisibility);
@@ -215,13 +237,27 @@ export async function boot() {
         const res = await api.wxLogin(code);
         platform.session.setToken(res.token);
         platform.session.setUser?.(res.user);
-        platform.session.setTripId(res.activeTripId);
+        const trips = res.trips || [];
         set({
           user: res.user,
-          trips: res.trips || [],
-          activeTripId: res.activeTripId,
+          trips,
         });
-        await switchTrip(res.activeTripId);
+        if (trips.length === 0 || !res.activeTripId) {
+          platform.session.setTripId('');
+          stopStream();
+          set({
+            activeTripId: '',
+            data: null,
+            phase: 'ready',
+            switchingTrip: false,
+          });
+        } else {
+          platform.session.setTripId(res.activeTripId);
+          set({
+            activeTripId: res.activeTripId,
+          });
+          await switchTrip(res.activeTripId);
+        }
         startClock();
         platform.device.onNetwork(({ online }) => (online ? handleOnline() : handleOffline()));
         platform.device.onResume(handleVisibility);
@@ -445,11 +481,30 @@ export const actions = {
   async deleteOrLeaveTrip(tripId) {
     const res = await api.deleteOrLeaveTrip(tripId);
     await platform.storage.dropSnapshot(tripId).catch(() => {});
-    await actions.refreshTrips();
-    if (res.nextTripId) {
+    const trips = (await actions.refreshTrips().catch(() => [])) || [];
+    if (!res.nextTripId || trips.length === 0) {
+      platform.session.setTripId('');
+      stopStream();
+      set({
+        activeTripId: '',
+        data: null,
+        phase: 'ready',
+        switchingTrip: false,
+      });
+    } else {
       await switchTrip(res.nextTripId);
     }
     toast(res.deleted ? '行程已删除' : '已退出该行程', 'success');
+    return res;
+  },
+
+  async createDemoTrip() {
+    const res = await api.createDemoTrip();
+    await actions.refreshTrips();
+    if (res?.tripId) {
+      await switchTrip(res.tripId);
+    }
+    toast('已生成示例行程', 'success');
     return res;
   },
 
@@ -485,15 +540,29 @@ export const actions = {
     const res = await api.wxLogin(code);
     platform.session.setToken(res.token);
     if (res.user) platform.session.setUser?.(res.user);
-    if (res.activeTripId) platform.session.setTripId(res.activeTripId);
+    const trips = res.trips || [];
     set({
       user: res.user,
-      trips: res.trips || [],
-      activeTripId: res.activeTripId,
-      phase: 'ready',
+      trips,
     });
-    await switchTrip(res.activeTripId);
-    connectLive();
+    if (trips.length === 0 || !res.activeTripId) {
+      platform.session.setTripId('');
+      stopStream();
+      set({
+        activeTripId: '',
+        data: null,
+        phase: 'ready',
+        switchingTrip: false,
+      });
+    } else {
+      platform.session.setTripId(res.activeTripId);
+      set({
+        activeTripId: res.activeTripId,
+        phase: 'ready',
+      });
+      await switchTrip(res.activeTripId);
+      connectLive();
+    }
     return res;
   },
 

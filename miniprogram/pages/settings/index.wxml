@@ -1,303 +1,322 @@
 <view class="page">
   <block wx:if="{{ready}}">
-    <!-- 微信个人资料卡 -->
-    <view class="sec-title">我的微信个人资料</view>
+    <!-- 卡片 1：个人微信名片 + 旅行成就合一 -->
+    <view class="sec-title">微信名片与成就</view>
     <view class="card sec profile-card">
-      <view class="profile-row">
-        <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
-          <image wx:if="{{userAvatarUrl}}" class="avatar-img" src="{{userAvatarUrl}}" mode="aspectFill" />
-          <view wx:else class="avatar-fallback">{{userNickname ? userNickname[0] : '我'}}</view>
-          <text class="avatar-tip">点此换头像</text>
-        </button>
-        <view class="profile-input-wrap">
-          <text class="tiny dim">微信昵称（同步所有行程）</text>
-          <input type="nickname" class="input nickname-input" placeholder="设置你的旅行昵称" value="{{userNickname}}" bindchange="onNicknameChange" />
+      <view class="profile-top-row">
+        <view class="profile-user-left">
+          <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+            <image wx:if="{{userAvatarUrl}}" class="avatar-img" src="{{userAvatarUrl}}" mode="aspectFill" />
+            <view wx:else class="avatar-fallback">{{userNickname ? userNickname[0] : '我'}}</view>
+            <text class="avatar-tip">点此换头像</text>
+          </button>
+          <view class="profile-input-wrap">
+            <text class="tiny dim">微信昵称（同步所有行程）</text>
+            <input type="nickname" class="input nickname-input" placeholder="设置你的旅行昵称" value="{{userNickname}}" bindchange="onNicknameChange" />
+          </view>
         </view>
+        <view class="switch-account-link" hover-class="link-press" bindtap="onLogout">切换账号/口令</view>
       </view>
-    </view>
 
-    <!-- 旅行信息 -->
-    <view class="card sec">
-      <view class="row">
+      <view class="profile-divider"></view>
+
+      <view class="cat-row achv-entry" hover-class="cat-row-press" bindtap="onAchv">
         <view class="grow">
-          <view class="trip-name">{{trip.name}}</view>
-          <view class="tiny">{{trip.destination}} · {{trip.start_date}} – {{trip.end_date}} · {{dayCount}} 天</view>
+          <view class="strong achv-title">🏆 旅行成就（{{achvText}}）</view>
+          <view class="tiny dim">点此查看个人与全队勋章解锁进度</view>
         </view>
-        <view wx:if="{{!isReadOnly}}" class="chip" hover-class="pill-press" bindtap="onTripToggle">{{tripEdit ? '取消' : '编辑'}}</view>
-      </view>
-      <view class="stats-line">{{statsLine}}</view>
-
-      <view wx:if="{{tripEdit}}" class="sub-form">
-        <view class="field">
-          <text class="label">名称</text>
-          <input class="input" value="{{tripForm.name}}" data-k="name" maxlength="60" bindinput="onTripField" />
-        </view>
-        <view class="field">
-          <text class="label">目的地</text>
-          <input class="input" value="{{tripForm.destination}}" data-k="destination" maxlength="60" bindinput="onTripField" placeholder="丽江 · 大理" />
-        </view>
-        <view class="grid2">
-          <view class="field">
-            <text class="label">出发日</text>
-            <picker mode="date" value="{{tripForm.startDate}}" data-k="startDate" bindchange="onTripDate">
-              <view class="picker-trigger {{tripForm.startDate ? '' : 'empty'}}" hover-class="picker-press">{{tripForm.startDate || '选日期'}}</view>
-            </picker>
-          </view>
-          <view class="field">
-            <text class="label">回来日</text>
-            <picker mode="date" value="{{tripForm.endDate}}" data-k="endDate" bindchange="onTripDate">
-              <view class="picker-trigger {{tripForm.endDate ? '' : 'empty'}}" hover-class="picker-press">{{tripForm.endDate || '选日期'}}</view>
-            </picker>
-          </view>
-        </view>
-        <button class="btn-primary sm" hover-class="btn-press" bindtap="onTripSave">{{tripBusy ? '保存中…' : '保存'}}</button>
+        <text class="chev">›</text>
       </view>
     </view>
 
-    <!-- 同行成员 -->
-    <view class="sec-title">
-      同行成员
-      <view class="sec-act-group">
-        <text wx:if="{{!isReadOnly}}" class="sec-act" hover-class="pill-press" bindtap="onOpenAddVirtualModal">＋ 虚拟同伴</text>
-        <text wx:if="{{!isReadOnly}}" class="sec-act" hover-class="pill-press" bindtap="onMemberToggle">{{memberEdit ? '取消' : '改名/颜色'}}</text>
+    <!-- 卡片 2：当前行程：同行伙伴与邀请（同行成员与协作分享合一） -->
+    <block wx:if="{{hasActiveTrip}}">
+      <view class="sec-title">
+        同行伙伴与邀请
+        <view class="sec-act-group">
+          <text wx:if="{{!isReadOnly}}" class="sec-act" hover-class="pill-press" bindtap="onOpenAddVirtualModal">＋ 虚拟同伴</text>
+          <text wx:if="{{!isReadOnly}}" class="sec-act" hover-class="pill-press" bindtap="onMemberToggle">{{memberEdit ? '取消' : '改名/颜色'}}</text>
+        </view>
       </view>
-    </view>
-    <view class="card sec">
-      <block wx:if="{{!memberEdit}}">
-        <view wx:for="{{members}}" wx:key="id" class="member-row">
-          <view class="avatar" style="color:{{item.color}};background:{{item.tint}}">{{item.initial}}</view>
-          <view class="grow member-info">
-            <text class="strong">{{item.name}}<text wx:if="{{item.me}}" class="me-tag">我</text></text>
-            <text class="member-sub-badge {{item.isVirtual ? 'badge-virtual' : 'badge-real'}}">{{item.role === 'owner' ? '创建者' : (item.isVirtual ? '虚拟同伴 · 待认领' : (item.role === 'viewer' ? '只读围观' : '已绑微信'))}}</text>
+      <view class="card sec">
+        <block wx:if="{{!memberEdit}}">
+          <view wx:for="{{members}}" wx:key="id" class="member-row">
+            <view class="avatar" style="color:{{item.color}};background:{{item.tint}}">{{item.initial}}</view>
+            <view class="grow member-info">
+              <text class="strong">{{item.name}}<text wx:if="{{item.me}}" class="me-tag">我</text></text>
+              <text class="member-sub-badge {{item.isVirtual ? 'badge-virtual' : 'badge-real'}}">{{item.role === 'owner' ? '创建者' : (item.isVirtual ? '虚拟同伴 · 待认领' : (item.role === 'viewer' ? '只读围观' : '已绑微信'))}}</text>
+            </view>
+            <text wx:if="{{!isReadOnly && item.isVirtual}}" class="del-member-btn" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="onRemoveMember">✕</text>
           </view>
-          <text wx:if="{{!isReadOnly && item.isVirtual}}" class="del-member-btn" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="onRemoveMember">✕</text>
-        </view>
-      </block>
-      <block wx:else>
-        <view wx:for="{{memberForm}}" wx:for-item="m" wx:key="id" class="member-edit">
-          <input class="input" value="{{m.name}}" data-id="{{m.id}}" maxlength="24" bindinput="onMemberName" />
-          <view class="swatches">
-            <view
-              wx:for="{{colors}}"
-              wx:for-item="c"
-              wx:key="*this"
-              class="swatch {{m.color === c ? 'on' : ''}}"
-              style="background:{{c}}"
-              data-id="{{m.id}}"
-              data-color="{{c}}"
-              bindtap="onMemberColor"
-            ></view>
-          </view>
-        </view>
-        <button class="btn-primary sm" hover-class="btn-press" bindtap="onMemberSave">保存</button>
-      </block>
-    </view>
-
-    <!-- 协作与分享 -->
-    <view class="sec-title">协作与分享</view>
-    <view class="card sec share-box">
-      <view class="share-desc">把行程分享给同行伙伴，实时同步节点安排与账单分摊；或者分享只读版本给亲友围观。</view>
-      <view class="share-actions">
-        <button wx:if="{{!isReadOnly}}" class="btn-primary sm share-btn" open-type="share" data-mode="invite" hover-class="btn-press">邀请同伴共同编辑</button>
-        <button class="btn-plain sm share-btn" open-type="share" data-mode="view" hover-class="btn-press">分享只读行程卡片</button>
-      </view>
-      <view wx:if="{{trip.invite_code}}" class="code-info-row">
-        <text class="tiny dim">邀请口令码：{{trip.invite_code}}</text>
-        <text class="tiny dim" wx:if="{{trip.view_code}}"> · 围观码：{{trip.view_code}}</text>
-      </view>
-    </view>
-
-    <!-- 行程生命周期与分支 -->
-    <view class="sec-title">行程状态与分支</view>
-    <view class="card sec">
-      <view class="field">
-        <text class="label">当前行程阶段</text>
-        <view class="status-chips">
-          <view
-            wx:for="{{statusChoices}}"
-            wx:key="key"
-            class="status-pill {{trip.status === item.key ? 'on' : ''}} {{isReadOnly ? 'disabled' : ''}}"
-            data-status="{{item.key}}"
-            bindtap="{{isReadOnly ? '' : 'onSwitchStatus'}}"
-          >{{item.label}}</view>
-        </view>
-      </view>
-
-      <view wx:if="{{!isReadOnly}}" class="branch-section">
-        <view class="cat-row" hover-class="cat-row-press" bindtap="onCloneTrip">
-          <view class="grow">
-            <view class="strong">衍生备选分支 (Plan B)</view>
-            <view class="tiny dim">完整克隆当前行程的节点与预算，独立排期与修改</view>
-          </view>
-          <text class="chev">›</text>
-        </view>
-      </view>
-
-      <button class="btn-danger sm delete-trip-btn" hover-class="btn-press" bindtap="onDeleteOrLeaveTrip">
-        {{myRole === 'owner' ? '彻底删除当前行程' : '退出这趟行程'}}
-      </button>
-    </view>
-
-    <!-- 类型与类别 -->
-    <view class="sec-title">行程类型与消费类别</view>
-    <view class="card sec">
-      <view class="tiny dim">决定时间线上的图标配色和记账分类，也能加「露营」「油费」这类自定义项。</view>
-
-      <view class="sub-title">行程类型</view>
-      <view class="chip-row">
-        <view wx:for="{{types}}" wx:key="key" class="soft-chip" style="color:{{item.color}};background:{{item.soft}}">{{item.label}}</view>
-        <view class="chip add" hover-class="pill-press" data-kind="node_type" bindtap="onVocabAdd">＋ 类型</view>
-      </view>
-
-      <view class="sub-title">消费类别</view>
-      <view class="chip-row">
-        <view wx:for="{{cats}}" wx:key="key" class="soft-chip" style="color:{{item.color}};background:{{item.soft}}">{{item.label}}</view>
-        <view class="chip add" hover-class="pill-press" data-kind="expense_category" bindtap="onVocabAdd">＋ 类别</view>
-      </view>
-
-      <view wx:if="{{custom.length}}" class="chip mgr" hover-class="pill-press" bindtap="onVocabManage">{{vocabManage ? '收起自定义项' : '管理自定义项'}}</view>
-
-      <view wx:if="{{vocabManage}}" class="sub-form">
-        <view wx:for="{{custom}}" wx:key="id" class="custom-row">
-          <view class="grow">
-            <text class="strong">{{item.label}}</text>
-            <text class="tiny dim"> · {{item.kindLabel}}</text>
-          </view>
-          <view class="chip sm" hover-class="pill-press" data-id="{{item.id}}" data-label="{{item.label}}" bindtap="onVocabRename">改名</view>
-          <view class="chip sm danger" hover-class="pill-press" data-id="{{item.id}}" data-label="{{item.label}}" bindtap="onVocabDelete">删除</view>
-        </view>
-      </view>
-
-      <view wx:if="{{vocabAdd}}" class="sub-form">
-        <view class="field">
-          <text class="label">名字</text>
-          <input
-            class="input"
-            value="{{vocabForm.label}}"
-            data-k="label"
-            maxlength="20"
-            placeholder="{{vocabAdd === 'node_type' ? '比如：露营' : '比如：油费'}}"
-            bindinput="onVocabField"
-          />
-        </view>
-        <view class="field">
-          <text class="label">图标</text>
-          <view class="icongrid">
-            <view
-              wx:for="{{iconChoices}}"
-              wx:key="key"
-              class="iconcell {{vocabForm.icon === item.key ? 'on' : ''}}"
-              hover-class="pill-press"
-              data-key="{{item.key}}"
-              bindtap="onVocabIcon"
-            >
-              <image class="icon-img" src="{{item.icon}}" mode="aspectFit" />
+        </block>
+        <block wx:else>
+          <view wx:for="{{memberForm}}" wx:for-item="m" wx:key="id" class="member-edit">
+            <input class="input" value="{{m.name}}" data-id="{{m.id}}" maxlength="24" bindinput="onMemberName" />
+            <view class="swatches">
+              <view
+                wx:for="{{colors}}"
+                wx:for-item="c"
+                wx:key="*this"
+                class="swatch {{m.color === c ? 'on' : ''}}"
+                style="background:{{c}}"
+                data-id="{{m.id}}"
+                data-color="{{c}}"
+                bindtap="onMemberColor"
+              ></view>
             </view>
           </view>
+          <button class="btn-primary sm" hover-class="btn-press" bindtap="onMemberSave">保存</button>
+        </block>
+
+        <view class="member-divider"></view>
+
+        <!-- 协作与分享下半区 -->
+        <view class="share-actions">
+          <button wx:if="{{!isReadOnly}}" class="btn-primary sm share-btn" open-type="share" data-mode="invite" hover-class="btn-press">邀请同伴共同编辑</button>
+          <button class="btn-plain sm share-btn" open-type="share" data-mode="view" hover-class="btn-press">分享只读行程卡片</button>
         </view>
-        <view class="field">
-          <text class="label">颜色</text>
-          <view class="swatches">
+        <view class="code-info-row" wx:if="{{trip.invite_code || trip.view_code}}">
+          <text class="code-copy-pill" wx:if="{{trip.invite_code}}" data-code="{{trip.invite_code}}" bindtap="onCopyCode">
+            邀请码：{{trip.invite_code}} 📋
+          </text>
+          <text class="code-copy-pill" wx:if="{{trip.view_code}}" data-code="{{trip.view_code}}" bindtap="onCopyCode">
+            围观码：{{trip.view_code}} 📋
+          </text>
+        </view>
+      </view>
+
+      <!-- 卡片 3：当前行程：基本信息与阶段状态 -->
+      <view class="sec-title">行程设置与分支</view>
+      <view class="card sec">
+        <view class="row">
+          <view class="grow">
+            <view class="trip-name">{{trip.name}}</view>
+            <view class="tiny">{{trip.destination || '未设目的地'}} · {{trip.start_date}} – {{trip.end_date}} · {{dayCount}} 天</view>
+          </view>
+          <view wx:if="{{!isReadOnly}}" class="chip" hover-class="pill-press" bindtap="onTripToggle">{{tripEdit ? '取消' : '编辑'}}</view>
+        </view>
+        <view class="stats-line">{{statsLine}}</view>
+
+        <view wx:if="{{tripEdit}}" class="sub-form">
+          <view class="field">
+            <text class="label">名称</text>
+            <input class="input" value="{{tripForm.name}}" data-k="name" maxlength="60" bindinput="onTripField" />
+          </view>
+          <view class="field">
+            <text class="label">目的地</text>
+            <input class="input" value="{{tripForm.destination}}" data-k="destination" maxlength="60" bindinput="onTripField" placeholder="丽江 · 大理" />
+          </view>
+          <view class="grid2">
+            <view class="field">
+              <text class="label">出发日</text>
+              <picker mode="date" value="{{tripForm.startDate}}" data-k="startDate" bindchange="onTripDate">
+                <view class="picker-trigger {{tripForm.startDate ? '' : 'empty'}}" hover-class="picker-press">{{tripForm.startDate || '选日期'}}</view>
+              </picker>
+            </view>
+            <view class="field">
+              <text class="label">回来日</text>
+              <picker mode="date" value="{{tripForm.endDate}}" data-k="endDate" bindchange="onTripDate">
+                <view class="picker-trigger {{tripForm.endDate ? '' : 'empty'}}" hover-class="picker-press">{{tripForm.endDate || '选日期'}}</view>
+              </picker>
+            </view>
+          </view>
+          <button class="btn-primary sm" hover-class="btn-press" bindtap="onTripSave">{{tripBusy ? '保存中…' : '保存'}}</button>
+        </view>
+
+        <view class="field" style="margin-top: 24rpx;">
+          <text class="label">当前行程阶段</text>
+          <view class="status-chips">
             <view
-              wx:for="{{colors}}"
-              wx:for-item="c"
-              wx:key="*this"
-              class="swatch {{vocabForm.color === c ? 'on' : ''}}"
-              style="background:{{c}}"
-              data-color="{{c}}"
-              bindtap="onVocabColor"
-            ></view>
+              wx:for="{{statusChoices}}"
+              wx:key="key"
+              class="status-pill {{trip.status === item.key ? 'on' : ''}} {{isReadOnly ? 'disabled' : ''}}"
+              data-status="{{item.key}}"
+              bindtap="{{isReadOnly ? '' : 'onSwitchStatus'}}"
+            >{{item.label}}</view>
           </view>
         </view>
-        <view wx:if="{{vocabAdd === 'node_type'}}" class="field">
-          <text class="label">提前多久出发（分钟）</text>
-          <input class="input" type="number" value="{{vocabForm.leadMinutes}}" data-k="leadMinutes" bindinput="onVocabField" />
-        </view>
-        <view class="btn-row">
-          <button class="btn-primary sm grow" hover-class="btn-press" bindtap="onVocabSave">添加</button>
-          <button class="btn-plain sm" hover-class="btn-press" bindtap="onVocabCancel">取消</button>
-        </view>
-      </view>
-    </view>
 
-    <!-- 导出与提醒 -->
-    <view class="sec-title">导出与提醒</view>
-    <view class="card sec">
-      <view class="cat-row" hover-class="cat-row-press" bindtap="onShareTemplate">
-        <view class="grow"><view class="strong">分享行程模板</view><view class="tiny dim">存成 JSON 发到聊天里，以后去新地方可以导入复用结构</view></view>
-        <text class="chev">›</text>
+        <view wx:if="{{!isReadOnly}}" class="branch-section">
+          <view class="cat-row" hover-class="cat-row-press" bindtap="onCloneTrip">
+            <view class="grow">
+              <view class="strong">衍生备选分支 (Plan B)</view>
+              <view class="tiny dim">完整克隆当前行程的节点与预算，独立排期与修改</view>
+            </view>
+            <text class="chev">›</text>
+          </view>
+        </view>
       </view>
-      <view class="cat-row" hover-class="cat-row-press" bindtap="onShareBackup">
-        <view class="grow"><view class="strong">分享完整备份</view><view class="tiny dim">行程 + 消费 + 打卡的 JSON 存档（不含照片本体）</view></view>
-        <text class="chev">›</text>
-      </view>
-      <view class="cat-row" hover-class="cat-row-press" bindtap="onImport">
-        <view class="grow"><view class="strong">导入行程模板</view><view class="tiny dim">从聊天里选一个之前导出的 JSON，按天铺到当前行程（只新增）</view></view>
-        <text class="chev">›</text>
-      </view>
-      <view class="cat-row" hover-class="cat-row-press" bindtap="onCopyIcs">
-        <view class="grow"><view class="strong">复制订阅链接（.ics）</view><view class="tiny dim">把航班、酒店加进手机自带日历；链接粘到浏览器/日历 App 里打开</view></view>
-        <text class="chev">›</text>
-      </view>
-      <view class="cat-row" hover-class="cat-row-press" bindtap="onCopyUrl">
-        <view class="grow"><view class="strong">复制网址</view><view class="tiny dim">发给同伴，他用同一个口令就能在浏览器里看</view></view>
-        <text class="chev">›</text>
+    </block>
+
+    <!-- 卡片 4：高级设置与数据管理（默认折叠 Accordion） -->
+    <view class="sec-title">高级设置与数据管理</view>
+    <view class="card sec accordion-card">
+      <!-- 第 1 行：自定义行程类型与消费分类标签 -->
+      <view class="accordion-head" hover-class="acc-press" bindtap="onToggleVocabFold">
+        <view class="grow">
+          <view class="strong">自定义行程类型与消费分类标签</view>
+          <view class="tiny dim">定义时间线类型与记账分类，支持自定义标签</view>
+        </view>
+        <text class="accordion-toggle">{{vocabFolded ? '展开 ▾' : '收起 ▴'}}</text>
       </view>
 
-      <view wx:if="{{importInfo}}" class="sub-form">
-        <view class="strong">{{importInfo.fileName}}</view>
-        <view class="tiny dim">共 {{importInfo.days}} 天 · {{importInfo.total}} 项行程。只新增节点，不动已有内容。</view>
-        <view class="field">
-          <text class="label">从哪一天开始铺</text>
-          <picker mode="date" value="{{importDate}}" bindchange="onImportDate">
-            <view class="picker-trigger" hover-class="picker-press">{{importDate}}</view>
-          </picker>
+      <view wx:if="{{!vocabFolded}}" class="accordion-body">
+        <view class="sub-title">行程类型</view>
+        <view class="chip-row">
+          <view wx:for="{{types}}" wx:key="key" class="soft-chip" style="color:{{item.color}};background:{{item.soft}}">{{item.label}}</view>
+          <view class="chip add" hover-class="pill-press" data-kind="node_type" bindtap="onVocabAdd">＋ 类型</view>
         </view>
-        <view class="btn-row">
-          <button class="btn-primary sm grow" hover-class="btn-press" bindtap="onImportGo">{{importBusy ? '导入中…' : '导入 ' + importInfo.total + ' 项'}}</button>
-          <button class="btn-plain sm" hover-class="btn-press" bindtap="onImportCancel">取消</button>
+
+        <view class="sub-title">消费类别</view>
+        <view class="chip-row">
+          <view wx:for="{{cats}}" wx:key="key" class="soft-chip" style="color:{{item.color}};background:{{item.soft}}">{{item.label}}</view>
+          <view class="chip add" hover-class="pill-press" data-kind="expense_category" bindtap="onVocabAdd">＋ 类别</view>
+        </view>
+
+        <view wx:if="{{custom.length}}" class="chip mgr" hover-class="pill-press" bindtap="onVocabManage">{{vocabManage ? '收起自定义项' : '管理自定义项'}}</view>
+
+        <view wx:if="{{vocabManage}}" class="sub-form">
+          <view wx:for="{{custom}}" wx:key="id" class="custom-row">
+            <view class="grow">
+              <text class="strong">{{item.label}}</text>
+              <text class="tiny dim"> · {{item.kindLabel}}</text>
+            </view>
+            <view class="chip sm" hover-class="pill-press" data-id="{{item.id}}" data-label="{{item.label}}" bindtap="onVocabRename">改名</view>
+            <view class="chip sm danger" hover-class="pill-press" data-id="{{item.id}}" data-label="{{item.label}}" bindtap="onVocabDelete">删除</view>
+          </view>
+        </view>
+
+        <view wx:if="{{vocabAdd}}" class="sub-form">
+          <view class="field">
+            <text class="label">名字</text>
+            <input
+              class="input"
+              value="{{vocabForm.label}}"
+              data-k="label"
+              maxlength="20"
+              placeholder="{{vocabAdd === 'node_type' ? '比如：露营' : '比如：油费'}}"
+              bindinput="onVocabField"
+            />
+          </view>
+          <view class="field">
+            <text class="label">图标</text>
+            <view class="icongrid">
+              <view
+                wx:for="{{iconChoices}}"
+                wx:key="key"
+                class="iconcell {{vocabForm.icon === item.key ? 'on' : ''}}"
+                hover-class="pill-press"
+                data-key="{{item.key}}"
+                bindtap="onVocabIcon"
+              >
+                <image class="icon-img" src="{{item.icon}}" mode="aspectFit" />
+              </view>
+            </view>
+          </view>
+          <view class="field">
+            <text class="label">颜色</text>
+            <view class="swatches">
+              <view
+                wx:for="{{colors}}"
+                wx:for-item="c"
+                wx:key="*this"
+                class="swatch {{vocabForm.color === c ? 'on' : ''}}"
+                style="background:{{c}}"
+                data-color="{{c}}"
+                bindtap="onVocabColor"
+              ></view>
+            </view>
+          </view>
+          <view wx:if="{{vocabAdd === 'node_type'}}" class="field">
+            <text class="label">提前多久出发（分钟）</text>
+            <input class="input" type="number" value="{{vocabForm.leadMinutes}}" data-k="leadMinutes" bindinput="onVocabField" />
+          </view>
+          <view class="btn-row">
+            <button class="btn-primary sm grow" hover-class="btn-press" bindtap="onVocabSave">添加</button>
+            <button class="btn-plain sm" hover-class="btn-press" bindtap="onVocabCancel">取消</button>
+          </view>
         </view>
       </view>
-    </view>
 
-    <!-- 成就 -->
-    <view class="sec-title">成就</view>
-    <view class="card sec">
-      <view class="cat-row" hover-class="cat-row-press" bindtap="onAchv">
-        <view class="grow"><view class="strong">旅行成就</view><view class="tiny dim">{{achvText}}</view></view>
-        <text class="chev">›</text>
-      </view>
-    </view>
+      <view class="accordion-divider"></view>
 
-    <!-- 账号 -->
-    <view class="sec-title">账号</view>
-    <view class="card sec">
-      <view class="cat-row" hover-class="cat-row-press" bindtap="onPassToggle">
-        <view class="grow"><view class="strong">修改旅行口令</view><view class="tiny dim">口令就是这趟旅行的钥匙；已登录的设备不会掉线</view></view>
-        <text class="chev">{{passEdit ? '收起' : '›'}}</text>
+      <!-- 第 2 行：数据备份、模板导入导出与传统口令 -->
+      <view class="accordion-head" hover-class="acc-press" bindtap="onToggleExportFold">
+        <view class="grow">
+          <view class="strong">数据备份、模板导入导出与传统口令</view>
+          <view class="tiny dim">导出/导入 JSON、日历订阅（.ics）与口令设置</view>
+        </view>
+        <text class="accordion-toggle">{{exportFolded ? '展开 ▾' : '收起 ▴'}}</text>
       </view>
 
-      <view wx:if="{{passEdit}}" class="sub-form">
-        <view class="field">
-          <text class="label">当前口令</text>
-          <input class="input" password value="{{passForm.current}}" data-k="current" bindinput="onPassField" />
+      <view wx:if="{{!exportFolded}}" class="accordion-body">
+        <view class="cat-row" hover-class="cat-row-press" bindtap="onShareTemplate">
+          <view class="grow"><view class="strong">分享行程模板</view><view class="tiny dim">存成 JSON 发到聊天里，以后去新地方可以导入复用结构</view></view>
+          <text class="chev">›</text>
         </view>
-        <view class="field">
-          <text class="label">新口令（至少 6 位）</text>
-          <input class="input" password value="{{passForm.next}}" data-k="next" bindinput="onPassField" />
+        <view class="cat-row" hover-class="cat-row-press" bindtap="onShareBackup">
+          <view class="grow"><view class="strong">分享完整备份</view><view class="tiny dim">行程 + 消费 + 打卡的 JSON 存档（不含照片本体）</view></view>
+          <text class="chev">›</text>
         </view>
-        <view class="field">
-          <text class="label">再输一遍</text>
-          <input class="input" password value="{{passForm.confirm}}" data-k="confirm" bindinput="onPassField" />
+        <view class="cat-row" hover-class="cat-row-press" bindtap="onImport">
+          <view class="grow"><view class="strong">导入行程模板</view><view class="tiny dim">从聊天里选一个之前导出的 JSON，按天铺到当前行程（只新增）</view></view>
+          <text class="chev">›</text>
         </view>
-        <view wx:if="{{passMsg}}" class="err">{{passMsg}}</view>
-        <view class="btn-row">
-          <button class="btn-primary sm grow {{passCan ? '' : 'off'}}" hover-class="{{passCan ? 'btn-press' : 'none'}}" disabled="{{!passCan}}" bindtap="onPassSave">{{passBusy ? '提交中…' : '更新口令'}}</button>
-          <button class="btn-plain sm" hover-class="btn-press" bindtap="onPassCancel">取消</button>
+        <view class="cat-row" hover-class="cat-row-press" bindtap="onCopyIcs">
+          <view class="grow"><view class="strong">复制订阅链接（.ics）</view><view class="tiny dim">把航班、酒店加进手机自带日历；链接粘到浏览器/日历 App 里打开</view></view>
+          <text class="chev">›</text>
+        </view>
+        <view class="cat-row" hover-class="cat-row-press" bindtap="onCopyUrl">
+          <view class="grow"><view class="strong">复制网址</view><view class="tiny dim">发给同伴，他用同一个口令就能在浏览器里看</view></view>
+          <text class="chev">›</text>
+        </view>
+
+        <view wx:if="{{importInfo}}" class="sub-form">
+          <view class="strong">{{importInfo.fileName}}</view>
+          <view class="tiny dim">共 {{importInfo.days}} 天 · {{importInfo.total}} 项行程。只新增节点，不动已有内容。</view>
+          <view class="field">
+            <text class="label">从哪一天开始铺</text>
+            <picker mode="date" value="{{importDate}}" bindchange="onImportDate">
+              <view class="picker-trigger" hover-class="picker-press">{{importDate}}</view>
+            </picker>
+          </view>
+          <view class="btn-row">
+            <button class="btn-primary sm grow" hover-class="btn-press" bindtap="onImportGo">{{importBusy ? '导入中…' : '导入 ' + importInfo.total + ' 项'}}</button>
+            <button class="btn-plain sm" hover-class="btn-press" bindtap="onImportCancel">取消</button>
+          </view>
+        </view>
+
+        <!-- 传统口令设置 -->
+        <view class="cat-row" hover-class="cat-row-press" bindtap="onPassToggle" style="margin-top: 16rpx;">
+          <view class="grow"><view class="strong">修改旅行口令</view><view class="tiny dim">口令就是这趟旅行的钥匙；已登录的设备不会掉线</view></view>
+          <text class="chev">{{passEdit ? '收起' : '›'}}</text>
+        </view>
+
+        <view wx:if="{{passEdit}}" class="sub-form">
+          <view class="field">
+            <text class="label">当前口令</text>
+            <input class="input" password value="{{passForm.current}}" data-k="current" bindinput="onPassField" />
+          </view>
+          <view class="field">
+            <text class="label">新口令（至少 6 位）</text>
+            <input class="input" password value="{{passForm.next}}" data-k="next" bindinput="onPassField" />
+          </view>
+          <view class="field">
+            <text class="label">再输一遍</text>
+            <input class="input" password value="{{passForm.confirm}}" data-k="confirm" bindinput="onPassField" />
+          </view>
+          <view wx:if="{{passMsg}}" class="err">{{passMsg}}</view>
+          <view class="btn-row">
+            <button class="btn-primary sm grow {{passCan ? '' : 'off'}}" hover-class="{{passCan ? 'btn-press' : 'none'}}" disabled="{{!passCan}}" bindtap="onPassSave">{{passBusy ? '提交中…' : '更新口令'}}</button>
+            <button class="btn-plain sm" hover-class="btn-press" bindtap="onPassCancel">取消</button>
+          </view>
         </view>
       </view>
 
-      <button class="btn-danger" hover-class="btn-press" bindtap="onLogout">退出登录</button>
+      <!-- 彻底删除或退出行程操作按钮 -->
+      <button wx:if="{{hasActiveTrip}}" class="btn-danger sm delete-trip-btn" hover-class="btn-press" bindtap="onDeleteOrLeaveTrip">
+        {{myRole === 'owner' ? '彻底删除当前行程' : '退出当前行程'}}
+      </button>
     </view>
 
     <view class="foot">数据都在你自己的服务器上 · 配色跟随系统深色模式</view>

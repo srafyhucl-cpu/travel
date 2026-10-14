@@ -103,6 +103,23 @@ async function runTests() {
       logFail('未能自动创建首个行程');
     }
 
+    const defaultTrip = (loginARes.json.trips || []).find((t) => t.id === defaultTripIdA);
+    if (defaultTrip?.status === 'planning') {
+      logPass('默认示例行程状态为 planning (筹备中)');
+    } else {
+      logFail(`默认示例行程状态错误: ${defaultTrip?.status}`);
+    }
+
+    if (defaultTrip?.startDate) {
+      const today = new Date().toISOString().slice(0, 10);
+      const days = Math.round((Date.parse(`${defaultTrip.startDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
+      if (days >= 6 && days <= 8) {
+        logPass(`默认示例行程出发日期为未来 7 天 (${defaultTrip.startDate})`);
+      } else {
+        logFail(`示例行程出发日期未正确偏移至 7 天后: ${defaultTrip.startDate}, 差距: ${days}`);
+      }
+    }
+
     console.log('\n== 2. 微信个人资料更新 ==');
     const profileRes = await api('PUT', '/api/auth/profile', {
       token: tokenA,
@@ -310,9 +327,49 @@ async function runTests() {
     // 用户 A 删除行程
     const deleteRes = await api('DELETE', `/api/trips/${tripA2.id}`, { token: tokenA });
     if (deleteRes.status === 200) {
-      logPass('创建者 A 成功彻底删除行程');
+      logPass('创建者 A 成功彻底删除行程 tripA2');
     } else {
       logFail('删除行程失败', JSON.stringify(deleteRes.json));
+    }
+
+    console.log('\n== 9.1 零时间线空状态：删除最后一条行程不自动生成 ==');
+    // 用户 A 先删除克隆分支 planBTrip
+    const deletePlanBRes = await api('DELETE', `/api/trips/${planBTrip.id}`, { token: tokenA });
+    if (deletePlanBRes.status === 200) {
+      logPass('删除克隆分支 planBTrip 成功');
+    } else {
+      logFail('删除克隆分支 planBTrip 失败', JSON.stringify(deletePlanBRes.json));
+    }
+
+    // 用户 A 删除最后剩余的一条行程 defaultTripIdA
+    const deleteLastRes = await api('DELETE', `/api/trips/${defaultTripIdA}`, { token: tokenA });
+    if (deleteLastRes.status === 200 && deleteLastRes.json.nextTripId === '') {
+      logPass('删除最后一条行程成功，且 nextTripId 为空字符串');
+    } else {
+      logFail('删除最后一条行程返回值异常', JSON.stringify(deleteLastRes.json));
+    }
+
+    // 验证 GET /api/trips 返回空数组 []
+    const emptyListRes = await api('GET', '/api/trips', { token: tokenA });
+    if (emptyListRes.status === 200 && Array.isArray(emptyListRes.json.trips) && emptyListRes.json.trips.length === 0 && emptyListRes.json.activeTripId === '') {
+      logPass('零行程状态下 GET /api/trips 正确返回空数组 [] 且 activeTripId 为空');
+    } else {
+      logFail('零行程状态下 GET /api/trips 未返回空列表', JSON.stringify(emptyListRes.json));
+    }
+
+    console.log('\n== 9.2 主动生成示例行程 POST /api/trips/demo ==');
+    const demoRes = await api('POST', '/api/trips/demo', { token: tokenA });
+    if (demoRes.status === 201 && demoRes.json.trip?.name === '大理丽江 4 日游 (示例)' && demoRes.json.trip?.status === 'planning') {
+      logPass('POST /api/trips/demo 成功生成动态未来日期示例行程');
+    } else {
+      logFail('POST /api/trips/demo 生成失败', JSON.stringify(demoRes.json));
+    }
+
+    const afterDemoListRes = await api('GET', '/api/trips', { token: tokenA });
+    if (afterDemoListRes.status === 200 && afterDemoListRes.json.trips?.length === 1) {
+      logPass('生成示例行程后列表数量为 1');
+    } else {
+      logFail('生成示例行程后列表验证失败', JSON.stringify(afterDemoListRes.json));
     }
 
     console.log('\n== 10. 兼容性验证：历史口令登录通道 ==');

@@ -85,8 +85,64 @@
 .sum-top {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+
+.sum-top-left {
+  display: flex;
+  align-items: center;
   gap: 12rpx;
   flex-wrap: wrap;
+}
+
+.sum-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  flex-shrink: 0;
+}
+
+.hero-avatar-stack {
+  display: flex;
+  align-items: center;
+  margin-right: 4rpx;
+}
+
+.stack-avatar {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  border: 2rpx solid var(--card, #ffffff);
+  margin-left: -12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20rpx;
+  font-weight: 700;
+  color: #ffffff;
+  box-sizing: border-box;
+}
+
+.stack-avatar:first-child {
+  margin-left: 0;
+}
+
+.hero-invite-pill {
+  margin: 0 !important;
+  padding: 0 18rpx !important;
+  height: 46rpx !important;
+  line-height: 46rpx !important;
+  font-size: 22rpx !important;
+  font-weight: 600 !important;
+  border-radius: 999rpx !important;
+  background: var(--surface-2, rgba(47, 128, 237, 0.1)) !important;
+  color: var(--accent, #2f80ed) !important;
+  border: 1rpx solid rgba(47, 128, 237, 0.28) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 .sum-status {
@@ -982,6 +1038,27 @@
   box-shadow: 0 4rpx 14rpx rgba(43, 119, 229, 0.35);
 }
 
+.fab-pill {
+  position: fixed;
+  right: 36rpx;
+  bottom: calc(52rpx + env(safe-area-inset-bottom));
+  padding: 0 36rpx;
+  height: 84rpx;
+  border-radius: 999rpx;
+  background: var(--accent-gradient);
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10rpx 30rpx rgba(43, 119, 229, 0.45);
+  border: 1rpx solid rgba(255, 255, 255, 0.35);
+  z-index: 20;
+  letter-spacing: 1rpx;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
 /* ---------- ⑤ 长按拖动 v2：迷你卡 + 虚线占位 ---------- */
 
 /* 页面本身不再滚：内容整体交给 scroll-view，拖动/确认面板时锁滚动、自己控制 scrollTop */
@@ -1303,8 +1380,33 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 24rpx;
+  padding-bottom: 20rpx;
   border-bottom: 1rpx solid var(--line);
+}
+
+.drawer-tabs {
+  display: flex;
+  background: var(--surface-2, #f1f5f9);
+  padding: 6rpx;
+  border-radius: 16rpx;
+  margin-top: 20rpx;
+}
+
+.drawer-tab {
+  flex: 1;
+  text-align: center;
+  padding: 14rpx 0;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink-2, #64748b);
+  border-radius: 12rpx;
+  transition: all 150ms ease;
+}
+
+.drawer-tab.is-active {
+  background: var(--card, #ffffff);
+  color: var(--accent, #2f80ed);
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.08);
 }
 
 .drawer-title {
@@ -1370,20 +1472,58 @@
   color: var(--ink-3);
 }
 
+.drawer-trip-side {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex-shrink: 0;
+}
+
+.drawer-trip-clone-btn {
+  font-size: 22rpx;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: #ffffff;
+  color: #2f80ed;
+  border: 1rpx solid rgba(47, 128, 237, 0.35);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .drawer-trip-check {
   font-size: 24rpx;
   font-weight: 700;
   color: #2f80ed;
 }
 
-.drawer-actions {
+.drawer-actions-row {
   display: flex;
-  flex-direction: column;
   gap: 20rpx;
   margin-top: 24rpx;
 }
 
-.drawer-actions button,
+.drawer-actions-row .drawer-btn {
+  margin: 0 !important;
+  height: 88rpx;
+  padding: 0 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 28rpx;
+  font-weight: 600;
+  border-radius: 20rpx;
+  box-sizing: border-box;
+}
+
+.btn-flex-main {
+  flex: 1.3 !important;
+}
+
+.btn-flex-sub {
+  flex: 1 !important;
+}
+
 .drawer-btn {
   width: 100% !important;
   margin: 0 !important;
@@ -1542,5 +1682,109 @@
   border-color: #2f80ed;
   background: #2f80ed;
   color: #ffffff;
+}
+
+/* ---------- 零时间线欢迎空状态（Empty State） ---------- */
+.empty-welcome-wrap {
+  min-height: 75vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx 32rpx;
+  box-sizing: border-box;
+}
+
+.empty-welcome-card {
+  width: 100%;
+  background: var(--card, #ffffff);
+  border-radius: 36rpx;
+  padding: 64rpx 40rpx 48rpx;
+  box-sizing: border-box;
+  text-align: center;
+  box-shadow: var(--card-shadow-elevated, 0 16rpx 48rpx rgba(0, 0, 0, 0.08));
+  border: var(--card-border, 1rpx solid rgba(0, 0, 0, 0.06));
+  position: relative;
+  overflow: hidden;
+}
+
+.empty-welcome-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8rpx;
+  background: var(--accent-gradient, linear-gradient(135deg, #2b77e5, #00d2ff));
+}
+
+.ew-icon-box {
+  width: 120rpx;
+  height: 120rpx;
+  margin: 0 auto 32rpx;
+  border-radius: 50%;
+  background: var(--accent-soft, rgba(43, 119, 229, 0.1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ew-icon {
+  font-size: 56rpx;
+}
+
+.ew-title {
+  font-size: 40rpx;
+  font-weight: 800;
+  color: var(--ink, #1e293b);
+  letter-spacing: -0.5rpx;
+  margin-bottom: 18rpx;
+}
+
+.ew-desc {
+  font-size: 26rpx;
+  line-height: 1.65;
+  color: var(--ink-2, #64748b);
+  margin-bottom: 52rpx;
+  padding: 0 16rpx;
+}
+
+.ew-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  margin-bottom: 36rpx;
+}
+
+.ew-btn {
+  width: 100% !important;
+  margin: 0 !important;
+  height: 92rpx !important;
+  border-radius: 999rpx !important;
+  font-size: 30rpx !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+}
+
+.ew-btn-primary {
+  background: var(--accent-gradient, linear-gradient(135deg, #2f80ed, #00b4d8)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10rpx 28rpx rgba(47, 128, 237, 0.35) !important;
+}
+
+.ew-btn-secondary {
+  background: var(--surface-2, #f8fafc) !important;
+  color: var(--ink, #334155) !important;
+  border: 1rpx solid var(--line, #e2e8f0) !important;
+}
+
+.ew-demo-link {
+  font-size: 24rpx;
+  color: var(--accent, #2f80ed);
+  font-weight: 600;
+  padding: 12rpx 0;
+  display: inline-block;
 }
 

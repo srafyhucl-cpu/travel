@@ -169,22 +169,19 @@ export function cloneTripLogic({ srcTripId, destName, newStartDate, userId, user
   };
 }
 
-export function createDefaultTripForUser(userId, userName = '旅行者', userAvatar = '') {
-  // 1. 若系统中已有行程（例如模板或已有行程），优先克隆结构
-  const existingTrip = db.prepare('SELECT id FROM trips ORDER BY is_template DESC, created_at ASC LIMIT 1').get();
-  if (existingTrip) {
-    const res = cloneTripLogic({
-      srcTripId: existingTrip.id,
-      destName: '我的云南之旅',
-      userId,
-      userName,
-      userAvatar,
-    });
-    db.prepare('UPDATE users SET last_trip_id = ?, updated_at = ? WHERE id = ?').run(res.tripId, nowISO(), userId);
-    return res;
-  }
+export function getTodayDateStr() {
+  const d = new Date();
+  const offset = 8 * 60; // Asia/Shanghai UTC+8
+  const localDate = new Date(d.getTime() + (d.getTimezoneOffset() + offset) * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
 
-  // 2. 若没有任何现有行程，使用 yunnan seed 数据初始创建
+export function createDefaultTripForUser(userId, userName = '旅行者', userAvatar = '') {
+  const today = getTodayDateStr();
+  const startDate = addDays(today, 7);
+  const endDate = addDays(today, 10);
+  const seedStart = TRIP.startDate || '2026-10-01';
+
   const now = nowISO();
   const tripId = uid();
   const memberId = uid();
@@ -194,13 +191,13 @@ export function createDefaultTripForUser(userId, userName = '旅行者', userAva
   const tx = db.transaction(() => {
     db.prepare(
       `INSERT INTO trips (id, name, destination, start_date, end_date, theme, is_template, owner_id, status, invite_code, view_code, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'ongoing', ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'planning', ?, ?, ?, ?)`
     ).run(
       tripId,
-      TRIP.name,
+      '大理丽江 4 日游 (示例)',
       TRIP.destination,
-      TRIP.startDate,
-      TRIP.endDate,
+      startDate,
+      endDate,
       TRIP.theme || 'plain',
       userId,
       inviteCode,
@@ -223,11 +220,13 @@ export function createDefaultTripForUser(userId, userName = '旅行者', userAva
     );
 
     NODES.forEach((n, idx) => {
+      const dayDiff = daysBetween(seedStart, n.date);
+      const shiftedDate = addDays(startDate, dayDiff);
       ins.run({
         id: uid(),
         trip_id: tripId,
         day_index: 0,
-        date: n.date,
+        date: shiftedDate,
         type: n.type,
         title: n.title,
         start_time: n.startTime || null,
@@ -254,7 +253,9 @@ export function createDefaultTripForUser(userId, userName = '旅行者', userAva
 
   tx();
 
-  db.prepare('UPDATE users SET last_trip_id = ?, updated_at = ? WHERE id = ?').run(tripId, nowISO(), userId);
+  if (userId) {
+    db.prepare('UPDATE users SET last_trip_id = ?, updated_at = ? WHERE id = ?').run(tripId, nowISO(), userId);
+  }
 
   return {
     tripId,

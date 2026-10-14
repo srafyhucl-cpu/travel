@@ -92,6 +92,9 @@ export function createApi(platform) {
     createNewTrip(payload) {
       return post('/api/trips', payload);
     },
+    createDemoTrip() {
+      return post('/api/trips/demo', {});
+    },
     cloneTrip(tripId, payload) {
       return post(`/api/trips/${tripId}/clone`, payload);
     },
