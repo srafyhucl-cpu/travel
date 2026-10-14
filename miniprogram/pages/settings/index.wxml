@@ -1,21 +1,21 @@
 <view class="page">
   <block wx:if="{{ready}}">
     <!-- 卡片 1：个人微信名片 + 旅行成就合一 -->
-    <view class="sec-title">微信名片与成就</view>
+    <view class="sec-title">
+      <text>微信名片与成就</text>
+      <text class="sec-act" hover-class="pill-press" bindtap="onLogout">切换账号/口令</text>
+    </view>
     <view class="card sec profile-card">
-      <view class="profile-top-row">
-        <view class="profile-user-left">
-          <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
-            <image wx:if="{{userAvatarUrl}}" class="avatar-img" src="{{userAvatarUrl}}" mode="aspectFill" />
-            <view wx:else class="avatar-fallback">{{userNickname ? userNickname[0] : '我'}}</view>
-            <text class="avatar-tip">点此换头像</text>
-          </button>
-          <view class="profile-input-wrap">
-            <text class="tiny dim">微信昵称（同步所有行程）</text>
-            <input type="nickname" class="input nickname-input" placeholder="设置你的旅行昵称" value="{{userNickname}}" bindchange="onNicknameChange" />
-          </view>
+      <view class="profile-user-row">
+        <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+          <image wx:if="{{userAvatarUrl}}" class="avatar-img" src="{{userAvatarUrl}}" mode="aspectFill" />
+          <view wx:else class="avatar-fallback">{{userNickname ? userNickname[0] : '我'}}</view>
+          <text class="avatar-tip">点此换头像</text>
+        </button>
+        <view class="profile-main">
+          <text class="profile-label">微信昵称（同步所有行程）</text>
+          <input type="nickname" class="input profile-input" placeholder="设置你的旅行昵称" value="{{userNickname}}" bindchange="onNicknameChange" />
         </view>
-        <view class="switch-account-link" hover-class="link-press" bindtap="onLogout">切换账号/口令</view>
       </view>
 
       <view class="profile-divider"></view>

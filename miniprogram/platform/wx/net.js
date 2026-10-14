@@ -11,7 +11,7 @@ import { session } from './session.js';
  * 开发/自动化测试时可以在控制台或脚本里 wx.setStorageSync('travel.base', 'http://127.0.0.1:7042')
  * 指向本机后端 —— 每次请求现读，改完不用重启。 */
 const PROD_BASE = 'https://travel.hclstudio.cn';
-const DEV_LOCAL_BASE = 'http://127.0.0.1:7021';
+const DEV_LOCAL_BASE = 'http://127.0.0.1:7052';
 
 export function baseUrl() {
   try {

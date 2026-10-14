@@ -31,7 +31,7 @@
           <button class="ew-btn ew-btn-secondary" bindtap="openJoinWithCode">输入邀请码 / 口令加入同伴行程</button>
         </view>
         <view class="ew-demo-link" bindtap="onCreateDemoTrip">
-          还不确定怎么排？点击生成「大理丽江 4 日游」示例模板体验 ›
+          {{busyModal ? '正在生成示例…' : '还不确定怎么排？一键生成「大理丽江 4 日游」示例 ›'}}
         </view>
       </view>
     </view>

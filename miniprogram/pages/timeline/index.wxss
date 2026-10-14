@@ -1781,10 +1781,11 @@
 }
 
 .ew-demo-link {
-  font-size: 24rpx;
+  font-size: 25rpx;
   color: var(--accent, #2f80ed);
   font-weight: 600;
   padding: 12rpx 0;
   display: inline-block;
+  white-space: nowrap;
 }
 

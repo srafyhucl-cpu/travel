@@ -16,7 +16,7 @@ import exportRoutes from './routes/exports.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIST = path.join(__dirname, '..', 'frontend', 'dist');
 
-const PORT = Number(process.env.PORT || 7020);
+const PORT = Number(process.env.PORT || 7052);
 const HOST = process.env.HOST || '127.0.0.1';
 
 const app = express();

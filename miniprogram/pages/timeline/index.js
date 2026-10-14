@@ -1444,13 +1444,14 @@ Page({
   },
 
   async onCreateDemoTrip() {
+    if (this.data.busyModal) return;
+    this.setData({ busyModal: true });
     try {
-      wx.showLoading({ title: '正在生成示例…' });
       await actions.createDemoTrip();
     } catch (e) {
       wx.showToast({ title: e?.message || '生成失败', icon: 'none' });
     } finally {
-      wx.hideLoading();
+      this.setData({ busyModal: false });
     }
   },
 
