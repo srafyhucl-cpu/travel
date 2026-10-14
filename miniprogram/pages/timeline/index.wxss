@@ -9,7 +9,10 @@
   left: 0;
   right: 0;
   z-index: 50;
-  background: var(--bg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(24rpx);
+  -webkit-backdrop-filter: blur(24rpx);
+  border-bottom: 1rpx solid var(--line);
 }
 
 .nav-bar {
@@ -23,16 +26,20 @@
   position: relative;
   z-index: 2;
   margin-left: 24rpx;
-  padding: 6rpx 22rpx;
+  padding: 8rpx 24rpx;
   border-radius: 999rpx;
-  background: var(--surface-2, var(--line));
+  background: var(--surface-2);
+  border: 1rpx solid var(--line);
   color: var(--ink-2);
   font-size: 26rpx;
+  font-weight: 500;
   line-height: 1.6;
+  transition: opacity 120ms ease, transform 120ms ease;
 }
 
 .nav-press {
-  opacity: 0.7;
+  opacity: 0.75;
+  transform: scale(0.96);
 }
 
 /* 中：行程名居中、单行、字号由页面按长度给（max-width 让长名字出省略号） */
@@ -44,7 +51,8 @@
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.5rpx;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -53,10 +61,25 @@
 /* ---------- ② 总结卡 ---------- */
 
 .sum-card {
-  background: var(--card);
+  position: relative;
+  background: var(--hero-bg);
   border-radius: var(--radius);
-  padding: 24rpx 26rpx;
-  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+  padding: 30rpx 30rpx 26rpx;
+  border: var(--card-border);
+  box-shadow: var(--card-shadow-elevated), var(--card-highlight);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.sum-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24rpx;
+  right: 24rpx;
+  height: 2rpx;
+  background: var(--accent-gradient);
+  opacity: 0.65;
 }
 
 .sum-top {
@@ -68,21 +91,25 @@
 
 .sum-status {
   flex: none;
-  padding: 2rpx 16rpx;
+  padding: 4rpx 20rpx;
   border-radius: 999rpx;
   background: var(--accent-soft);
   color: var(--accent);
+  border: 1rpx solid rgba(43, 119, 229, 0.22);
   font-size: 23rpx;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.5rpx;
 }
 
 .sum-status.tone-done {
-  background: rgba(39, 174, 96, 0.12);
+  background: rgba(16, 185, 129, 0.12);
   color: var(--ok);
+  border-color: rgba(16, 185, 129, 0.25);
 }
 
 .sum-dates {
   font-size: 23rpx;
+  font-weight: 500;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
@@ -90,45 +117,51 @@
 /* 前置准备不在这里：它是顶部那张独立的「出行准备」卡（见 .prep-card） */
 
 .sum-title {
-  margin-top: 16rpx;
-  font-size: 40rpx;
-  font-weight: 700;
-  line-height: 1.3;
+  margin-top: 20rpx;
+  font-size: 44rpx;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.6rpx;
+  color: var(--ink);
 }
 
 .sum-sub {
   margin-top: 6rpx;
   font-size: 26rpx;
   color: var(--ink-2);
+  font-weight: 500;
 }
 
 /* 整体进度：已完成项数 / 总项数 */
 .sum-bar {
-  margin-top: 18rpx;
-  height: 12rpx;
+  margin-top: 22rpx;
+  height: 14rpx;
   border-radius: 999rpx;
-  background: var(--surface-2, var(--line));
+  background: var(--surface-2);
   overflow: hidden;
 }
 
 .sum-fill {
   height: 100%;
   border-radius: 999rpx;
-  background: var(--accent);
+  background: var(--accent-gradient);
+  box-shadow: 0 2rpx 8rpx rgba(43, 119, 229, 0.35);
 }
 
 .sum-bar-note {
-  margin-top: 8rpx;
+  margin-top: 10rpx;
   font-size: 22rpx;
+  font-weight: 500;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 
-/* 三格统计：完成 x/y · 已花（带预算小字/超支红）· 照片 n */
+/* 三格统计：独立微卡片网格布局，高对比数据排版 */
 .sum-stats {
   display: flex;
-  margin-top: 16rpx;
-  padding-top: 14rpx;
+  gap: 14rpx;
+  margin-top: 24rpx;
+  padding-top: 20rpx;
   border-top: 1rpx solid var(--line);
 }
 
@@ -136,25 +169,33 @@
   flex: 1;
   min-width: 0;
   text-align: center;
-  padding: 6rpx 4rpx;
-  border-radius: 16rpx;
+  padding: 14rpx 8rpx;
+  border-radius: 20rpx;
+  background: var(--stat-card-bg);
+  border: var(--stat-card-border);
+  box-sizing: border-box;
+  transition: opacity 120ms ease, background-color 120ms ease, transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 
-.sum-stat + .sum-stat {
-  border-left: 1rpx solid var(--line);
-  border-radius: 0;
+.stat-press {
+  opacity: 0.75;
+  transform: scale(0.96);
+  background: var(--surface-2);
 }
 
 .sum-stat.on {
   background: var(--accent-soft);
-  border-radius: 16rpx;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1rpx var(--accent), 0 4rpx 16rpx rgba(43, 119, 229, 0.2);
 }
 
 .ss-num {
   display: block;
-  font-size: 30rpx;
-  font-weight: 700;
+  font-size: 34rpx;
+  font-weight: 800;
+  letter-spacing: -0.5rpx;
   font-variant-numeric: tabular-nums;
+  line-height: 1.25;
 }
 
 .ss-num.danger {
@@ -163,9 +204,16 @@
 
 .ss-label {
   display: block;
-  margin-top: 2rpx;
-  font-size: 21rpx;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  font-weight: 600;
   color: var(--ink-3);
+  letter-spacing: 0.2rpx;
+}
+
+.sum-stat.over {
+  border-color: rgba(226, 87, 76, 0.35);
+  background: rgba(226, 87, 76, 0.06);
 }
 
 .sum-stat.over .ss-label {
@@ -174,16 +222,19 @@
 
 .flag {
   display: inline-block;
-  padding: 2rpx 16rpx;
+  padding: 4rpx 18rpx;
   border-radius: 999rpx;
   background: var(--accent-soft);
   color: var(--accent);
+  border: 1rpx solid rgba(43, 119, 229, 0.2);
   font-size: 22rpx;
+  font-weight: 600;
 }
 
 .flag.off {
   background: rgba(226, 87, 76, 0.12);
   color: var(--danger);
+  border-color: rgba(226, 87, 76, 0.25);
 }
 
 /* ---------- 天分组 ---------- */
@@ -193,8 +244,14 @@
   margin-top: 20rpx;
   background: var(--card);
   border-radius: var(--radius);
-  padding: 22rpx 26rpx;
-  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+  padding: 24rpx 26rpx;
+  border: var(--card-border);
+  box-shadow: var(--card-shadow), var(--card-highlight);
+  box-sizing: border-box;
+}
+
+.prep-card.alldone {
+  border-color: rgba(39, 174, 96, 0.3);
 }
 
 /* 卡片头整行可点：展开/收起，右侧给一个明说「展开 / 收起」的小胶囊 */
@@ -202,6 +259,11 @@
   display: flex;
   align-items: center;
   gap: 16rpx;
+}
+
+.prep-press {
+  opacity: 0.8;
+  transform: scale(0.985);
 }
 
 .prep-ic {
@@ -216,52 +278,57 @@
 }
 
 .prep-title {
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: 31rpx;
+  font-weight: 700;
 }
 
 .prep-note {
   margin-top: 2rpx;
   font-size: 24rpx;
   color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .prep-card.alldone .prep-note {
   color: var(--ok);
+  font-weight: 600;
 }
 
 .prep-count {
   flex: none;
   font-size: 26rpx;
   color: var(--ink-2);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .prep-toggle {
   flex: none;
-  padding: 4rpx 18rpx;
+  padding: 6rpx 20rpx;
   border-radius: 999rpx;
-  background: var(--surface-2, var(--line));
+  background: var(--surface-2);
+  border: 1rpx solid var(--line);
   color: var(--ink-2);
   font-size: 23rpx;
+  font-weight: 500;
 }
 
 .prep-bar {
-  margin-top: 14rpx;
-  height: 8rpx;
+  margin-top: 16rpx;
+  height: 10rpx;
   border-radius: 999rpx;
-  background: var(--surface-2, var(--line));
+  background: var(--surface-2);
   overflow: hidden;
 }
 
 .prep-fill {
   height: 100%;
   border-radius: 999rpx;
-  background: var(--accent);
+  background: var(--accent-gradient);
 }
 
 .prep-card.alldone .prep-fill {
-  background: var(--ok);
+  background: var(--ok-gradient);
 }
 
 .prep-body {
@@ -288,8 +355,9 @@
   font-size: 25rpx;
   font-weight: 600;
   color: var(--accent);
+  padding: 8rpx 14rpx;
+  margin: -8rpx -14rpx;
 }
-
 
 .day {
   margin-top: 26rpx;
@@ -297,81 +365,150 @@
 
 .day-mark {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 16rpx;
-  padding: 0 4rpx 12rpx;
+  padding: 10rpx 6rpx 16rpx;
 }
 
 .dm-date {
-  font-size: 30rpx;
-  font-weight: 700;
+  font-size: 32rpx;
+  font-weight: 800;
+  letter-spacing: -0.3rpx;
+  font-variant-numeric: tabular-nums;
 }
 
 .day-mark.today .dm-date {
   color: var(--accent);
+  text-shadow: 0 0 16rpx rgba(43, 119, 229, 0.35);
 }
 
 .dm-rel {
   font-size: 24rpx;
+  font-weight: 600;
   color: var(--ink-3);
 }
 
 .dm-count {
   margin-left: auto;
-  font-size: 24rpx;
-  color: var(--ink-3);
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2);
+  border: 1rpx solid var(--line);
+  font-size: 22rpx;
+  font-weight: 700;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-mark.today .dm-count {
+  background: var(--accent-soft);
+  border-color: rgba(43, 119, 229, 0.25);
+  color: var(--accent);
 }
 
 .day-empty {
-  padding: 20rpx 24rpx;
+  padding: 24rpx 24rpx;
   border: 2rpx dashed var(--line);
   border-radius: var(--radius);
   color: var(--ink-3);
   font-size: 26rpx;
+  font-weight: 500;
   text-align: center;
+  transition: opacity 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.day-empty-press {
+  opacity: 0.75;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* ---------- ③ 行程卡：时间列收窄、卡片内边距收紧，内容区更宽 ---------- */
 
 .node {
+  position: relative;
   display: flex;
   gap: 14rpx;
-  margin-bottom: 16rpx;
+  margin-bottom: 18rpx;
+}
+
+/* 垂直时间线轨道：贯穿上下行程项，突出旅程流动感 */
+.node::before {
+  content: '';
+  position: absolute;
+  left: 82rpx;
+  top: 42rpx;
+  bottom: -22rpx;
+  width: 2rpx;
+  background: var(--line);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.node:last-child::before {
+  display: none;
+}
+
+.node.dragging::before {
+  opacity: 0;
 }
 
 .node-time {
+  position: relative;
   width: 76rpx;
   flex: none;
   text-align: right;
-  padding-top: 20rpx;
+  padding-top: 22rpx;
   color: var(--ink-3);
-  font-size: 24rpx;
+  font-size: 25rpx;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3rpx;
 }
 
 /* 没定时间的项：时间格写「待定」，比一个像缺字的「—」像样，卡片仍然对齐 */
 .node-time.tbd {
-  padding-top: 22rpx;
+  padding-top: 24rpx;
   font-size: 22rpx;
+  color: var(--ink-3);
+  font-weight: 600;
 }
 
 .node-card {
+  position: relative;
   flex: 1;
   min-width: 0;
   background: var(--card);
   border-radius: var(--radius);
+  border: var(--card-border);
   border-left: 8rpx solid var(--line);
-  padding: 20rpx 22rpx;
-  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+  padding: 22rpx 24rpx;
+  box-shadow: var(--card-shadow), var(--card-highlight);
+  box-sizing: border-box;
+  transition: box-shadow 120ms ease, transform 120ms ease;
 }
 
 .node.current .node-card {
-  box-shadow: 0 0 0 2rpx var(--accent-soft), 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+  box-shadow: 0 0 0 2rpx var(--accent), var(--accent-glow), var(--card-shadow-elevated);
 }
 
 /* ④ 完成不再划线：整卡略淡 + 类型行右侧的绿色小徽章（.done-badge） */
 .node.done .node-card {
+  opacity: 0.8;
+}
+
+.node-main {
+  cursor: pointer;
+}
+
+.node-main-press {
   opacity: 0.78;
+}
+
+.node-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .node-meta {
@@ -389,7 +526,8 @@
 
 .type-name {
   font-size: 24rpx;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.5rpx;
 }
 
 .node-right {
@@ -401,12 +539,13 @@
 
 .done-badge {
   flex: none;
-  padding: 2rpx 14rpx;
+  padding: 2rpx 16rpx;
   border-radius: 999rpx;
-  background: rgba(39, 174, 96, 0.12);
+  background: rgba(16, 185, 129, 0.12);
   color: var(--ok);
+  border: 1rpx solid rgba(16, 185, 129, 0.25);
   font-size: 22rpx;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -417,20 +556,24 @@
 }
 
 .node-title {
-  margin-top: 6rpx;
-  font-size: 32rpx;
-  font-weight: 600;
+  margin-top: 8rpx;
+  font-size: 33rpx;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink);
+  word-break: break-word;
 }
 
 .node-loc {
-  margin-top: 4rpx;
+  margin-top: 6rpx;
   font-size: 26rpx;
   color: var(--ink-2);
+  word-break: break-word;
 }
 
 .node-spend {
   font-size: 26rpx;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
@@ -438,7 +581,7 @@
 /* ---------- 待办清单（勾掉的条目保留划线，那是清单内部的事） ---------- */
 
 .checks {
-  margin-top: 12rpx;
+  margin-top: 14rpx;
 }
 
 .check-row {
@@ -459,16 +602,25 @@
   font-size: 24rpx;
   line-height: 30rpx;
   text-align: center;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .checkbox.on {
-  background: var(--ok);
-  border-color: var(--ok);
+  background: var(--ok-gradient);
+  border-color: transparent;
+  box-shadow: var(--ok-glow);
 }
 
 .check-text {
+  flex: 1;
+  min-width: 0;
   font-size: 27rpx;
   color: var(--ink-2);
+  word-break: break-word;
+}
+
+.check-press {
+  opacity: 0.65;
 }
 
 .tail {
@@ -502,8 +654,10 @@
 .shot-thumb {
   width: 120rpx;
   height: 120rpx;
-  border-radius: 14rpx;
+  border-radius: 16rpx;
   background: var(--surface-2, var(--line));
+  border: var(--card-border);
+  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.04);
 }
 
 /* 卡片底部操作行：小胶囊风，和右边的状态色不抢注意力 */
@@ -518,11 +672,17 @@
 .drive-hint {
   display: inline-flex;
   align-items: center;
-  gap: 6rpx;
+  gap: 8rpx;
   margin-right: auto;
-  color: var(--ink-3);
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2);
+  border: 1rpx solid var(--line);
+  color: var(--ink-2);
   font-size: 23rpx;
+  font-weight: 500;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .drive-ic {
@@ -541,10 +701,13 @@
   box-sizing: border-box;
   min-height: 88rpx;
   border-radius: 999rpx;
-  background: var(--surface-2, var(--line));
+  background: var(--surface-2);
+  border: 1rpx solid var(--line);
   color: var(--ink-2);
   font-size: 24rpx;
+  font-weight: 500;
   line-height: 1.4;
+  transition: opacity 120ms ease, transform 120ms ease, box-shadow 120ms ease;
 }
 
 /* 相机小图标：data URI 画的，颜色随图标自己，这里只管尺寸 */
@@ -555,18 +718,31 @@
 }
 
 .act-btn.on-accent {
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: #ffffff;
+  border: none;
+  font-weight: 600;
+  box-shadow: var(--accent-glow);
 }
 
 .act-btn.on-ok {
-  background: var(--ok);
+  background: var(--ok-gradient);
   color: #ffffff;
+  border: none;
+  font-weight: 600;
+  box-shadow: var(--ok-glow);
 }
 
 .act-btn.done-chip {
   background: rgba(39, 174, 96, 0.12);
   color: var(--ok);
+  border: 1rpx solid rgba(39, 174, 96, 0.22);
+  font-weight: 600;
+}
+
+.act-press {
+  opacity: 0.75;
+  transform: scale(0.96);
 }
 
 /* 随手记（散照片/散账）：不属于任何一天，收在时间线末尾 */
@@ -642,6 +818,7 @@
   margin-left: auto;
   font-size: 22rpx;
   color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .brow-amt {
@@ -737,6 +914,10 @@
   padding: 10rpx 0;
 }
 
+.mrow-press {
+  opacity: 0.65;
+}
+
 .mrow-ic {
   width: 32rpx;
   height: 32rpx;
@@ -762,9 +943,19 @@
 
 .day-add {
   margin: -6rpx 0 18rpx 90rpx; /* 让开收窄后的时间列（76rpx + 14rpx 间距） */
-  padding: 12rpx 0;
+  padding: 16rpx 0;
+  min-height: 72rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
   font-size: 25rpx;
   color: var(--ink-3);
+  transition: color 120ms ease, opacity 120ms ease;
+}
+
+.day-add-press {
+  color: var(--accent);
+  opacity: 0.8;
 }
 
 .fab {
@@ -774,17 +965,21 @@
   width: 104rpx;
   height: 104rpx;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: #ffffff;
   font-size: 56rpx;
   line-height: 104rpx;
   text-align: center;
-  box-shadow: 0 8rpx 24rpx rgba(47, 128, 237, 0.35);
+  box-shadow: 0 10rpx 30rpx rgba(43, 119, 229, 0.45);
+  border: 1rpx solid rgba(255, 255, 255, 0.35);
   z-index: 20;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
 .fab-press {
-  opacity: 0.85;
+  opacity: 0.9;
+  transform: scale(0.92);
+  box-shadow: 0 4rpx 14rpx rgba(43, 119, 229, 0.35);
 }
 
 /* ---------- ⑤ 长按拖动 v2：迷你卡 + 虚线占位 ---------- */
@@ -902,9 +1097,10 @@
   bottom: 0;
   z-index: 61;
   background: var(--card);
-  border-radius: 28rpx 28rpx 0 0;
-  padding: 26rpx 26rpx calc(26rpx + env(safe-area-inset-bottom));
-  box-shadow: 0 -8rpx 32rpx rgba(16, 24, 40, 0.2);
+  border-radius: 32rpx 32rpx 0 0;
+  padding: 28rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -12rpx 40rpx rgba(16, 24, 40, 0.25);
+  border-top: var(--card-border);
 }
 
 .ds-head {
@@ -914,8 +1110,9 @@
 
 .ds-day {
   margin-top: 8rpx;
-  font-size: 30rpx;
-  font-weight: 700;
+  font-size: 32rpx;
+  font-weight: 800;
+  letter-spacing: -0.3rpx;
 }
 
 .ds-list {
@@ -928,13 +1125,13 @@
   align-items: center;
   gap: 14rpx;
   padding: 16rpx 18rpx;
-  border-radius: 16rpx;
+  border-radius: 18rpx;
 }
 
 /* 被拖项高亮：放到哪儿一眼可见 */
 .drop-row.on {
   background: var(--accent-soft);
-  box-shadow: 0 0 0 2rpx var(--accent);
+  box-shadow: 0 0 0 2rpx var(--accent), var(--accent-glow);
 }
 
 .drop-ic {
@@ -955,6 +1152,7 @@
   flex: 1;
   min-width: 0;
   font-size: 27rpx;
+  font-weight: 500;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -968,6 +1166,7 @@
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 20rpx;
+  font-weight: 600;
 }
 
 .ds-note {
@@ -979,28 +1178,33 @@
 .ds-acts {
   display: flex;
   gap: 18rpx;
-  margin-top: 20rpx;
+  margin-top: 24rpx;
 }
 
 .drop-cancel {
   flex: 1;
-  padding: 20rpx 0;
-  border-radius: 20rpx;
-  background: var(--surface-2, var(--line));
+  padding: 22rpx 0;
+  border-radius: 22rpx;
+  background: var(--surface-2);
+  border: 1rpx solid var(--line);
   color: var(--ink-2);
   font-size: 30rpx;
+  font-weight: 500;
   text-align: center;
+  transition: opacity 120ms ease, transform 120ms ease;
 }
 
 .drop-ok {
   flex: 2;
-  padding: 20rpx 0;
-  border-radius: 20rpx;
-  background: var(--accent);
+  padding: 22rpx 0;
+  border-radius: 22rpx;
+  background: var(--accent-gradient);
   color: #ffffff;
   font-size: 30rpx;
   font-weight: 600;
   text-align: center;
+  box-shadow: var(--accent-glow);
+  transition: opacity 120ms ease, transform 120ms ease;
 }
 
 .drop-ok.busy {
@@ -1009,4 +1213,5 @@
 
 .ds-press {
   opacity: 0.85;
+  transform: scale(0.98);
 }

@@ -2,8 +2,8 @@
   <block wx:if="{{ready}}">
     <view class="card sec">
       <view class="pill-row">
-        <view class="pill {{mode === 'long' ? 'on' : ''}}" data-mode="long" bindtap="onMode">行程长图</view>
-        <view class="pill {{mode === 'photo' ? 'on' : ''}} {{photoCount ? '' : 'off'}}" data-mode="photo" bindtap="onMode">照片海报</view>
+        <view class="pill {{mode === 'long' ? 'on' : ''}}" hover-class="pill-press" data-mode="long" bindtap="onMode">行程长图</view>
+        <view class="pill {{mode === 'photo' ? 'on' : ''}} {{photoCount ? '' : 'off'}}" hover-class="{{photoCount ? 'pill-press' : 'none'}}" data-mode="photo" bindtap="onMode">照片海报</view>
       </view>
 
       <view wx:if="{{mode === 'photo'}}" class="pill-row sub">
@@ -11,6 +11,7 @@
           wx:for="{{templates}}"
           wx:key="id"
           class="pill {{template === item.id ? 'on' : ''}}"
+          hover-class="pill-press"
           data-id="{{item.id}}"
           bindtap="onTemplate"
         >{{item.name}}</view>
@@ -23,6 +24,7 @@
             wx:for="{{accents}}"
             wx:key="*this"
             class="swatch {{accent === item ? 'on' : ''}}"
+            hover-class="pill-press"
             style="background:{{item}}"
             data-color="{{item}}"
             bindtap="onAccent"
@@ -46,6 +48,7 @@
               wx:for="{{counts}}"
               wx:key="*this"
               class="pill {{count === item && item <= photoCount ? 'on' : ''}} {{item > photoCount ? 'off' : ''}}"
+              hover-class="{{item <= photoCount ? 'pill-press' : 'none'}}"
               data-n="{{item}}"
               bindtap="onCount"
             >{{item}} 张</view>
@@ -71,9 +74,9 @@
     </view>
 
     <view class="acts">
-      <button class="btn-primary {{previewPath ? '' : 'off'}}" disabled="{{!previewPath}}" bindtap="onSave">保存到相册</button>
-      <button class="btn-plain" disabled="{{!previewPath}}" bindtap="onShare">分享给朋友</button>
-      <button class="btn-plain" bindtap="onRegenerate">重新出图</button>
+      <button class="btn-primary {{previewPath ? '' : 'off'}}" hover-class="btn-press" disabled="{{!previewPath}}" bindtap="onSave">保存到相册</button>
+      <button class="btn-plain" hover-class="btn-press" disabled="{{!previewPath}}" bindtap="onShare">分享给朋友</button>
+      <button class="btn-plain" hover-class="btn-press" bindtap="onRegenerate">重新出图</button>
     </view>
   </block>
 

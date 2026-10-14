@@ -57,10 +57,10 @@
       <text class="label">时间</text>
       <view class="time-row">
         <picker class="time-date" mode="date" value="{{date}}" bindchange="onDate">
-          <view class="picker-trigger">{{date}}</view>
+          <view class="picker-trigger" hover-class="picker-press">{{date}}</view>
         </picker>
         <picker class="time-time" mode="time" value="{{time}}" bindchange="onTime">
-          <view class="picker-trigger">{{time}}</view>
+          <view class="picker-trigger" hover-class="picker-press">{{time}}</view>
         </picker>
       </view>
     </view>

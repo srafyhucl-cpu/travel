@@ -2,7 +2,11 @@
    可搜索、按日期分组、当前项打勾；样式沿用记账/行程页的卡片与胶囊语言 */
 
 .pick {
-  padding: 24rpx 28rpx 32rpx;
+  padding: 26rpx 30rpx 36rpx;
+  border: var(--card-border);
+  box-shadow: var(--card-shadow), var(--card-highlight);
+  border-radius: var(--radius);
+  box-sizing: border-box;
 }
 
 .pick-top {
@@ -16,15 +20,17 @@
 .pick .input {
   height: 84rpx;
   padding: 0 24rpx;
-  background: var(--bg);
-  border: 1rpx solid var(--line);
+  background: var(--surface-2);
+  border: var(--card-border);
   border-radius: 20rpx;
   font-size: 30rpx;
+  box-sizing: border-box;
 }
 
 .pick-group-head {
-  padding: 22rpx 4rpx 10rpx;
+  padding: 24rpx 4rpx 12rpx;
   font-size: 24rpx;
+  font-weight: 600;
   color: var(--ink-3);
 }
 
@@ -34,6 +40,7 @@
   padding: 22rpx 4rpx;
   border-bottom: 1rpx solid var(--line);
   font-size: 30rpx;
+  transition: opacity 120ms ease;
 }
 
 .pick-row-time {
@@ -41,6 +48,8 @@
   width: 92rpx;
   color: var(--ink-3);
   font-size: 26rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .pick-row-title {
@@ -53,7 +62,7 @@
 
 .pick-row.on .pick-row-title {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .pick-row-ok {
@@ -65,7 +74,7 @@
 }
 
 .pick-press {
-  opacity: 0.7;
+  opacity: 0.72;
 }
 
 .pick-empty {
@@ -81,23 +90,24 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  padding: 12rpx 24rpx;
+  padding: 12rpx 28rpx;
+  min-height: 64rpx;
+  box-sizing: border-box;
   border-radius: 999rpx;
-  border: 3rpx solid transparent;
-  background: var(--bg);
+  border: 2rpx solid transparent;
+  background: var(--surface-2);
   color: var(--ink-2);
   font-size: 26rpx;
+  font-weight: 500;
+  transition: opacity 120ms ease, transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
 .pill.on {
-  background: var(--card);
-  border-color: currentColor;
+  background: var(--accent-soft);
+  border-color: var(--accent);
   color: var(--accent);
-  font-weight: 600;
-}
-
-.pill-press {
-  opacity: 0.7;
+  font-weight: 700;
+  box-shadow: 0 2rpx 12rpx rgba(43, 119, 229, 0.18);
 }
 
 /* ------------------------------ 加载 ------------------------------ */

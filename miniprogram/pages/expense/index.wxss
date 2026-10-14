@@ -1,14 +1,19 @@
 /* 「记一笔」：跟时间线同一套卡片 / 胶囊语言，颜色全走 app.wxss 的 tokens（深色自适应） */
 
 .form {
-  padding: 6rpx 28rpx 36rpx;
+  padding: 12rpx 32rpx 40rpx;
+  border: var(--card-border);
+  box-shadow: var(--card-shadow), var(--card-highlight);
+  border-radius: var(--radius);
+  box-sizing: border-box;
 }
 
 /* 顶部一行模式提示：记一笔 / 改这笔（跟按钮文案一致，一眼知道在哪个模式） */
 .form-title {
-  padding: 26rpx 0 4rpx;
-  font-size: 34rpx;
-  font-weight: 700;
+  padding: 26rpx 0 8rpx;
+  font-size: 36rpx;
+  font-weight: 800;
+  letter-spacing: -0.3rpx;
 }
 
 /* ------------------------------ 金额 ------------------------------ */
@@ -16,23 +21,29 @@
 .amount-row {
   display: flex;
   align-items: baseline;
+  border-bottom: 2rpx solid var(--line);
+  padding-bottom: 8rpx;
+  margin-top: 10rpx;
 }
 
 .amount-cur {
   flex: none;
-  margin-right: 12rpx;
-  font-size: 40rpx;
-  font-weight: 700;
-  color: var(--ink-3);
+  margin-right: 14rpx;
+  font-size: 46rpx;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .amount-input {
   flex: 1;
   min-width: 0;
-  height: 112rpx;
-  font-size: 66rpx;
-  font-weight: 700;
-  line-height: 112rpx;
+  height: 120rpx;
+  font-size: 72rpx;
+  font-weight: 800;
+  letter-spacing: -1rpx;
+  line-height: 120rpx;
+  font-variant-numeric: tabular-nums;
 }
 
 .amount-ph {
@@ -65,19 +76,29 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  padding: 12rpx 24rpx;
+  padding: 12rpx 26rpx;
   border-radius: 999rpx;
-  border: 3rpx solid transparent;
-  background: var(--bg);
+  border: 2rpx solid transparent;
+  background: var(--surface-2);
   color: var(--ink-2);
   font-size: 26rpx;
+  font-weight: 500;
+  transition: opacity 120ms ease, transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
 .pill.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: 0 2rpx 12rpx rgba(43, 119, 229, 0.18);
+}
+
+/* 类别胶囊：有自己专属的语义色，不强制套蓝色背景，底托卡片色凸显描边与文字质感 */
+.pill-scroll .pill.on {
   background: var(--card);
   border-color: currentColor;
-  color: var(--accent);
-  font-weight: 600;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.08);
 }
 
 .pill-icon {
@@ -85,11 +106,6 @@
   width: 30rpx;
   height: 30rpx;
   margin-right: 8rpx;
-}
-
-/* 点按反馈：胶囊和主按钮都压一下透明度 */
-.pill-press {
-  opacity: 0.7;
 }
 
 /* 当前登录的人：名字后面的小胶囊（名字本来就叫「我」时不加） */
@@ -106,7 +122,8 @@
 
 /* 备注框坐在卡片上：用页面底色做内嵌感 */
 .form .input {
-  background: var(--bg);
+  background: var(--surface-2);
+  border: var(--card-border);
 }
 
 /* ------------------------------ 时间 / 挂在 ------------------------------ */
@@ -127,9 +144,12 @@
   height: 84rpx;
   line-height: 84rpx;
   padding: 0 24rpx;
-  background: var(--bg);
+  background: var(--surface-2);
+  border: var(--card-border);
   border-radius: 20rpx;
   font-size: 30rpx;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
 }
 
 /* 挂在：整行可点，点开节点选择页；没挂时显示「不指定」并淡下去 */
@@ -138,9 +158,11 @@
   align-items: center;
   height: 84rpx;
   padding: 0 24rpx;
-  background: var(--bg);
+  background: var(--surface-2);
+  border: var(--card-border);
   border-radius: 20rpx;
   font-size: 30rpx;
+  box-sizing: border-box;
 }
 
 .node-field-text {
@@ -166,9 +188,10 @@
 
 /* 微信内置的 disabled 底色会盖过来，这里按 token 拽回去 */
 button.btn-primary[disabled] {
-  background: var(--accent);
-  color: #ffffff;
-  opacity: 0.55;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  box-shadow: none;
+  opacity: 0.6;
 }
 
 /* 删掉：危险色描边按钮，跟实心的「保存」拉开层级，不抢主操作 */
@@ -179,11 +202,9 @@ button.btn-primary[disabled] {
   border: 2rpx solid var(--danger);
   border-radius: 22rpx;
   font-size: 30rpx;
+  font-weight: 600;
   line-height: 2.4;
-}
-
-.btn-press {
-  opacity: 0.86;
+  transition: opacity 120ms ease, transform 120ms ease;
 }
 
 /* ------------------------------ 加载 ------------------------------ */

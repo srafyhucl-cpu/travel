@@ -1,8 +1,12 @@
 /* vlog 出图：选项卡片 + 画布预览 */
 
 .sec {
-  padding: 24rpx 28rpx;
+  padding: 26rpx 30rpx;
   margin-bottom: 20rpx;
+  border: var(--card-border);
+  box-shadow: var(--card-shadow), var(--card-highlight);
+  border-radius: var(--radius);
+  box-sizing: border-box;
 }
 
 .pill-row {
@@ -17,19 +21,23 @@
 
 .pill {
   flex: none;
-  padding: 12rpx 24rpx;
+  padding: 12rpx 26rpx;
   border-radius: 999rpx;
-  border: 3rpx solid transparent;
-  background: var(--surface-2, var(--line));
+  border: 2rpx solid transparent;
+  background: var(--surface-2);
   color: var(--ink-2);
   font-size: 26rpx;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 120ms ease, transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
 .pill.on {
-  background: var(--card);
+  background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: 0 2rpx 12rpx rgba(43, 119, 229, 0.18);
 }
 
 /* 条件不满足的胶囊（没照片/张数不够）：点不动，也看不出能点 */
@@ -70,9 +78,11 @@
 .input {
   height: 80rpx;
   padding: 0 22rpx;
-  background: var(--bg);
+  background: var(--surface-2);
+  border: var(--card-border);
   border-radius: 18rpx;
   font-size: 29rpx;
+  box-sizing: border-box;
 }
 
 .swatches {
@@ -81,23 +91,30 @@
 }
 
 .swatch {
-  width: 52rpx;
-  height: 52rpx;
+  width: 54rpx;
+  height: 54rpx;
   border-radius: 50%;
   border: 4rpx solid transparent;
+  box-sizing: border-box;
+  transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
 }
 
 .swatch.on {
   border-color: var(--card);
-  box-shadow: 0 0 0 3rpx var(--ink-3);
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4rpx var(--card), 0 0 0 8rpx var(--accent), 0 4rpx 16rpx rgba(0, 0, 0, 0.18);
 }
 
 /* 预览：画布本体就是预览图（物理像素高、样式尺寸小） */
 .preview {
   position: relative;
-  padding: 12rpx;
+  padding: 16rpx;
   display: flex;
   justify-content: center;
+  border: var(--card-border);
+  box-shadow: var(--card-shadow-elevated), var(--card-highlight);
+  border-radius: var(--radius);
+  box-sizing: border-box;
 }
 
 .cv {
@@ -125,19 +142,22 @@
 }
 
 button.btn-primary[disabled] {
-  background: var(--accent);
-  color: #ffffff;
-  opacity: 0.55;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  box-shadow: none;
+  opacity: 0.6;
 }
 
 .btn-plain {
   margin-top: 0;
   background: var(--card);
-  border: 1rpx solid var(--line);
+  border: var(--card-border);
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.02);
   border-radius: 22rpx;
   font-size: 30rpx;
   line-height: 2.5;
   color: var(--ink-2);
+  transition: opacity 120ms ease, transform 120ms ease;
 }
 
 .btn-plain[disabled] {

@@ -7,17 +7,19 @@
   width: 108rpx;
   height: 108rpx;
   margin: 0 auto 26rpx;
-  border-radius: 30rpx;
-  background: var(--accent);
+  border-radius: 32rpx;
+  background: var(--accent-gradient);
+  box-shadow: 0 10rpx 30rpx rgba(43, 119, 229, 0.38);
   color: #ffffff;
   font-size: 50rpx;
   line-height: 108rpx;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .title {
-  font-size: 44rpx;
-  font-weight: 700;
+  font-size: 46rpx;
+  font-weight: 800;
+  letter-spacing: -0.5rpx;
 }
 
 .lead {
@@ -29,7 +31,11 @@
 
 .form {
   margin-top: 24rpx;
-  padding: 20rpx 28rpx 32rpx;
+  padding: 24rpx 32rpx 36rpx;
+  border: var(--card-border);
+  box-shadow: var(--card-shadow-elevated), var(--card-highlight);
+  border-radius: var(--radius);
+  box-sizing: border-box;
 }
 
 .hint {

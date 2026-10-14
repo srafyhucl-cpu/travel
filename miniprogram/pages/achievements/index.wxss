@@ -14,23 +14,22 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  padding: 12rpx 24rpx;
+  padding: 12rpx 28rpx;
   border-radius: 999rpx;
-  border: 3rpx solid transparent;
-  background: var(--surface-2, var(--line));
+  border: 2rpx solid transparent;
+  background: var(--surface-2);
   color: var(--ink-2);
   font-size: 26rpx;
+  font-weight: 500;
+  transition: opacity 120ms ease, transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
 .pill.on {
-  background: var(--card);
+  background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
-  font-weight: 600;
-}
-
-.pill-press {
-  opacity: 0.7;
+  font-weight: 700;
+  box-shadow: 0 2rpx 12rpx rgba(43, 119, 229, 0.18);
 }
 
 .me-tag {
@@ -45,9 +44,11 @@
 }
 
 .sum {
-  margin: 18rpx 4rpx;
-  font-size: 24rpx;
-  color: var(--ink-3);
+  margin: 20rpx 6rpx 16rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
 }
 
 .grid {
@@ -57,27 +58,52 @@
 }
 
 .ach-card {
+  position: relative;
   display: flex;
-  gap: 20rpx;
+  gap: 22rpx;
   background: var(--card);
   border-radius: var(--radius);
-  padding: 24rpx;
-  box-shadow: 0 2rpx 8rpx rgba(16, 24, 40, 0.04);
+  border: var(--card-border);
+  padding: 26rpx 28rpx;
+  box-shadow: var(--card-shadow-elevated), var(--card-highlight);
+  box-sizing: border-box;
+  transition: opacity 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  overflow: hidden;
+}
+
+.ach-card:not(.locked)::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20rpx;
+  right: 20rpx;
+  height: 2rpx;
+  background: var(--badge-gold-gradient);
+  opacity: 0.75;
 }
 
 .ach-card.locked {
-  opacity: 0.55;
+  opacity: 0.52;
+  box-shadow: var(--card-shadow);
+  border-style: dashed;
 }
 
 .ach-ic {
   flex: none;
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 20rpx;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 24rpx;
+  border: 1rpx solid var(--line);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-2, var(--line));
+  background: var(--surface-2);
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.ach-card:not(.locked) .ach-ic {
+  box-shadow: 0 4rpx 16rpx rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.25);
 }
 
 .ach-img {
@@ -91,24 +117,29 @@
 }
 
 .ach-title {
-  font-size: 29rpx;
-  font-weight: 600;
+  font-size: 31rpx;
+  font-weight: 800;
+  letter-spacing: -0.2rpx;
+  word-break: break-word;
 }
 
 .ach-desc {
-  margin-top: 4rpx;
+  margin-top: 6rpx;
   font-size: 24rpx;
   color: var(--ink-3);
+  word-break: break-word;
 }
 
 .ach-at {
   margin-top: 8rpx;
   font-size: 23rpx;
+  font-weight: 700;
   color: var(--ok);
+  font-variant-numeric: tabular-nums;
 }
 
 .ach-prog {
-  margin-top: 10rpx;
+  margin-top: 12rpx;
   display: flex;
   align-items: center;
   gap: 14rpx;
@@ -116,16 +147,17 @@
 
 .bar {
   flex: 1;
-  height: 10rpx;
+  height: 12rpx;
   border-radius: 999rpx;
-  background: var(--surface-2, var(--line));
+  background: var(--surface-2);
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
   border-radius: 999rpx;
-  background: var(--accent);
+  background: var(--accent-gradient);
+  box-shadow: 0 2rpx 8rpx rgba(43, 119, 229, 0.35);
 }
 
 .ach-prog-num {

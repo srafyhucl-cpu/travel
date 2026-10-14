@@ -46,7 +46,7 @@
               <text class="ss-num">{{summary.done}}/{{summary.total}}</text>
               <text class="ss-label">完成</text>
             </view>
-            <view class="sum-stat {{budget.over ? 'over' : ''}} {{seg === 'money' ? 'on' : ''}}" data-seg="money" bindtap="onSeg">
+            <view class="sum-stat {{budget.over ? 'over' : ''}} {{seg === 'money' ? 'on' : ''}}" hover-class="stat-press" data-seg="money" bindtap="onSeg">
               <text class="ss-num {{budget.over ? 'danger' : ''}}">¥{{budget.actual}}</text>
               <text class="ss-label">{{budget.hasPlanned ? (budget.over ? '超支 ¥' + budget.remaining : '预算 ¥' + budget.planned) : '已花'}}</text>
             </view>
@@ -77,7 +77,7 @@
 
             <view class="panel-foot">
               <text class="foot-note {{budget.over ? 'danger' : ''}}">{{budget.hasPlanned ? (budget.over ? '超支 ¥' + budget.remaining : '还剩 ¥' + budget.remaining) : '还没设总预算'}}</text>
-              <text class="foot-btn" bindtap="onEditBudget">改预算</text>
+              <text class="foot-btn" hover-class="pill-press" bindtap="onEditBudget">改预算</text>
             </view>
           </view>
         </view>
@@ -85,7 +85,7 @@
         <!-- ②′ 出行准备（role=module）：不是行程里的一项，没时间也不占某一天。
              一条进度 + 展开清单；点头部展开/收起，尾部「编辑清单」进编辑页 -->
         <view wx:if="{{prep}}" class="prep-card {{prep.allDone ? 'alldone' : ''}}">
-          <view class="prep-head" bindtap="onPrepToggle">
+          <view class="prep-head" hover-class="prep-press" bindtap="onPrepToggle">
             <image class="prep-ic" src="{{prep.icon}}" mode="aspectFit" />
             <view class="prep-main">
               <view class="prep-title">{{prep.title}}</view>
@@ -100,6 +100,7 @@
               wx:for="{{prep.items}}"
               wx:key="id"
               class="check-row"
+              hover-class="check-press"
               data-node="{{prep.id}}"
               data-item="{{item.id}}"
               data-done="{{item.done}}"
@@ -111,7 +112,7 @@
             </view>
             <view class="prep-foot">
               <text class="prep-tip">出发前把这些勾完</text>
-              <text class="prep-edit" data-id="{{prep.id}}" bindtap="onEditNode">编辑清单</text>
+              <text class="prep-edit" hover-class="pill-press" data-id="{{prep.id}}" bindtap="onEditNode">编辑清单</text>
             </view>
           </view>
         </view>
@@ -123,7 +124,7 @@
             <text class="dm-count">{{item.done}}/{{item.total}}</text>
           </view>
 
-          <view wx:if="{{item.total === 0}}" class="day-empty" data-date="{{item.date}}" bindtap="onAddNode">这天还没安排 · 点一下加一项</view>
+          <view wx:if="{{item.total === 0}}" class="day-empty" hover-class="day-empty-press" data-date="{{item.date}}" bindtap="onAddNode">这天还没安排 · 点一下加一项</view>
 
           <!-- 长按卡片进拖动排序（照片自己长按出菜单，已用 catchlongpress 拦住）；
                拖动中：原位置留虚线占位，视觉由 fixed 的迷你卡跟手 -->
@@ -141,20 +142,22 @@
             <view wx:if="{{dragId === n.id}}" class="drag-ghost"></view>
             <view class="node-time {{n.tbd ? 'tbd' : ''}}">{{n.time}}</view>
             <view class="node-card" style="border-left-color:{{n.typeColor}}">
-              <view class="node-head" data-id="{{n.id}}" bindtap="onEditNode">
-                <view class="node-meta">
-                  <image class="type-icon" src="{{n.icon}}" mode="aspectFit" />
-                  <text class="type-name" style="color:{{n.typeColor}}">{{n.typeLabel}}</text>
+              <view class="node-main" data-id="{{n.id}}" hover-class="node-main-press" bindtap="onEditNode">
+                <view class="node-head">
+                  <view class="node-meta">
+                    <image class="type-icon" src="{{n.icon}}" mode="aspectFit" />
+                    <text class="type-name" style="color:{{n.typeColor}}">{{n.typeLabel}}</text>
+                  </view>
+                  <view class="node-right">
+                    <!-- ④ 完成不再划线：类型行右侧一个绿色小徽章，有实际完成时间就带上 -->
+                    <text wx:if="{{n.done}}" class="done-badge">✓ 完成{{n.doneAt ? ' · ' + n.doneAt : ''}}</text>
+                    <text wx:if="{{n.range}}" class="node-range">{{n.range}}</text>
+                    <text wx:if="{{n.spend}}" class="node-spend">¥{{n.spend}}</text>
+                  </view>
                 </view>
-                <view class="node-right">
-                  <!-- ④ 完成不再划线：类型行右侧一个绿色小徽章，有实际完成时间就带上 -->
-                  <text wx:if="{{n.done}}" class="done-badge">✓ 完成{{n.doneAt ? ' · ' + n.doneAt : ''}}</text>
-                  <text wx:if="{{n.range}}" class="node-range">{{n.range}}</text>
-                  <text wx:if="{{n.spend}}" class="node-spend">¥{{n.spend}}</text>
-                </view>
+                <view class="node-title">{{n.title}}</view>
+                <view wx:if="{{n.location}}" class="node-loc">{{n.location}}</view>
               </view>
-              <view class="node-title">{{n.title}}</view>
-              <view wx:if="{{n.location}}" class="node-loc">{{n.location}}</view>
 
               <!-- 这趟节点下的照片：缩略图路径由页面逐张回填，src 为空时就是一块占位底色 -->
               <view wx:if="{{n.photos.length}}" class="shots">
@@ -178,6 +181,7 @@
                   wx:for-item="c"
                   wx:key="id"
                   class="check-row"
+                  hover-class="check-press"
                   data-node="{{n.id}}"
                   data-item="{{c.id}}"
                   data-done="{{c.done}}"
@@ -196,6 +200,7 @@
                   wx:for-item="m"
                   wx:key="id"
                   class="mrow"
+                  hover-class="mrow-press"
                   data-id="{{m.id}}"
                   bindtap="onEditExpense"
                 >
@@ -211,17 +216,17 @@
                   <image class="drive-ic" src="{{carIcon}}" mode="aspectFit" />
                   <text>约 {{n.driveMinutes}} 分钟车程</text>
                 </view>
-                <view wx:if="{{!n.done && !n.started}}" class="act-btn on-accent" data-id="{{n.id}}" data-action="departed" bindtap="onCheckin">出发</view>
-                <view wx:elif="{{!n.done}}" class="act-btn on-ok" data-id="{{n.id}}" data-action="done" bindtap="onCheckin">✓ 完成</view>
+                <view wx:if="{{!n.done && !n.started}}" class="act-btn on-accent" hover-class="act-press" data-id="{{n.id}}" data-action="departed" bindtap="onCheckin">出发</view>
+                <view wx:elif="{{!n.done}}" class="act-btn on-ok" hover-class="act-press" data-id="{{n.id}}" data-action="done" bindtap="onCheckin">✓ 完成</view>
                 <view wx:else class="act-btn done-chip">✓ {{n.doneAt || '已完成'}}</view>
-                <view class="act-btn" data-id="{{n.id}}" bindtap="onAddPhoto"><image class="act-ic" src="{{cameraIcon}}" mode="aspectFit" />照片</view>
-                <view class="act-btn" data-id="{{n.id}}" bindtap="onAddExpense"><image class="act-ic" src="{{walletIcon}}" mode="aspectFit" />记一笔</view>
-                <view wx:if="{{n.navKeyword || n.lat}}" class="act-btn" data-kw="{{n.navKeyword}}" data-lat="{{n.lat}}" data-lng="{{n.lng}}" bindtap="onNav">导航</view>
+                <view class="act-btn" hover-class="act-press" data-id="{{n.id}}" bindtap="onAddPhoto"><image class="act-ic" src="{{cameraIcon}}" mode="aspectFit" />照片</view>
+                <view class="act-btn" hover-class="act-press" data-id="{{n.id}}" bindtap="onAddExpense"><image class="act-ic" src="{{walletIcon}}" mode="aspectFit" />记一笔</view>
+                <view wx:if="{{n.navKeyword || n.lat}}" class="act-btn" hover-class="act-press" data-kw="{{n.navKeyword}}" data-lat="{{n.lat}}" data-lng="{{n.lng}}" bindtap="onNav">导航</view>
               </view>
             </view>
           </view>
 
-          <view wx:if="{{item.total > 0}}" class="day-add" data-date="{{item.date}}" bindtap="onAddNode">＋ 加一项</view>
+          <view wx:if="{{item.total > 0}}" class="day-add" hover-class="day-add-press" data-date="{{item.date}}" bindtap="onAddNode">＋ 加一项</view>
         </view>
 
         <!-- 不属于任何节点的散账与散照片（随手记），收在时间线末尾 -->
@@ -233,6 +238,7 @@
               wx:for-item="m"
               wx:key="id"
               class="mrow"
+              hover-class="mrow-press"
               data-id="{{m.id}}"
               bindtap="onEditExpense"
             >

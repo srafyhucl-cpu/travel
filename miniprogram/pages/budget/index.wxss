@@ -1,34 +1,45 @@
 /* 总预算：与记账页同款表单语言 */
 .form {
-  padding: 6rpx 28rpx 36rpx;
+  padding: 12rpx 32rpx 40rpx;
+  border: var(--card-border);
+  box-shadow: var(--card-shadow), var(--card-highlight);
+  border-radius: var(--radius);
+  box-sizing: border-box;
 }
 
 .form-title {
-  padding: 26rpx 0 4rpx;
-  font-size: 34rpx;
-  font-weight: 700;
+  padding: 26rpx 0 8rpx;
+  font-size: 36rpx;
+  font-weight: 800;
+  letter-spacing: -0.3rpx;
 }
 
 .amount-row {
   display: flex;
   align-items: baseline;
+  border-bottom: 2rpx solid var(--line);
+  padding-bottom: 8rpx;
+  margin-top: 10rpx;
 }
 
 .amount-cur {
   flex: none;
-  margin-right: 12rpx;
-  font-size: 40rpx;
-  font-weight: 700;
-  color: var(--ink-3);
+  margin-right: 14rpx;
+  font-size: 46rpx;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .amount-input {
   flex: 1;
   min-width: 0;
-  height: 112rpx;
-  font-size: 66rpx;
-  font-weight: 700;
-  line-height: 112rpx;
+  height: 120rpx;
+  font-size: 72rpx;
+  font-weight: 800;
+  letter-spacing: -1rpx;
+  line-height: 120rpx;
+  font-variant-numeric: tabular-nums;
 }
 
 .amount-ph {
@@ -37,19 +48,18 @@
 }
 
 .stat-line {
-  margin-top: 18rpx;
+  margin-top: 24rpx;
   font-size: 26rpx;
+  font-weight: 500;
   color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 button.btn-primary[disabled] {
-  background: var(--accent);
-  color: #ffffff;
-  opacity: 0.55;
-}
-
-.btn-press {
-  opacity: 0.86;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  box-shadow: none;
+  opacity: 0.6;
 }
 
 .loading {

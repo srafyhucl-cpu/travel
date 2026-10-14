@@ -17,7 +17,7 @@
       <view class="muted hint">用来标记记账时是谁付的钱，同名会自动认成同一个人。</view>
     </view>
 
-    <button class="btn-primary {{busy ? 'off' : ''}}" disabled="{{busy}}" bindtap="submit">
+    <button class="btn-primary {{busy ? 'off' : ''}}" hover-class="btn-press" disabled="{{busy}}" bindtap="submit">
       {{busy ? '请稍候…' : '进入这趟旅行'}}
     </button>
   </view>
