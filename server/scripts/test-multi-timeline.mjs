@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_ENTRY = path.join(__dirname, '..', 'src', 'index.js');
 const TEST_PORT = 7035;
-const BASE = `http://127.0.0.1:${TEST_PORT}`;
+let BASE = `http://127.0.0.1:${TEST_PORT}`;
 
 let serverProcess = null;
 let failures = 0;
@@ -51,6 +51,15 @@ async function sleep(ms) {
 }
 
 async function startServer() {
+  try {
+    const existing = await fetch('http://127.0.0.1:7052/api/health');
+    if (existing.ok) {
+      console.log('检测到现有后端服务运行在 7052 端口，直接复用测试！\n');
+      BASE = 'http://127.0.0.1:7052';
+      return;
+    }
+  } catch {}
+
   console.log(`正在临时启动测试服务器 (端口 ${TEST_PORT})…`);
   serverProcess = spawn(process.execPath, [SERVER_ENTRY], {
     cwd: path.join(__dirname, '..'),
@@ -63,7 +72,7 @@ async function startServer() {
   serverProcess.on('error', (err) => console.error('[Server Spawn Error]:', err));
 
   // 等待启动就绪
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 60; i++) {
     await sleep(200);
     try {
       const res = await fetch(`${BASE}/api/health`);

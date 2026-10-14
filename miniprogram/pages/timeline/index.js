@@ -1288,19 +1288,6 @@ Page({
     this.pickAndUpload(nodeId);
   },
 
-  /** 右下角「＋」：传照片（不指定就进随手记）/ 加一项 —— 对应 Web 的快捷面板 */
-  onQuickAdd() {
-    if (this.uploading) return;
-    wx.showActionSheet({
-      itemList: ['传照片', '加一项'],
-      success: (res) => {
-        if (res.tapIndex === 0) this.pickAndUpload('');
-        else if (res.tapIndex === 1) wx.navigateTo({ url: '/pages/node/index' });
-      },
-      fail: () => {},
-    });
-  },
-
   pickAndUpload(nodeId) {
     this.uploading = true;
     wx.chooseMedia({
