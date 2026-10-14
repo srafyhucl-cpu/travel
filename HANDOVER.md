@@ -18,7 +18,7 @@
 | --- | --- |
 | 工作目录 | `D:\Project\travel` |
 | 分支 | **`feature/wechat-ai-agent`**（微信AI 开发模式；`main`=b1306e9 未动。**领先/落后数不写死，以现算为准**：`git rev-list --count main..HEAD`、`git log --oneline HEAD..main`。2026-10-12 时点为 领先 13 / 落后 3，落后的是 `45b828c` rev 轮询 / `8ceadde` checkup.mjs / `b1306e9` nginx 日志遮蔽，**发布或合并前要先并回来**） |
-| 远端 | **未配置 remote**（纯本地仓库，推服务器靠 `scp/tar`，见 `DEPLOY.md`） |
+| 远端 | **GitHub 公开仓库**：`https://github.com/srafyhucl-cpu/travel`（origin 已配置，分支 `main` / `feature/wechat-ai-agent` 已推） |
 | 工作区 | 干净（Logo 已提交 `b0409e2`） |
 | 线上后端 | `https://travel.hclstudio.cn`（nginx 443 → 本机 7020，systemd `travel`） |
 | 微信AI | `agent/` 独立分包已实现并大量实测；**唯一挂起**：真实账号扫码后的对话级验收（见 §5.5） |
