@@ -20,7 +20,12 @@ export function baseUrl() {
     const accountInfo = wx.getAccountInfoSync?.();
     const envVersion = accountInfo?.miniProgram?.envVersion;
     if (envVersion === 'develop') {
-      return DEV_LOCAL_BASE;
+      const sys = wx.getSystemInfoSync?.() || {};
+      // 仅在微信开发者工具模拟器内默认连本机 7052；真机预览直接连线上云端服务
+      if (sys.platform === 'devtools') {
+        return DEV_LOCAL_BASE;
+      }
+      return PROD_BASE;
     }
     return PROD_BASE;
   } catch {
