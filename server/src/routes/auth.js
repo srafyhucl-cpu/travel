@@ -1,6 +1,8 @@
 import express from 'express';
-import { db, nowISO, uid } from '../db.js';
+import { db, nowISO, uid, genUserId } from '../db.js';
 import { hashPassphrase, signToken, touchKey, requireAuth } from '../auth.js';
+import { getUserTrips, createDefaultTripForUser } from '../trip-service.js';
+import { broadcast } from '../events.js';
 
 const router = express.Router();
 
@@ -224,6 +226,133 @@ router.post('/passphrase', requireAuth, (req, res) => {
 
   db.prepare('UPDATE trip_keys SET key_hash = ? WHERE id = ?').run(nextHash, key.id);
   res.json({ ok: true });
+});
+
+/** 微信静默登录与会话置换 */
+router.post('/wx-login', async (req, res) => {
+  const code = String(req.body?.code || '').trim();
+  if (!code) {
+    return res.status(400).json({ error: 'bad_request', message: '缺少登录凭证 code' });
+  }
+
+  let openid = '';
+  let unionid = '';
+
+  const appId = process.env.WX_APPID;
+  const appSecret = process.env.WX_SECRET;
+
+  if (appId && appSecret && !code.startsWith('mock_')) {
+    try {
+      const wxRes = await fetch(
+        `https://api.weixin.qq.com/sns/jscode2session?appid=${appId}&secret=${appSecret}&js_code=${code}&grant_type=authorization_code`
+      );
+      const data = await wxRes.json();
+      if (!data.openid) {
+        return res.status(401).json({
+          error: 'wx_login_failed',
+          message: data.errmsg || '微信登录失败',
+        });
+      }
+      openid = data.openid;
+      unionid = data.unionid || '';
+    } catch (err) {
+      return res.status(502).json({
+        error: 'wx_network_error',
+        message: '连接微信登录服务失败，请重试',
+      });
+    }
+  } else {
+    // 本地开发或测试环境，若未配置 WX_SECRET：
+    // 如果是测试脚本传入的 mock_ 开头 code，保持各自独立的用户身份
+    // 否则为微信开发者工具每次随机生成的真实 code，使用固定 openid 确保刷新不丢失用户和行程数据
+    if (code.startsWith('mock_')) {
+      openid = code;
+    } else {
+      console.log('[DEV] WX_SECRET not set, using fallback openid: wx_devtools_default_user');
+      openid = 'wx_devtools_default_user';
+    }
+  }
+
+  let user = db.prepare('SELECT * FROM users WHERE openid = ?').get(openid);
+  const now = nowISO();
+  if (!user) {
+    const id = genUserId();
+    db.prepare(
+      `INSERT INTO users (id, openid, unionid, nickname, avatar_url, is_profile_set, last_trip_id, created_at, updated_at)
+       VALUES (?, ?, ?, '旅行者', '', 0, '', ?, ?)`
+    ).run(id, openid, unionid, now, now);
+    user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  }
+
+  let trips = getUserTrips(user.id);
+  if (trips.length === 0) {
+    createDefaultTripForUser(user.id, user.nickname, user.avatar_url);
+    trips = getUserTrips(user.id);
+    user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  }
+
+  let activeTripId = user.last_trip_id;
+  if (!activeTripId || !trips.some((t) => t.id === activeTripId)) {
+    activeTripId = trips[0].id;
+    db.prepare('UPDATE users SET last_trip_id = ?, updated_at = ? WHERE id = ?').run(activeTripId, now, user.id);
+    user.last_trip_id = activeTripId;
+  }
+
+  const token = signToken({ uid: user.id });
+
+  res.json({
+    token,
+    user: {
+      id: user.id,
+      nickname: user.nickname,
+      avatarUrl: user.avatar_url,
+      isProfileSet: user.is_profile_set,
+    },
+    trips,
+    activeTripId,
+    tripId: activeTripId,
+    defaultTripId: activeTripId,
+  });
+});
+
+/** 更新微信用户资料并同步所有所属行程的成员头像与昵称 */
+router.put('/profile', requireAuth, (req, res) => {
+  if (!req.user) {
+    return res.status(403).json({ error: 'forbidden', message: '仅支持已登录用户更新资料' });
+  }
+
+  const nickname = req.body?.nickname !== undefined ? String(req.body.nickname).trim().slice(0, 24) : req.user.nickname;
+  const avatarUrl = req.body?.avatarUrl !== undefined ? String(req.body.avatarUrl).trim() : req.user.avatar_url;
+  const now = nowISO();
+
+  const tx = db.transaction(() => {
+    db.prepare(
+      `UPDATE users
+       SET nickname = ?, avatar_url = ?, is_profile_set = 1, updated_at = ?
+       WHERE id = ?`
+    ).run(nickname || '旅行者', avatarUrl || '', now, req.user.id);
+
+    // 同步更新该用户在所有行程中的成员信息
+    const members = db.prepare('SELECT id, trip_id FROM members WHERE user_id = ?').all(req.user.id);
+    const updateMember = db.prepare('UPDATE members SET name = ?, avatar_url = ? WHERE id = ?');
+    for (const m of members) {
+      updateMember.run(nickname || '旅行者', avatarUrl || '', m.id);
+      broadcast(m.trip_id, { type: 'members' });
+    }
+  });
+
+  tx();
+
+  const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+
+  res.json({
+    user: {
+      id: updatedUser.id,
+      nickname: updatedUser.nickname,
+      avatarUrl: updatedUser.avatar_url,
+      isProfileSet: updatedUser.is_profile_set,
+    },
+  });
 });
 
 export default router;

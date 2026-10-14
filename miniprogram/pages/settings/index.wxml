@@ -1,5 +1,21 @@
 <view class="page">
   <block wx:if="{{ready}}">
+    <!-- 微信个人资料卡 -->
+    <view class="sec-title">我的微信个人资料</view>
+    <view class="card sec profile-card">
+      <view class="profile-row">
+        <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+          <image wx:if="{{userAvatarUrl}}" class="avatar-img" src="{{userAvatarUrl}}" mode="aspectFill" />
+          <view wx:else class="avatar-fallback">{{userNickname ? userNickname[0] : '我'}}</view>
+          <text class="avatar-tip">点此换头像</text>
+        </button>
+        <view class="profile-input-wrap">
+          <text class="tiny dim">微信昵称（同步所有行程）</text>
+          <input type="nickname" class="input nickname-input" placeholder="设置你的旅行昵称" value="{{userNickname}}" bindchange="onNicknameChange" />
+        </view>
+      </view>
+    </view>
+
     <!-- 旅行信息 -->
     <view class="card sec">
       <view class="row">
@@ -7,7 +23,7 @@
           <view class="trip-name">{{trip.name}}</view>
           <view class="tiny">{{trip.destination}} · {{trip.start_date}} – {{trip.end_date}} · {{dayCount}} 天</view>
         </view>
-        <view class="chip" hover-class="pill-press" bindtap="onTripToggle">{{tripEdit ? '取消' : '编辑'}}</view>
+        <view wx:if="{{!isReadOnly}}" class="chip" hover-class="pill-press" bindtap="onTripToggle">{{tripEdit ? '取消' : '编辑'}}</view>
       </view>
       <view class="stats-line">{{statsLine}}</view>
 
@@ -39,12 +55,24 @@
     </view>
 
     <!-- 同行成员 -->
-    <view class="sec-title">同行成员<text class="sec-act" hover-class="pill-press" bindtap="onMemberToggle">{{memberEdit ? '取消' : '改名 / 颜色'}}</text></view>
+    <view class="sec-title">
+      同行成员
+      <view class="sec-act-group">
+        <text wx:if="{{!isReadOnly}}" class="sec-act" hover-class="pill-press" bindtap="onOpenAddVirtualModal">＋ 虚拟同伴</text>
+        <text wx:if="{{!isReadOnly}}" class="sec-act" hover-class="pill-press" bindtap="onMemberToggle">{{memberEdit ? '取消' : '改名/颜色'}}</text>
+      </view>
+    </view>
     <view class="card sec">
       <block wx:if="{{!memberEdit}}">
         <view wx:for="{{members}}" wx:key="id" class="member-row">
           <view class="avatar" style="color:{{item.color}};background:{{item.tint}}">{{item.initial}}</view>
-          <text class="grow strong">{{item.name}}<text wx:if="{{item.me}}" class="me-tag">我</text></text>
+          <view class="grow member-info">
+            <text class="strong">{{item.name}}<text wx:if="{{item.me}}" class="me-tag">我</text></text>
+            <text class="member-sub-badge {{item.isVirtual ? 'badge-virtual' : 'badge-real'}}">
+              {{item.isVirtual ? '虚拟记账同伴（待认领）' : (item.role === 'owner' ? '创建者' : (item.role === 'viewer' ? '只读围观' : '已绑微信'))}}
+            </text>
+          </view>
+          <text wx:if="{{!isReadOnly && item.isVirtual}}" class="del-member-btn" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="onRemoveMember">✕</text>
         </view>
       </block>
       <block wx:else>
@@ -65,6 +93,57 @@
         </view>
         <button class="btn-primary sm" hover-class="btn-press" bindtap="onMemberSave">保存</button>
       </block>
+    </view>
+
+    <!-- 协作与分享 -->
+    <view class="sec-title">协作与分享</view>
+    <view class="card sec share-box">
+      <view class="share-desc">把行程分享给同行伙伴，实时同步节点安排与账单分摊；或者分享只读版本给亲友围观。</view>
+      <view class="share-actions">
+        <button wx:if="{{!isReadOnly}}" class="btn-primary sm share-btn" open-type="share" data-mode="invite" hover-class="btn-press">
+          微信邀请同伴共同编辑
+        </button>
+        <button class="btn-plain sm share-btn" open-type="share" data-mode="view" hover-class="btn-press">
+          分享只读行程卡片
+        </button>
+      </view>
+      <view wx:if="{{trip.invite_code}}" class="code-info-row">
+        <text class="tiny dim">邀请口令码：{{trip.invite_code}}</text>
+        <text class="tiny dim" wx:if="{{trip.view_code}}"> · 围观码：{{trip.view_code}}</text>
+      </view>
+    </view>
+
+    <!-- 行程生命周期与分支 -->
+    <view class="sec-title">行程状态与分支</view>
+    <view class="card sec">
+      <view class="field">
+        <text class="label">当前行程阶段</text>
+        <view class="status-chips">
+          <view
+            wx:for="{{statusChoices}}"
+            wx:key="key"
+            class="status-pill {{trip.status === item.key ? 'on' : ''}} {{isReadOnly ? 'disabled' : ''}}"
+            data-status="{{item.key}}"
+            bindtap="{{isReadOnly ? '' : 'onSwitchStatus'}}"
+          >
+            {{item.label}}
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{!isReadOnly}}" class="branch-section">
+        <view class="cat-row" hover-class="cat-row-press" bindtap="onCloneTrip">
+          <view class="grow">
+            <view class="strong">衍生备选分支 (Plan B)</view>
+            <view class="tiny dim">完整克隆当前行程的节点与预算，独立排期与修改</view>
+          </view>
+          <text class="chev">›</text>
+        </view>
+      </view>
+
+      <button class="btn-danger sm delete-trip-btn" hover-class="btn-press" bindtap="onDeleteOrLeaveTrip">
+        {{myRole === 'owner' ? '彻底删除当前行程' : '退出这趟行程'}}
+      </button>
     </view>
 
     <!-- 类型与类别 -->
@@ -235,5 +314,24 @@
   <view wx:else class="loading">
     <view class="loading-title">加载中…</view>
     <view class="muted">正在准备这趟旅行的数据</view>
+  </view>
+
+  <!-- 添加虚拟同伴弹窗 -->
+  <view wx:if="{{virtualModalOpen}}" class="modal-mask" catchtouchmove="true">
+    <view class="modal-card">
+      <view class="modal-title">添加虚拟同伴</view>
+      <view class="modal-desc">虚拟同伴用于提前记录人情往来与账单分摊。待真实好友加入时，可将虚拟身份一键认领合并。</view>
+      <input
+        class="input modal-input"
+        placeholder="同伴称呼（如：阿强、小陈）"
+        maxlength="20"
+        value="{{virtualNameInput}}"
+        bindinput="onVirtualNameInput"
+      />
+      <view class="btn-row">
+        <button class="btn-plain sm grow" hover-class="btn-press" bindtap="onCloseAddVirtualModal">取消</button>
+        <button class="btn-primary sm grow" hover-class="btn-press" bindtap="onSubmitAddVirtual">确认添加</button>
+      </view>
+    </view>
   </view>
 </view>

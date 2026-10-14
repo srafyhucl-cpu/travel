@@ -131,32 +131,91 @@ CREATE INDEX IF NOT EXISTS idx_photos_trip ON photos(trip_id, created_at);
 
 -- 词汇表：行程类型、消费类别都是数据，不是代码。trip_id 为 NULL 表示全局默认。
 CREATE TABLE IF NOT EXISTS vocab (
-id          TEXT PRIMARY KEY,
-trip_id     TEXT REFERENCES trips(id) ON DELETE CASCADE,
-kind        TEXT NOT NULL,          -- node_type | expense_category
-key         TEXT NOT NULL,
-label       TEXT NOT NULL,
-icon        TEXT,
-color       TEXT,
-soft        TEXT,
-lead_minutes INTEGER NOT NULL DEFAULT 30,   -- 提醒/日历提前量
-sort_order  INTEGER NOT NULL DEFAULT 0,
-created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  id          TEXT PRIMARY KEY,
+  trip_id     TEXT REFERENCES trips(id) ON DELETE CASCADE,
+  kind        TEXT NOT NULL,          -- node_type | expense_category
+  key         TEXT NOT NULL,
+  label       TEXT NOT NULL,
+  icon        TEXT,
+  color       TEXT,
+  soft        TEXT,
+  lead_minutes INTEGER NOT NULL DEFAULT 30,   -- 提醒/日历提前量
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_vocab_unique
-ON vocab(IFNULL(trip_id, ''), kind, key);
+  ON vocab(IFNULL(trip_id, ''), kind, key);
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,                        -- 格式: 'usr_' + 12位随机hex
+  openid TEXT UNIQUE NOT NULL,                -- 微信小程序 OpenID
+  unionid TEXT DEFAULT '',                    -- 微信开放平台 UnionID (预留)
+  nickname TEXT NOT NULL DEFAULT '旅行者',     -- 用户昵称
+  avatar_url TEXT NOT NULL DEFAULT '',        -- 用户头像 URL
+  is_profile_set INTEGER NOT NULL DEFAULT 0,  -- 0: 未主动设置头像昵称, 1: 已设置
+  last_trip_id TEXT DEFAULT '',               -- 最后激活的 trip_id
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `;
 
 db.exec(SCHEMA);
 
 // 老库平滑升级：以后加字段在这里补一句 ALTER TABLE
 function ensureColumn(table, column, definition) {
-const cols = db.prepare(`PRAGMA table_info(${table})`).all();
-if (!cols.some((c) => c.name === column)) {
-db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
+
+export function genShortCode(len = 8) {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let res = '';
+  const bytes = crypto.randomBytes(len);
+  for (let i = 0; i < len; i++) {
+    res += chars[bytes[i] % chars.length];
+  }
+  return res;
 }
+
+export function genUserId() {
+  return 'usr_' + crypto.randomBytes(6).toString('hex');
+}
+
+export function migrateMultiTimelineSchema(database = db) {
+  // 1. 扩展 trips 表
+  ensureColumn('trips', 'owner_id', 'TEXT DEFAULT NULL');
+  ensureColumn('trips', 'status', "TEXT NOT NULL DEFAULT 'ongoing'"); // 'planning' | 'ongoing' | 'archived'
+  ensureColumn('trips', 'invite_code', 'TEXT DEFAULT NULL');          // 8位大写字母数字: 协作编辑码 (editor)
+  ensureColumn('trips', 'view_code', 'TEXT DEFAULT NULL');            // 8位大写字母数字: 只读围观码 (viewer)
+  ensureColumn('trips', 'forked_from', 'TEXT DEFAULT NULL');          // 克隆来源 trip_id
+
+  // 2. 扩展 members 表
+  ensureColumn('members', 'user_id', 'TEXT DEFAULT NULL');            // 关联 users.id；NULL 代表虚拟记账同伴或未认领历史成员
+  ensureColumn('members', 'role', "TEXT NOT NULL DEFAULT 'editor'");  // 'owner' | 'editor' | 'viewer'
+  ensureColumn('members', 'avatar_url', "TEXT NOT NULL DEFAULT ''");
+
+  // 3. 创建索引（在保证列存在后创建）
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_members_user_id ON members(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_members_trip_user ON members(trip_id, user_id) WHERE user_id IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_trips_invite_code ON trips(invite_code) WHERE invite_code IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_trips_view_code ON trips(view_code) WHERE view_code IS NOT NULL;
+  `);
+
+  // 4. 为存量缺少分享码的行程补齐唯一邀请码与只读码
+  const existingTrips = database.prepare(`SELECT id, invite_code, view_code FROM trips`).all();
+  const updateCodes = database.prepare(`UPDATE trips SET invite_code = ?, view_code = ? WHERE id = ?`);
+  for (const t of existingTrips) {
+    if (!t.invite_code || !t.view_code) {
+      updateCodes.run(t.invite_code || genShortCode(8), t.view_code || genShortCode(8), t.id);
+    }
+  }
+}
+
+migrateMultiTimelineSchema(db);
 
 // 反向操作：字段确认没人用了，就从老库里删掉。需要 SQLite 3.35+（本机 3.49）。
 function dropColumn(table, column) {

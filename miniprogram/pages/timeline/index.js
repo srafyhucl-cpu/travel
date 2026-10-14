@@ -390,9 +390,29 @@ Page({
     dropSheet: null, // { dayLabel, rows: [{id,icon,time,title,on,timeMoved}], note, busy }
     scrollTop: 0,
     refreshing: false,
+    // 多时间线与微信权限相关
+    tripDrawerOpen: false,
+    tripFilterTab: 'active',
+    createModalOpen: false,
+    createMode: 'new',
+    tripForm: { name: '', destination: '', startDate: '', endDate: '' },
+    joinModalOpen: false,
+    joinCodeInput: '',
+    joinPreview: null,
+    selectedClaimId: '',
+    busyModal: false,
+    trips: [],
+    activeTripId: '',
+    myRole: 'editor',
+    isReadOnly: false,
+    switchingTrip: false,
+    user: null,
   },
 
   onLoad(query) {
+    if (query && (query.inviteCode || query.viewCode)) {
+      this._pendingShareCode = query.inviteCode || query.viewCode;
+    }
     // 图标只算一次：data URI 生成要遍历字形，别放进每轮 buildView
     this.setData({ ...iconSetFor(ICON_COLORS[themeOf() === 'dark' ? 'dark' : 'light']), nav: readNav() });
     // 深浅色切换跟随系统：切的时候把这三个 data URI 重新烙色（老基础库没有 API 就跳过）
@@ -498,7 +518,19 @@ Page({
     this.groups = groups;
     this.lastViewData = s.data;
     this.lastViewClock = clock;
-    const patch = { ready: true, ...view };
+    const myRole = s.data?.me?.role || s.data?.trip?.role || (s.trips?.find((t) => t.id === s.activeTripId)?.role) || 'editor';
+    const isReadOnly = myRole === 'viewer';
+    const allTrips = s.trips || [];
+    const patch = {
+      ready: true,
+      ...view,
+      trips: allTrips,
+      activeTripId: s.activeTripId || s.data?.trip?.id || '',
+      myRole,
+      isReadOnly,
+      switchingTrip: !!s.switchingTrip,
+      user: s.user || null,
+    };
     if (view.tripName !== this.lastTripName) {
       this.lastTripName = view.tripName;
       patch.navTitleSize = titleFontPx(view.tripName);
@@ -511,6 +543,11 @@ Page({
     this.setData(patch, () => {
       this.fillThumbs();
       this.flushScrollTo();
+      if (this._pendingShareCode && s.phase === 'ready') {
+        const codeToOpen = this._pendingShareCode;
+        this._pendingShareCode = '';
+        this.openJoinWithCode(codeToOpen);
+      }
     });
   },
 
@@ -1287,14 +1324,50 @@ Page({
     wx.navigateTo({ url: `/pages/node/index?id=${encodeURIComponent(id)}` });
   },
 
+  /** 加照片：选完直接传，nodeId 带上就把照片挂在这张卡下 */
+  onAddPhoto(e) {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
+    if (this.uploading) return; // 上传中拒绝重入：连点会开两次选图、重复上传
+    const nodeId = e.currentTarget.dataset.id || '';
+    this.pickAndUpload(nodeId);
+  },
+
+  /** 右下角「＋」：传照片（不指定就进随手记）/ 加一项 —— 对应 Web 的快捷面板 */
+  onQuickAdd() {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
+    if (this.uploading) return;
+    wx.showActionSheet({
+      itemList: ['传照片', '加一项'],
+      success: (res) => {
+        if (res.tapIndex === 0) this.pickAndUpload('');
+        else if (res.tapIndex === 1) wx.navigateTo({ url: '/pages/node/index' });
+      },
+      fail: () => {},
+    });
+  },
+
   /** 每天末尾「加一项」：带日期进新建页 */
   onAddNode(e) {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
     const date = e.currentTarget.dataset.date || '';
     wx.navigateTo({ url: `/pages/node/index${date ? `?date=${encodeURIComponent(date)}` : ''}` });
   },
 
   /** 打卡：出发 / 完成（走真实接口，和 Web 的 chip 同一套动作） */
   onCheckin(e) {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
     const { id, action } = e.currentTarget.dataset;
     if (!id || !action) return;
     actions.checkin(id, action).catch(() => {});
@@ -1318,7 +1391,166 @@ Page({
 
   /** 勾选待办：走真实写接口 —— 这条路径验证了鉴权、请求、刷新整条链路 */
   onToggle(e) {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
     const { node, item, done, text } = e.currentTarget.dataset;
     actions.setChecklistItem(node, item, !Number(done), text).catch(() => {});
+  },
+
+  /* ------------------------- 多时间线交互逻辑 ------------------------- */
+
+  noop() {},
+
+  onToggleTripDrawer() {
+    const next = !this.data.tripDrawerOpen;
+    this.setData({ tripDrawerOpen: next });
+    if (next) actions.refreshTrips().catch(() => {});
+  },
+
+  async onSelectTrip(e) {
+    const id = e.currentTarget.dataset.id;
+    if (!id || id === this.data.activeTripId) {
+      this.setData({ tripDrawerOpen: false });
+      return;
+    }
+    this.setData({ tripDrawerOpen: false });
+    await actions.switchTrip(id);
+  },
+
+  onOpenCreateModal(e) {
+    const mode = e?.currentTarget?.dataset?.mode || 'new'; // 'new' | 'clone'
+    const curTrip = getState().data?.trip;
+    const today = new Date().toISOString().slice(0, 10);
+    this.setData({
+      tripDrawerOpen: false,
+      createModalOpen: true,
+      createMode: mode,
+      tripForm: {
+        name: mode === 'clone' ? `${curTrip?.name || '行程'} (Plan B)` : '',
+        destination: curTrip?.destination || '',
+        startDate: curTrip?.start_date || today,
+        endDate: curTrip?.end_date || today,
+      },
+    });
+  },
+
+  onCloseCreateModal() {
+    this.setData({ createModalOpen: false });
+  },
+
+  onTripFormInput(e) {
+    const { field } = e.currentTarget.dataset;
+    const val = e.detail.value;
+    this.setData({
+      [`tripForm.${field}`]: val,
+    });
+  },
+
+  async onSubmitCreateTrip() {
+    if (this.data.busyModal) return;
+    const { name, destination, startDate, endDate } = this.data.tripForm;
+    if (!name.trim()) {
+      wx.showToast({ title: '请输入行程名称', icon: 'none' });
+      return;
+    }
+    this.setData({ busyModal: true });
+    try {
+      if (this.data.createMode === 'clone') {
+        await actions.cloneCurrentTrip({ name: name.trim(), startDate });
+      } else {
+        await actions.createTrip({
+          name: name.trim(),
+          destination: destination.trim(),
+          startDate,
+          endDate,
+        });
+      }
+      this.setData({ createModalOpen: false });
+    } finally {
+      this.setData({ busyModal: false });
+    }
+  },
+
+  openJoinWithCode(code = '') {
+    this.setData({
+      tripDrawerOpen: false,
+      joinModalOpen: true,
+      joinCodeInput: typeof code === 'string' ? code : '',
+      joinPreview: null,
+      selectedClaimId: '',
+    });
+    if (code && typeof code === 'string') this.onQueryJoinPreview();
+  },
+
+  onCloseJoinModal() {
+    this.setData({ joinModalOpen: false, joinPreview: null });
+  },
+
+  onJoinCodeInput(e) {
+    this.setData({ joinCodeInput: e.detail.value });
+  },
+
+  onSelectClaimMember(e) {
+    const id = e.currentTarget.dataset.id ?? '';
+    this.setData({ selectedClaimId: id });
+  },
+
+  async onQueryJoinPreview() {
+    const raw = (this.data.joinCodeInput || '').trim();
+    if (!raw) {
+      wx.showToast({ title: '请输入8位邀请码或口令', icon: 'none' });
+      return;
+    }
+    this.setData({ busyModal: true });
+    try {
+      const isShareCode = /^[A-Z0-9]{8}$/.test(raw.toUpperCase());
+      const preview = await actions.previewJoin(
+        isShareCode ? { code: raw.toUpperCase() } : { passphrase: raw }
+      );
+      this.setData({
+        joinPreview: preview,
+        selectedClaimId: preview.claimableMembers?.[0]?.id || '',
+      });
+    } catch (err) {
+      wx.showToast({ title: err?.message || '未找到该行程', icon: 'none' });
+    } finally {
+      this.setData({ busyModal: false });
+    }
+  },
+
+  async onConfirmJoinTrip() {
+    if (this.data.busyModal || !this.data.joinPreview) return;
+    const raw = (this.data.joinCodeInput || '').trim();
+    const isShareCode = /^[A-Z0-9]{8}$/.test(raw.toUpperCase());
+    this.setData({ busyModal: true });
+    try {
+      await actions.confirmJoin({
+        code: isShareCode ? raw.toUpperCase() : '',
+        passphrase: isShareCode ? '' : raw,
+        claimMemberId: this.data.selectedClaimId,
+      });
+      this.setData({ joinModalOpen: false, joinPreview: null, joinCodeInput: '' });
+    } catch (err) {
+      wx.showToast({ title: err?.message || '加入失败', icon: 'none' });
+    } finally {
+      this.setData({ busyModal: false });
+    }
+  },
+
+  onShareAppMessage(res) {
+    const trip = getState().data?.trip || {};
+    const mode = res?.target?.dataset?.mode || 'view';
+    if (mode === 'invite' && trip.invite_code && !this.data.isReadOnly) {
+      return {
+        title: `邀请你共同编辑「${trip.name || '我们的旅行'}」行程与记账`,
+        path: `/pages/timeline/index?inviteCode=${trip.invite_code}`,
+      };
+    }
+    return {
+      title: `分享「${trip.name || '旅行助手'}」行程时间线给你`,
+      path: `/pages/timeline/index?viewCode=${trip.view_code || ''}`,
+    };
   },
 });

@@ -9,7 +9,11 @@
   <view class="nav" style="padding-top:{{nav.statusBarHeight}}px">
     <view class="nav-bar" style="height:{{nav.navBarHeight}}px">
       <view class="nav-left" hover-class="nav-press" bindtap="onSettings">我的</view>
-      <view class="nav-title" style="font-size:{{navTitleSize}}px;max-width:{{nav.navTitleMax}}px">{{tripName}}</view>
+      <view class="nav-title trip-switcher-bar" style="max-width:{{nav.navTitleMax}}px" bindtap="onToggleTripDrawer">
+        <text class="trip-switcher-title" style="font-size:{{navTitleSize}}px">{{tripName}}</text>
+        <text class="trip-role-badge" wx:if="{{isReadOnly}}">只读</text>
+        <text class="trip-switcher-arrow">{{tripDrawerOpen ? '▴' : '▾'}}</text>
+      </view>
     </view>
   </view>
 
@@ -26,6 +30,11 @@
       bindscroll="onScroll"
     >
       <view class="scroll-inner">
+        <!-- ⓪ 只读围观模式顶部提示条 -->
+        <view class="readonly-banner" wx:if="{{isReadOnly}}">
+          <text class="readonly-text">当前为只读预览模式</text>
+          <view class="readonly-clone-btn" data-mode="clone" bindtap="onOpenCreateModal">复制为我的行程</view>
+        </view>
         <!-- ② 总结卡：状态 + 日期范围 + 大标题 + 总进度 + 三格统计（已花可点开明细） -->
         <view class="sum-card">
           <view class="sum-top">
@@ -302,7 +311,152 @@
     </view>
 
     <!-- 右下角快捷入口：传照片（不指定进随手记）/ 加一项 -->
-    <view class="fab" hover-class="fab-press" bindtap="onQuickAdd">＋</view>
+    <view wx:if="{{!isReadOnly}}" class="fab" hover-class="fab-press" bindtap="onQuickAdd">＋</view>
+
+    <!-- ⑧ 多时间线工作台半屏抽屉 -->
+    <view class="drawer-mask" wx:if="{{tripDrawerOpen}}" bindtap="onToggleTripDrawer">
+      <view class="drawer-sheet" catchtap="noop">
+        <view class="drawer-header">
+          <text class="drawer-title">我的旅行时间线 ({{trips.length}})</text>
+          <text class="drawer-close" bindtap="onToggleTripDrawer">✕</text>
+        </view>
+
+        <scroll-view scroll-y class="drawer-trip-list">
+          <view
+            wx:for="{{trips}}"
+            wx:key="id"
+            class="drawer-trip-card {{item.id === activeTripId ? 'is-active' : ''}}"
+            data-id="{{item.id}}"
+            bindtap="onSelectTrip"
+          >
+            <view class="drawer-trip-main">
+              <view class="drawer-trip-name-row">
+                <text class="drawer-trip-name">{{item.name}}</text>
+                <text class="drawer-trip-badge">{{item.role === 'owner' ? '创建者' : (item.role === 'viewer' ? '只读' : '协作')}}</text>
+              </view>
+              <text class="drawer-trip-meta">{{item.destination || '未设目的地'}} · {{item.startDate}} 至 {{item.endDate}}</text>
+            </view>
+            <text class="drawer-trip-check" wx:if="{{item.id === activeTripId}}">当前</text>
+          </view>
+        </scroll-view>
+
+        <view class="drawer-actions">
+          <button class="drawer-btn btn-primary" data-mode="new" bindtap="onOpenCreateModal">+ 新建时间线</button>
+          <button class="drawer-btn btn-secondary" data-mode="clone" bindtap="onOpenCreateModal">衍生备选分支 (Plan B)</button>
+          <button class="drawer-btn btn-outline" bindtap="openJoinWithCode">输入口令 / 邀请码加入行程</button>
+        </view>
+      </view>
+    </view>
+
+    <!-- ⑨ 新建/克隆行程弹窗 -->
+    <view class="drawer-mask modal-mask" wx:if="{{createModalOpen}}" bindtap="onCloseCreateModal">
+      <view class="modal-card" catchtap="noop">
+        <view class="modal-header">
+          <text class="modal-title">{{createMode === 'clone' ? '衍生备选分支 (Plan B)' : '新建时间线'}}</text>
+          <text class="drawer-close" bindtap="onCloseCreateModal">✕</text>
+        </view>
+        <view class="form-body">
+          <view class="form-item">
+            <text class="form-label">行程名称</text>
+            <input
+              class="form-input"
+              placeholder="如：川西自驾小环线"
+              value="{{tripForm.name}}"
+              data-field="name"
+              bindinput="onTripFormInput"
+            />
+          </view>
+          <view class="form-item" wx:if="{{createMode === 'new'}}">
+            <text class="form-label">目的地</text>
+            <input
+              class="form-input"
+              placeholder="如：成都 · 稻城亚丁"
+              value="{{tripForm.destination}}"
+              data-field="destination"
+              bindinput="onTripFormInput"
+            />
+          </view>
+          <view class="form-item">
+            <text class="form-label">出发日期 (YYYY-MM-DD)</text>
+            <input
+              class="form-input"
+              placeholder="2026-10-01"
+              value="{{tripForm.startDate}}"
+              data-field="startDate"
+              bindinput="onTripFormInput"
+            />
+          </view>
+          <view class="form-item" wx:if="{{createMode === 'new'}}">
+            <text class="form-label">结束日期 (YYYY-MM-DD)</text>
+            <input
+              class="form-input"
+              placeholder="2026-10-04"
+              value="{{tripForm.endDate}}"
+              data-field="endDate"
+              bindinput="onTripFormInput"
+            />
+          </view>
+          <button class="drawer-btn btn-primary" loading="{{busyModal}}" bindtap="onSubmitCreateTrip">
+            {{createMode === 'clone' ? '确认生成分支' : '确认创建'}}
+          </button>
+        </view>
+      </view>
+    </view>
+
+    <!-- ⑩ 加入行程与历史/虚拟成员认领弹窗 -->
+    <view class="drawer-mask modal-mask" wx:if="{{joinModalOpen}}" bindtap="onCloseJoinModal">
+      <view class="modal-card" catchtap="noop">
+        <view class="modal-header">
+          <text class="modal-title">加入或认领行程</text>
+          <text class="drawer-close" bindtap="onCloseJoinModal">✕</text>
+        </view>
+        <view class="form-body">
+          <view class="form-row">
+            <input
+              class="form-input flex-1"
+              placeholder="8位邀请码或历史口令"
+              value="{{joinCodeInput}}"
+              bindinput="onJoinCodeInput"
+            />
+            <button class="btn-sm btn-secondary" loading="{{busyModal}}" bindtap="onQueryJoinPreview">查询</button>
+          </view>
+
+          <block wx:if="{{joinPreview}}">
+            <view class="preview-box">
+              <view class="preview-title">{{joinPreview.trip.name}}</view>
+              <view class="preview-meta">
+                <text class="preview-role-tag">{{joinPreview.mode === 'viewer' ? '只读围观' : '协作编辑'}}</text>
+                <text>{{joinPreview.trip.startDate}} ~ {{joinPreview.trip.endDate}}</text>
+              </view>
+
+              <block wx:if="{{joinPreview.mode === 'editor' && joinPreview.claimableMembers.length > 0}}">
+                <view class="preview-subtitle">检测到该行程有待认领同伴，选择你的身份接管账单：</view>
+                <view class="claim-list">
+                  <view
+                    wx:for="{{joinPreview.claimableMembers}}"
+                    wx:key="id"
+                    class="claim-chip {{selectedClaimId === item.id ? 'is-selected' : ''}}"
+                    data-id="{{item.id}}"
+                    bindtap="onSelectClaimMember"
+                  >
+                    我是「{{item.name}}」
+                  </view>
+                  <view
+                    class="claim-chip {{selectedClaimId === '' ? 'is-selected' : ''}}"
+                    data-id=""
+                    bindtap="onSelectClaimMember"
+                  >
+                    作为新成员加入
+                  </view>
+                </view>
+              </block>
+
+              <button class="drawer-btn btn-primary" loading="{{busyModal}}" bindtap="onConfirmJoinTrip">进入此行程</button>
+            </view>
+          </block>
+        </view>
+      </view>
+    </view>
   </block>
 
   <view wx:else class="loading">

@@ -1,11 +1,15 @@
 import express from 'express';
 import { db, nowISO, uid } from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireTripAccess } from '../auth.js';
 import { broadcast } from '../events.js';
 import { parseChecklist, sanitizeChecklist } from '../checklist.js';
 
 const router = express.Router();
 router.use(requireAuth);
+router.use((req, res, next) => {
+  const minRole = ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'viewer' : 'editor';
+  requireTripAccess(minRole)(req, res, next);
+});
 
 // 类型不是写死的枚举：只要是安全的标识符就接受，展示信息去 vocab 表里查。
 function sanitizeKey(v) {

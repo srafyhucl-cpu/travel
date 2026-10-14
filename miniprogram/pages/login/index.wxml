@@ -2,10 +2,22 @@
   <view class="brand">
     <view class="logo">旅</view>
     <view class="title">旅行助手</view>
-    <view class="lead">输入同伴给你的口令，就能看到这趟旅行的行程和花销。</view>
+    <view class="lead">微信一键登录开启多时间线，或输入口令加入指定旅行。</view>
   </view>
 
   <view class="card form">
+    <block wx:if="{{canWxLogin}}">
+      <button class="btn-primary wx-login-btn {{wxBusy ? 'off' : ''}}" hover-class="btn-press" disabled="{{wxBusy || busy}}" bindtap="onWxLogin">
+        {{wxBusy ? '微信登录中…' : '微信一键登录'}}
+      </button>
+
+      <view class="divider">
+        <view class="divider-line"></view>
+        <text class="divider-text">或使用传统口令凭证</text>
+        <view class="divider-line"></view>
+      </view>
+    </block>
+
     <view class="field">
       <text class="label">旅行口令</text>
       <input class="input" password="{{true}}" value="{{passphrase}}" bindinput="onPass" placeholder="至少 4 位" />
@@ -17,10 +29,10 @@
       <view class="muted hint">用来标记记账时是谁付的钱，同名会自动认成同一个人。</view>
     </view>
 
-    <button class="btn-primary {{busy ? 'off' : ''}}" hover-class="btn-press" disabled="{{busy}}" bindtap="submit">
-      {{busy ? '请稍候…' : '进入这趟旅行'}}
+    <button class="btn-plain {{busy ? 'off' : ''}}" hover-class="btn-press" disabled="{{busy || wxBusy}}" bindtap="submit">
+      {{busy ? '请稍候…' : '口令验证进入'}}
     </button>
   </view>
 
-  <view class="muted foot">数据存在你自己的服务器上，不经过任何第三方。</view>
+  <view class="muted foot">数据存在你自己的服务器上，不经过任何第三方平台。</view>
 </view>

@@ -43,6 +43,7 @@ Page({
     missing: '',
     canSave: false,
     focusId: '',
+    isReadOnly: false,
   },
 
   // query.id = 编辑；query.date = 给某天新建（都为空就是「加一项」，日期默认行程第一天）
@@ -183,6 +184,10 @@ Page({
   /* ------------------------------ 删除 ------------------------------ */
 
   onDelete() {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '只读模式无法删除', icon: 'none' });
+      return;
+    }
     wx.showModal({
       title: `删掉「${this.data.title || '这一项'}」？`,
       content: '删了就找不回来了',
@@ -202,6 +207,10 @@ Page({
   /* ------------------------------ 保存 ------------------------------ */
 
   async onSave() {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '只读模式无法修改', icon: 'none' });
+      return;
+    }
     if (this.busy) return;
     const title = this.data.title.trim();
     if (!title || !this.data.date) return;
@@ -263,6 +272,8 @@ Page({
       return;
     }
     const data = s.data;
+    const myRole = data.me?.role || data.trip?.role || (s.trips?.find((t) => t.id === s.activeTripId)?.role) || 'editor';
+    const isReadOnly = myRole === 'viewer';
 
     // 编辑模式只预填一次，别让 20 秒一轮的同步把正在输入的内容冲掉
     if (this.nodeId && !this.prefilled) {
@@ -271,10 +282,11 @@ Page({
         this.prefilled = true;
         const date = n.date || '';
         const title = n.title || '';
-        wx.setNavigationBarTitle({ title: '编辑行程' });
+        wx.setNavigationBarTitle({ title: isReadOnly ? '查看行程' : '编辑行程' });
         this.setData({
           ready: true,
           editing: true,
+          isReadOnly,
           title,
           type: n.type || 'spot',
           date,
@@ -309,6 +321,7 @@ Page({
       wx.setNavigationBarTitle({ title: '新增行程' });
       this.setData({
         ready: true,
+        isReadOnly,
         date,
         types: toTypePills(data.vocab, this.data.type),
         ...this.gate(this.data.title, date),
@@ -318,6 +331,7 @@ Page({
 
     // 已预填：只保持类型胶囊和校验状态跟着最新数据走
     this.setData({
+      isReadOnly,
       types: toTypePills(data.vocab, this.data.type),
       ...this.gate(this.data.title, this.data.date),
     });

@@ -87,6 +87,19 @@ Page({
     importBusy: false,
     // 成就
     achvText: '',
+    // 用户资料与权限
+    user: null,
+    userNickname: '',
+    userAvatarUrl: '',
+    isReadOnly: false,
+    myRole: 'editor',
+    statusChoices: [
+      { key: 'planning', label: '计划中' },
+      { key: 'ongoing', label: '进行中' },
+      { key: 'archived', label: '已归档' },
+    ],
+    virtualModalOpen: false,
+    virtualNameInput: '',
   },
 
   onLoad() {
@@ -443,6 +456,158 @@ Page({
     wx.navigateTo({ url: '/pages/achievements/index' });
   },
 
+  /* ------------------------- 微信个人资料采集 ------------------------- */
+
+  async onChooseAvatar(e) {
+    const tempFilePath = e.detail?.avatarUrl;
+    if (!tempFilePath) return;
+    wx.showLoading({ title: '保存头像…', mask: true });
+    try {
+      let remoteUrl = tempFilePath;
+      try {
+        const res = await actions.uploadPhotos({ files: [{ filePath: tempFilePath, name: 'photo' }], fields: { type: 'avatar' } });
+        if (res && res[0]?.id) {
+          remoteUrl = `/api/photos/${res[0].id}/file`;
+        }
+      } catch {
+        // 上传如果遇到非关键报错，降级使用本地路径或直接提交
+      }
+      await actions.updateUserProfile({
+        nickname: this.data.userNickname || getState().user?.nickname || '旅行者',
+        avatarUrl: remoteUrl,
+      });
+      this.setData({ userAvatarUrl: remoteUrl });
+    } finally {
+      wx.hideLoading();
+    }
+  },
+
+  async onNicknameChange(e) {
+    const nickname = (e.detail?.value || '').trim();
+    if (!nickname) return;
+    this.setData({ userNickname: nickname });
+    await actions.updateUserProfile({
+      nickname,
+      avatarUrl: this.data.userAvatarUrl || getState().user?.avatarUrl || '',
+    });
+  },
+
+  /* ------------------------- 虚拟同伴管理 ------------------------- */
+
+  onOpenAddVirtualModal() {
+    this.setData({ virtualModalOpen: true, virtualNameInput: '' });
+  },
+
+  onCloseAddVirtualModal() {
+    this.setData({ virtualModalOpen: false, virtualNameInput: '' });
+  },
+
+  onVirtualNameInput(e) {
+    this.setData({ virtualNameInput: e.detail.value });
+  },
+
+  async onSubmitAddVirtual() {
+    const name = (this.data.virtualNameInput || '').trim();
+    if (!name) {
+      wx.showToast({ title: '请输入同伴姓名', icon: 'none' });
+      return;
+    }
+    try {
+      await actions.addVirtualMember({ name });
+      this.setData({ virtualModalOpen: false, virtualNameInput: '' });
+    } catch (err) {
+      wx.showToast({ title: err?.message || '添加失败', icon: 'none' });
+    }
+  },
+
+  async onRemoveMember(e) {
+    const { id, name } = e.currentTarget.dataset;
+    wx.showModal({
+      title: `移除成员「${name}」？`,
+      content: '若该成员已有记账消费，需先调整账单归属后才能移除',
+      confirmText: '移除',
+      confirmColor: '#E2574C',
+      success: async (r) => {
+        if (!r.confirm) return;
+        try {
+          await actions.removeTripMember(id);
+        } catch (err) {
+          if (err?.code === 'MEMBER_HAS_EXPENSES' || err?.status === 409) {
+            wx.showModal({
+              title: '无法移除该成员',
+              content: '该成员名下已有记账记录（作为付款人或分摊人），请先在账单中修改相关记录归属后再移除',
+              showCancel: false,
+            });
+          } else {
+            wx.showToast({ title: err?.message || '移除失败', icon: 'none' });
+          }
+        }
+      },
+    });
+  },
+
+  /* ------------------------- 行程管理操作 ------------------------- */
+
+  async onSwitchStatus(e) {
+    const status = e.currentTarget.dataset.status;
+    const curStatus = this.data.trip?.status || 'ongoing';
+    if (status === curStatus) return;
+    await actions.patchTripStatus(this.data.trip.id, status);
+  },
+
+  onCloneTrip() {
+    const trip = this.data.trip;
+    wx.showModal({
+      title: '衍生备选分支 (Plan B)',
+      content: `复制「${trip.name || '当前行程'}」的所有节点与预算为新时间线，方便规划备选路线？`,
+      confirmText: '生成分支',
+      success: async (r) => {
+        if (!r.confirm) return;
+        try {
+          await actions.cloneCurrentTrip({ name: `${trip.name || '行程'} (Plan B)` });
+          wx.switchTab ? wx.switchTab({ url: '/pages/timeline/index' }) : wx.navigateBack();
+        } catch (err) {
+          wx.showToast({ title: err?.message || '克隆失败', icon: 'none' });
+        }
+      },
+    });
+  },
+
+  onDeleteOrLeaveTrip() {
+    const isOwner = this.data.myRole === 'owner';
+    const tripName = this.data.trip.name || '该行程';
+    wx.showModal({
+      title: isOwner ? `彻底删除「${tripName}」？` : `退出「${tripName}」？`,
+      content: isOwner ? '删除后该行程下的所有节点、记账、照片记录将被彻底清理，不可恢复！' : '退出后将无法查看或编辑该行程。',
+      confirmText: isOwner ? '彻底删除' : '退出行程',
+      confirmColor: '#E2574C',
+      success: async (r) => {
+        if (!r.confirm) return;
+        try {
+          await actions.deleteOrLeaveTrip(this.data.trip.id);
+          wx.navigateBack();
+        } catch (err) {
+          wx.showToast({ title: err?.message || '操作失败', icon: 'none' });
+        }
+      },
+    });
+  },
+
+  onShareAppMessage(res) {
+    const trip = this.data.trip || {};
+    const mode = res?.target?.dataset?.mode || 'view';
+    if (mode === 'invite' && trip.invite_code && !this.data.isReadOnly) {
+      return {
+        title: `邀请你共同编辑「${trip.name || '我们的旅行'}」行程与记账`,
+        path: `/pages/timeline/index?inviteCode=${trip.invite_code}`,
+      };
+    }
+    return {
+      title: `分享「${trip.name || '旅行助手'}」行程时间线给你`,
+      path: `/pages/timeline/index?viewCode=${trip.view_code || ''}`,
+    };
+  },
+
   /* ------------------------------ 数据落地 ------------------------------ */
 
   sync() {
@@ -468,10 +633,19 @@ Page({
     const meId = data.meId || achv.memberList.find((m) => m.name === data.me)?.id || null;
     const mine = achv.byMember[meId] || [];
 
+    const myRole = data.me?.role || trip.role || (s.trips?.find((t) => t.id === trip.id)?.role) || 'editor';
+    const isReadOnly = myRole === 'viewer';
+    const currentUser = s.user || null;
+
     this.setData({
       ready: true,
       trip,
       dayCount,
+      isReadOnly,
+      myRole,
+      user: currentUser,
+      userNickname: currentUser?.nickname || '',
+      userAvatarUrl: currentUser?.avatarUrl || '',
       statsLine: `${(data.nodes || []).length} 行程 · ${(data.expenses || []).length} 消费 · ${(data.photos || []).length} 照片`,
       members: members.map((m) => ({
         id: m.id,
@@ -480,6 +654,9 @@ Page({
         tint: tintOf(m.color || MEMBER_COLORS[0]),
         initial: (m.name || '?').trim().slice(0, 1),
         me: (data.meId ? m.id === data.meId : m.name === data.me) && m.name !== '我',
+        userId: m.user_id || null,
+        isVirtual: !m.user_id,
+        role: m.role || 'editor',
       })),
       types: chips.types,
       cats: chips.cats,

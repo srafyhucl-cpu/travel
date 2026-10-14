@@ -192,3 +192,29 @@ button::after {
   text-decoration: line-through;
   color: var(--ink-3);
 }
+
+/* 只读模式通用提示条 */
+.readonly-notice {
+  margin: 32rpx 0 16rpx;
+  padding: 24rpx 28rpx;
+  background: var(--surface-2);
+  border: 1rpx dashed var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  box-sizing: border-box;
+}
+
+.readonly-icon {
+  font-size: 36rpx;
+  line-height: 1;
+}
+
+.readonly-text {
+  font-size: 26rpx;
+  color: var(--ink-2);
+  line-height: 1.4;
+  font-weight: 500;
+}
+

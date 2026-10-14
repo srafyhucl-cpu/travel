@@ -11,10 +11,18 @@ import { session } from './session.js';
  * 开发/自动化测试时可以在控制台或脚本里 wx.setStorageSync('travel.base', 'http://127.0.0.1:7042')
  * 指向本机后端 —— 每次请求现读，改完不用重启。 */
 const PROD_BASE = 'https://travel.hclstudio.cn';
+const DEV_LOCAL_BASE = 'http://127.0.0.1:7021';
 
 export function baseUrl() {
   try {
-    return wx.getStorageSync('travel.base') || PROD_BASE;
+    const custom = wx.getStorageSync('travel.base');
+    if (custom) return custom;
+    const accountInfo = wx.getAccountInfoSync?.();
+    const envVersion = accountInfo?.miniProgram?.envVersion;
+    if (envVersion === 'develop') {
+      return DEV_LOCAL_BASE;
+    }
+    return PROD_BASE;
   } catch {
     return PROD_BASE;
   }
@@ -41,14 +49,18 @@ function toResponse(status, data) {
   };
 }
 
-function authHeader() {
+function authHeader(tripId = '') {
   const token = session.getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const targetTripId = tripId || session.getTripId();
+  const h = {};
+  if (token) h['Authorization'] = `Bearer ${token}`;
+  if (targetTripId) h['Trip-Id'] = targetTripId;
+  return h;
 }
 
-export function send({ method = 'GET', path, headers = {}, body, isForm = false }) {
+export function send({ method = 'GET', path, headers = {}, body, isForm = false, tripId = '' }) {
   return new Promise((resolve, reject) => {
-    const header = { ...headers, ...authHeader() };
+    const header = { ...headers, ...authHeader(tripId) };
     if (!isForm && body !== undefined) header['Content-Type'] = 'application/json';
     wx.request({
       url: `${baseUrl()}${path}`,
@@ -67,7 +79,7 @@ export function send({ method = 'GET', path, headers = {}, body, isForm = false 
  * 网络失败直接 reject；HTTP 错误仍返回响应，由 store/api 统一给可读提示。
  * 前面已传成功的照片服务端已收下，失败那次不假装成功。
  */
-export async function upload({ path, files = [], fields = {} }) {
+export async function upload({ path, files = [], fields = {}, tripId = '' }) {
   const rows = [];
   for (const f of files) {
     const formData = {};
@@ -79,7 +91,7 @@ export async function upload({ path, files = [], fields = {} }) {
         url: `${baseUrl()}${path}`,
         filePath: f.filePath,
         name: f.field || 'photos',
-        header: authHeader(),
+        header: authHeader(tripId),
         formData,
         success: (r) => resolve({ status: r.statusCode, data: r.data }),
         fail: (err) => reject(new Error(err?.errMsg || 'upload failed')),
@@ -93,7 +105,16 @@ export async function upload({ path, files = [], fields = {} }) {
   return toResponse(200, JSON.stringify(rows));
 }
 
-export function openStream({ onOpen, onMessage, onError }) {
+export function openStream(optionsOrPath, maybeOnMessage) {
+  let onOpen, onMessage, onError;
+  if (typeof optionsOrPath === 'string') {
+    onMessage = maybeOnMessage;
+  } else if (optionsOrPath && typeof optionsOrPath === 'object') {
+    onOpen = optionsOrPath.onOpen;
+    onMessage = optionsOrPath.onMessage;
+    onError = optionsOrPath.onError;
+  }
+
   let closed = false;
   const emit = () => {
     if (closed) return;

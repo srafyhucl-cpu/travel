@@ -38,6 +38,28 @@
   box-sizing: border-box;
 }
 
+.wx-login-btn {
+  margin-bottom: 28rpx;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin: 12rpx 0 24rpx;
+}
+
+.divider-line {
+  flex: 1;
+  height: 1rpx;
+  background: var(--line);
+}
+
+.divider-text {
+  font-size: 22rpx;
+  color: var(--ink-3);
+}
+
 .hint {
   margin-top: 10rpx;
 }
@@ -46,3 +68,4 @@
   margin-top: 44rpx;
   text-align: center;
 }
+
