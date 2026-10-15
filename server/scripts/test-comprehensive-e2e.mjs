@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import automator from 'miniprogram-automator';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOCAL_SHOT_DIR = path.resolve(__dirname, '../../miniprogram/screenshots');
+const LOCAL_SHOT_DIR = path.resolve(__dirname, '../../docs/screenshots');
 const BRAIN_SHOT_DIR_1 = 'C:\\Users\\srafy\\.gemini\\antigravity\\brain\\64c1c67a-30d4-40a1-b77b-03a19d489f2a\\screenshots';
 const BRAIN_SHOT_DIR_2 = 'C:\\Users\\srafy\\.gemini\\antigravity\\brain\\5b5be4d9-ed90-4dcf-bf02-e662c0fc1d49\\screenshots';
 

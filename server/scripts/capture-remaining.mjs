@@ -5,7 +5,7 @@ import automator from 'miniprogram-automator';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ARTIFACT_DIR = 'C:\\Users\\srafy\\.gemini\\antigravity\\brain\\5b5be4d9-ed90-4dcf-bf02-e662c0fc1d49\\screenshots';
-const LOCAL_SHOT_DIR = path.resolve(__dirname, '../../miniprogram/screenshots');
+const LOCAL_SHOT_DIR = path.resolve(__dirname, '../../docs/screenshots');
 
 async function capture(mp, filename) {
   const { data } = await mp.send('App.captureScreenshot');
