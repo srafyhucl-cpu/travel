@@ -13,6 +13,7 @@
  *
  *   --local（全链路，不碰生产）：
  *     PASS=你的口令 node scripts/check-devtools.mjs --local
+ *       （本地库没口令时：加 --fresh-seed，用内置测试口令在副本里预填云南行程再跑）
  *     - 把 server/data 整份复制到临时目录，另起 7042 端口的后端；
  *     - 小程序里把 travel.base 指向它，登录随便建成员（副本库）；
  *     - 行程页断言；打卡（checkins +1）；行程编辑（改标题/新建/删除/上移）；
@@ -27,13 +28,15 @@
  *
  * 环境变量：CLI_PATH 覆盖 cli.bat 路径；PROJECT 覆盖小程序工程路径。
  * 退出码：0 全通 / 1 有失败（含连不上开发者工具）/ 2 脚本自己炸了（用法、缺依赖等）。
+ * 单实例：--local 起跑前会查 7042 与 D:\Temp\wx-devtools.lock，占用就 exit 2（绝不 rmSync 别人的临时目录）。
  *
  * 依赖：miniprogram-automator 装在 web/node_modules（web/package.json 的 devDependency），
  * 与 sync-shared.mjs 加载 esbuild 的方式一致，用 createRequire 过去拿，这里不另装一份。
  */
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
@@ -46,6 +49,8 @@ const SRC_DATA = path.join(SERVER_DIR, 'data');
 
 // 临时数据放仓库所在的盘（和 web/scripts/_harness.cjs 一个做法）
 const TEMP_DATA = path.join(path.parse(REPO_ROOT).root.replace(/[\\/]$/, ''), 'Temp', 'wx-devtools-testdata');
+// 单实例锁：故意放在临时目录外层 —— 那个目录每次起跑都会被 rmSync，锁得活下来才拦得住第二个实例
+const LOCK_PATH = path.join(path.dirname(TEMP_DATA), 'wx-devtools.lock');
 
 const CLI_PATH = process.env.CLI_PATH || 'D:\\微信web开发者工具\\cli.bat';
 const WS_PORT = 9420;
@@ -54,6 +59,9 @@ const LOCAL_PORT = 7042;
 const LOCAL_BASE = `http://127.0.0.1:${LOCAL_PORT}`;
 const PROD_BASE = 'https://travel.hclstudio.cn'; // 和 platform/wx/net.js 里的生产地址一致
 const LOCAL = process.argv.includes('--local');
+/** --local 时可选：副本里用内置测试口令预填一趟云南行程（本地开发库没有可用口令时也能跑全链路） */
+const FRESH_SEED = process.argv.includes('--fresh-seed');
+const SEED_FALLBACK_PASS = 'agent-seed-2026';
 
 // 上传用：1×1 的合法 PNG（服务端要过魔数校验，大小无所谓）
 const TINY_PNG_B64 =
@@ -72,7 +80,7 @@ function findHeicSample() {
   return null;
 }
 
-const PASS = process.env.PASS;
+const PASS = (process.env.PASS || (LOCAL && FRESH_SEED ? SEED_FALLBACK_PASS : '')).trim();
 if (!PASS) {
   console.error('缺少 PASS 环境变量：先设置这趟旅行的口令再跑，例如  PASS=你的口令 node scripts/check-devtools.mjs');
   process.exit(2);
@@ -90,6 +98,70 @@ try {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* ------------------------------ 自动化桥瞬时故障重试 ------------------------------ */
+/*
+ * 背景（2026-10-12 实测，Nightly 2.02.2610092）：mp.evaluate 走的 App.callFunction 会间歇性
+ * 直接返回错误 —— "Uncaught wx is not defined" / "Uncaught Promise is not defined"，
+ * 同一会话里同样的调用下一次就好（实测：单跑 20/20 成功；照抄脚本前缀 6 次里 5 次失败）。
+ * 这属于自动化桥抽风，不是断言失败，所以只对这几个瞬时特征重试，其余错误照原样抛。
+ * 证据显示失败后同一条连接仍然可用（同一连接上失败的下一条就成功了），故原地重试，不重连。
+ */
+const BRIDGE_FLAKE_PATTERNS = [
+  /Uncaught wx is not defined/i,
+  /Uncaught Promise is not defined/i,
+  /timeout waiting for automator response/i,
+  /Connection closed, check if wechat web devTools is still running/i,
+  /WebSocket is not open|socket hang up|ECONNRESET|EPIPE/i,
+];
+const BRIDGE_MAX_ATTEMPTS = 6; // 首次 + 最多 5 次重试
+// 实测坏窗口是「成段」的：同一时刻各种函数体一起失败，好窗口又一起成功（60s 采样 60/60 成功，
+// 另一段 24 次里 16 次失败）。所以间隔取规格上限，尽量熬过窗口。
+const BRIDGE_RETRY_DELAYS = [400, 600, 800, 800, 800]; // 小幅退避，都在 300–800ms
+
+let bridgeCalls = 0; // 逻辑调用次数（一个 evaluate 算一次）
+let bridgeRetries = 0; // 其中因瞬时故障重试的次数
+let bridgeGiveUp = 0; // 重试耗尽仍失败
+
+function isBridgeFlake(e) {
+  const msg = String(e?.message ?? e ?? '');
+  return BRIDGE_FLAKE_PATTERNS.some((re) => re.test(msg));
+}
+
+/** mp.evaluate 的封装：只兜桥的瞬时故障，耗尽后抛最初那条原始错误 */
+async function evalInApp(mp, fn, ...args) {
+  bridgeCalls += 1;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await mp.evaluate(fn, ...args);
+    } catch (e) {
+      const flake = isBridgeFlake(e);
+      if (!flake || attempt >= BRIDGE_MAX_ATTEMPTS) {
+        if (flake) {
+          bridgeGiveUp += 1;
+          console.log(`  ! 桥瞬时故障重试 ${BRIDGE_MAX_ATTEMPTS - 1} 次仍失败，报原始错误：${e.message}`);
+          if (/Uncaught wx is not defined|Uncaught Promise is not defined/i.test(String(e.message))) {
+            console.log(
+              '  · 疑似环境问题：注入函数里只要调用 wx API 就失败、不碰 wx 的函数却全过（实测 15/15 vs 0/15）——' +
+                '多半是 IDE 停在「微信AI 编译模式」，wx 调用被拦到没有 wx 的沙箱。切回普通编译模式或重启 IDE 后重跑。'
+            );
+          }
+        }
+        throw e;
+      }
+      bridgeRetries += 1;
+      const wait = BRIDGE_RETRY_DELAYS[Math.min(attempt - 1, BRIDGE_RETRY_DELAYS.length - 1)];
+      console.log(`  · 桥瞬时故障（${e.message}），${wait}ms 后原地重试（第 ${attempt} 次）`);
+      await sleep(wait);
+    }
+  }
+}
+
+function printBridgeStats() {
+  console.log(
+    `桥重试统计：重试 ${bridgeRetries} 次 / 共 ${bridgeCalls} 次调用（重试耗尽仍失败 ${bridgeGiveUp} 次）`
+  );
+}
 
 let failures = 0;
 /** runLocalFlow 登记的收尾动作：无论跑成还是炸了，都把小程序存储还回去 */
@@ -343,14 +415,14 @@ async function ensureSession(mp, { base, name, hint }) {
       ok = await snapOk();
       break;
     }
-    const hasToken = await mp.evaluate(() => !!wx.getStorageSync('travel.token'));
+    const hasToken = await evalInApp(mp, () => !!wx.getStorageSync('travel.token'));
     if (hasToken) {
       await nudgeRefresh(mp);
     } else if (rawTried < 2) {
       rawTried += 1;
       const raw = await rawLoginInApp(mp, base, PASS, name);
       if (raw.status === 200 && raw.token) {
-        await mp.evaluate(
+        await evalInApp(mp,
           (s) => {
             wx.setStorageSync('travel.token', s.token);
             if (s.tripId) wx.setStorageSync('travel.tripId', s.tripId);
@@ -389,7 +461,7 @@ function watchErrors(mp) {
 /* ------------------------------ 小程序内取数（evaluate 里走 wx.request） ------------------------------ */
 
 function snapshotInApp(mp, base) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -404,7 +476,7 @@ function snapshotInApp(mp, base) {
 }
 
 function patchNodeInApp(mp, base, id, payload) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, nodeId, body) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -428,7 +500,7 @@ function patchNodeInApp(mp, base, id, payload) {
 /** 用 automator 的元素 API 拿一批元素的位置/尺寸（顺序与 page.$$ 一致；避开 evaluate 的序列化坑） */
 /** 建一条节点（--local 专用：造 role=module 的「出行准备」来验准备卡） */
 function createNodeInApp(mp, base, payload) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, body) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -449,7 +521,7 @@ function createNodeInApp(mp, base, payload) {
 }
 
 function deleteNodeInApp(mp, base, id) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, nodeId) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -493,7 +565,7 @@ async function rectsOfElements(els) {
 
 /** 把一段 base64 写进小程序用户目录并上传（wx.uploadFile 的真实链路） */
 function uploadBytesInApp(mp, base, { name, b64, nodeId }) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, o) =>
       new Promise((resolve) => {
         const filePath = `${wx.env.USER_DATA_PATH}/${o.name}`;
@@ -520,7 +592,7 @@ function uploadBytesInApp(mp, base, { name, b64, nodeId }) {
 
 /** 直接打登录接口拿会话（存储里没有令牌、等不到 401 顶回登录页时的兜底） */
 function rawLoginInApp(mp, base, passphrase, name) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, p, n) =>
       new Promise((resolve) => {
         wx.request({
@@ -546,7 +618,7 @@ function rawLoginInApp(mp, base, passphrase, name) {
 
 /** 请求某个变体，返回状态 / Content-Type / 字节数（验证服务端派生图） */
 function variantInApp(mp, base, photoId, variant) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, pid, v) =>
       new Promise((resolve) => {
         wx.request({
@@ -569,7 +641,7 @@ function variantInApp(mp, base, photoId, variant) {
 }
 
 function deletePhotoInApp(mp, base, id) {
-  return mp.evaluate(
+  return evalInApp(mp,
     (b, pid) =>
       new Promise((resolve, reject) => {
         wx.request({
@@ -587,7 +659,7 @@ function deletePhotoInApp(mp, base, id) {
 
 /** 把跑测试前存的会话与 base 写回去（正常收尾和中断兜底共用） */
 function restoreSessionInApp(mp, saved) {
-  return mp.evaluate((s) => {
+  return evalInApp(mp, (s) => {
     if (s.base) wx.setStorageSync('travel.base', s.base);
     else wx.removeStorageSync('travel.base');
     if (s.token) wx.setStorageSync('travel.token', s.token);
@@ -611,14 +683,159 @@ function copyDir(src, dst) {
   }
 }
 
+/* ------------------------------ 单实例前置检查 ------------------------------ */
+// 临时库目录、7042、IDE 自动化桥都是全局独占资源：并行跑会互删目录、互相污染数据。
+// 老做法是 bootLocalServer 一上来就 rmSync(TEMP_DATA) —— 那会把在跑实例的 photos/ 抹掉，
+// 上传随即 400 server_error（2026-10-12 的定性实验：删掉 photos/ 后上传 400、GET /api/photos 仍 200）。
+// 所以先查，查不过就退出，绝不删别人的临时目录。
+
+function readLock() {
+  try {
+    return JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeLock() {
+  try {
+    fs.writeFileSync(
+      LOCK_PATH,
+      JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), tempData: TEMP_DATA })
+    );
+  } catch {
+    /* 写不了锁不拦路：还有端口检查和进程扫描 */
+  }
+}
+
+function releaseLock() {
+  try {
+    fs.rmSync(LOCK_PATH, { force: true });
+  } catch {
+    /* 已经不在了 */
+  }
+}
+
+function pidAlive(pid) {
+  if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 扫本机 node 进程里命令行带 check-devtools 的（排除自己）；返回 null 表示扫描不可用 */
+function otherCheckDevtoolsPids() {
+  if (process.platform !== 'win32') return null;
+  try {
+    const ps = spawnSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -like '*check-devtools*' } | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }",
+      ],
+      { encoding: 'utf8', timeout: 15000 }
+    );
+    if (ps.status !== 0) return null;
+    const self = new Set([process.pid, process.ppid]);
+    return (ps.stdout || '')
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => {
+        const [pid, ...rest] = l.split('\t');
+        return { pid: Number(pid), cmd: rest.join('\t') };
+      })
+      .filter((p) => Number.isFinite(p.pid) && !self.has(p.pid));
+  } catch {
+    return null;
+  }
+}
+
+/** 7042 是否有人：先问健康接口，再退化成 TCP 连接探测（占着端口但没起来的服务也拦） */
+async function localPortBusy() {
+  try {
+    const r = await fetch(`${LOCAL_BASE}/api/health`, { signal: AbortSignal.timeout(800) });
+    if (r.ok) return true;
+  } catch {
+    /* 没应答，继续 TCP 探测 */
+  }
+  return await new Promise((resolve) => {
+    const sock = net.connect({ host: '127.0.0.1', port: LOCAL_PORT });
+    const done = (v) => {
+      try {
+        sock.destroy();
+      } catch {
+        /* 已经断了 */
+      }
+      resolve(v);
+    };
+    sock.setTimeout(800);
+    sock.once('connect', () => done(true));
+    sock.once('timeout', () => done(false));
+    sock.once('error', () => done(false));
+  });
+}
+
+/** 独占前置检查：不过就打印原因并 exit 2，绝不碰临时目录 */
+async function assertLocalExclusive() {
+  const reasons = [];
+  const lock = readLock();
+  if (lock?.pid && lock.pid !== process.pid) {
+    const others = otherCheckDevtoolsPids();
+    if (!pidAlive(lock.pid)) {
+      console.log(`· 发现陈旧锁（pid ${lock.pid} 已不在），清掉后继续`);
+      releaseLock();
+    } else if (others === null || others.some((p) => p.pid === lock.pid)) {
+      // others === null：进程扫描不可用，宁可保守地当成真锁
+      reasons.push(
+        `另一个 check-devtools 实例还在跑（pid ${lock.pid}，${lock.startedAt || '启动时间未知'}，临时目录 ${lock.tempData || TEMP_DATA}）`
+      );
+    } else {
+      console.log(`· 锁里的 pid ${lock.pid} 活着但不是 check-devtools（pid 被复用），按陈旧锁清掉`);
+      releaseLock();
+    }
+  }
+  if (await localPortBusy()) reasons.push(`127.0.0.1:${LOCAL_PORT} 已被监听（别的实例或别的服务在跑）`);
+
+  if (reasons.length) {
+    console.error('');
+    console.error('== 单实例前置检查未通过：这次不跑 ==');
+    for (const r of reasons) console.error(`  · ${r}`);
+    console.error(`  · 临时目录 ${TEMP_DATA} 是单实例独占的：本脚本不会 rmSync 别人的临时目录，直接退出。`);
+    console.error('  · 等上面那个实例跑完再重跑；全链路一次只许一个实例。');
+    process.exit(2);
+  }
+}
+
 async function bootLocalServer() {
   console.log('\n== 准备本机临时后端 ==');
+  await assertLocalExclusive(); // 必须在 rmSync 之前：绝不删别人正在用的临时目录
   if (!fs.existsSync(path.join(SRC_DATA, 'travel.db'))) {
     throw new Error(`没找到 ${SRC_DATA}\\travel.db，先确认 server/data 是否完整`);
   }
+  writeLock(); // 检查已通过：先立锁，再动临时目录
   fs.rmSync(TEMP_DATA, { recursive: true, force: true });
   copyDir(SRC_DATA, TEMP_DATA);
   console.log(`数据副本：${TEMP_DATA}`);
+
+  // 本地开发库的口令可能与生产不同（pepper 各自生成）：--fresh-seed 时用种子脚本
+  // 在副本里预填一趟已知口令的云南行程，登录页就能用内置测试口令走通全链路
+  if (FRESH_SEED) {
+    const seed = spawnSync('node', ['src/seed/run.js', PASS], {
+      cwd: SERVER_DIR,
+      env: { ...process.env, DATA_DIR: TEMP_DATA },
+      encoding: 'utf8',
+    });
+    if (seed.status !== 0) {
+      throw new Error(`--fresh-seed 预填失败（code ${seed.status}）：${(seed.stdout || '') + (seed.stderr || '')}`);
+    }
+    console.log(`副本库已预填测试行程（口令 ${PASS}）`);
+  }
 
   const child = spawn('node', ['src/index.js'], {
     cwd: SERVER_DIR,
@@ -659,6 +876,7 @@ async function bootLocalServer() {
     } catch {
       /* 留着也不影响结果 */
     }
+    releaseLock();
     throw e;
   }
 }
@@ -684,6 +902,7 @@ async function shutdownLocalServer(child) {
   console.log(
     cleaned ? `临时后端已关闭，数据副本已删（${TEMP_DATA}）` : `临时后端已关闭，但副本没删干净：${TEMP_DATA}（不影响结果，可手动删）`
   );
+  releaseLock();
 }
 
 /* ------------------------------ 两种流程 ------------------------------ */
@@ -728,6 +947,74 @@ async function runDefaultFlow(mp) {
   check('时间线清单渲染完整', blocks.length === expect, `checks=${blocks.length} 应有=${expect}`);
 }
 
+/* ------------------------------ 小程序用户目录（10MB 上限） ------------------------------ */
+// 全链路会往 wx.env.USER_DATA_PATH 写测试文件（1×1 PNG、382KB 的 HEIC 样本、海报用的 PNG）。
+// 这些文件不删会一轮轮堆积，撞上 10MB 上限后 writeFileSync 直接失败、上传类断言连带全红
+// （2026-10-12 实测：跑到第 N 轮出现 "maximum size of the file storage limit is exceeded"）。
+// 规矩：起跑前清掉自己上一轮漏下的、收尾再清一次，只按前缀精确删，绝不碰用户数据。
+const TEST_FILE_PREFIXES = ['wx-check', 'wx-poster', 'check.heic'];
+
+const fmtKB = (n) => `${Math.round((n || 0) / 1024)}KB`;
+
+/** 读小程序用户目录占用：文件数 + 总字节 + 文件名单（最多 40 个，用来一眼看出谁在漏） */
+function userDataUsageInApp(mp) {
+  return evalInApp(mp, () =>
+    new Promise((resolve) => {
+      try {
+        const dir = wx.env.USER_DATA_PATH;
+        const fsm = wx.getFileSystemManager();
+        const names = fsm.readdirSync(dir) || [];
+        let bytes = 0;
+        for (const n of names) {
+          try {
+            bytes += fsm.statSync(`${dir}/${n}`).size || 0;
+          } catch {
+            /* 目录或读不到的都跳过 */
+          }
+        }
+        resolve({ dir, count: names.length, bytes, names: names.slice(0, 40) });
+      } catch (e) {
+        resolve({ error: e.errMsg || String(e) });
+      }
+    })
+  );
+}
+
+/** 清掉测试自己写进用户目录的文件（按前缀精确匹配，返回删掉的名单与字节数） */
+function cleanTestFilesInApp(mp) {
+  return evalInApp(mp,
+    (prefixes) =>
+      new Promise((resolve) => {
+        const dir = wx.env.USER_DATA_PATH;
+        const fsm = wx.getFileSystemManager();
+        const removed = [];
+        let bytes = 0;
+        try {
+          for (const n of fsm.readdirSync(dir) || []) {
+            if (!prefixes.some((p) => n.startsWith(p))) continue;
+            let size = 0;
+            try {
+              size = fsm.statSync(`${dir}/${n}`).size || 0;
+            } catch {
+              /* 拿不到大小也照样删 */
+            }
+            try {
+              fsm.unlinkSync(`${dir}/${n}`);
+              removed.push(n);
+              bytes += size;
+            } catch {
+              /* 删不掉就算了，别把整轮带崩 */
+            }
+          }
+        } catch (e) {
+          return resolve({ error: e.errMsg || String(e), removed, bytes });
+        }
+        resolve({ removed, bytes });
+      }),
+    TEST_FILE_PREFIXES
+  );
+}
+
 async function runLocalFlow(mp) {
   console.log('\n== --local 模式：本机临时后端，全链路 ==');
 
@@ -747,9 +1034,41 @@ async function runLocalFlow(mp) {
     throw new Error(`当前页不是 travel 小程序（${p0?.path || '读不到页面'}）；--local 会写小程序存储，请先把本项目切到前台`);
   }
 
+  // 用户目录只有 10MB：起跑前先报占用、清掉自己上一轮漏下的测试文件（只按前缀删，不碰用户数据）
+  const usageBefore = await userDataUsageInApp(mp);
+  const cleanedBefore = await cleanTestFilesInApp(mp);
+  const usageCleaned = await userDataUsageInApp(mp);
+  console.log(`用户目录：${usageBefore.dir || '（读不到）'}`);
+  console.log(
+    `用户目录：跑前 ${usageBefore.count ?? '?'} 个文件 / ${fmtKB(usageBefore.bytes)}${usageBefore.error ? `（读失败：${usageBefore.error}）` : ''}`
+  );
+  console.log(
+    `用户目录：清掉测试文件 ${cleanedBefore.removed?.length || 0} 个 / ${fmtKB(cleanedBefore.bytes)}` +
+      (cleanedBefore.removed?.length ? `（${cleanedBefore.removed.slice(0, 8).join(', ')}${cleanedBefore.removed.length > 8 ? ' …' : ''}）` : '')
+  );
+  console.log(`用户目录：清理后 ${usageCleaned.count ?? '?'} 个文件 / ${fmtKB(usageCleaned.bytes)}`);
+  if (usageCleaned.names?.length) console.log(`用户目录：现存 ${usageCleaned.names.join(', ')}`);
+
+  // 顺手把「上限到底多少」量出来：storage 的 currentSize/limitSize（KB）和文件系统占用（KB）
+  const storageInfo = await evalInApp(mp, () => {
+    try {
+      const s = wx.getStorageInfoSync();
+      return { count: (s.keys || []).length, currentKB: s.currentSize, limitKB: s.limitSize };
+    } catch (e) {
+      return { error: e.errMsg || String(e) };
+    }
+  });
+  console.log(
+    `小程序 storage：${storageInfo.count ?? '?'} 个 key / ${storageInfo.currentKB ?? '?'}KB（上限 ${storageInfo.limitKB ?? '?'}KB）` +
+      (storageInfo.error ? `（读失败：${storageInfo.error}）` : '')
+  );
+  console.log(
+    `文件系统占用：${fmtKB(usageCleaned.bytes)} / ${usageCleaned.count ?? '?'} 个文件（writeFileSync 超限时报的是文件系统这一侧，不是 storage 那侧）`
+  );
+
   // 先存下你原来的会话：本机开发库和生产库的密钥不同（各自的 pepper/secret），
   // 切到本机后端后生产会话必然 401；跑完要原样还回去。
-  const saved = await mp.evaluate((localBase) => {
+  const saved = await evalInApp(mp, (localBase) => {
     const b = wx.getStorageSync('travel.base') || '';
     return {
       base: b === localBase ? '' : b, // 上次中断可能漏下本机地址，当成没有
@@ -764,15 +1083,32 @@ async function runLocalFlow(mp) {
   // 注意：reLaunch 不要塞进 evaluate —— 路由切换会拆掉小程序上下文，evaluate 的
   // 响应就此丢失（automator 侧表现为 "timeout waiting for automator response"）。
   // 用 SDK 自带的 reLaunch：它把 {url} 包好、等路由切换、再返回新页面。
-  await mp.evaluate((base) => {
+  //
+  // 同时清掉陈旧会话：上一轮被中断时 travel.base/token 还指着已经删掉的临时后端，
+  // 不清就会每轮都从「连不上、30 秒没对齐」的脏状态起跑（saved 已存好，收尾会还回去）。
+  await evalInApp(mp, (base) => {
     wx.setStorageSync('travel.base', base);
+    wx.removeStorageSync('travel.token');
+    wx.removeStorageSync('travel.tripId');
+    wx.removeStorageSync('travel.memberName');
   }, LOCAL_BASE);
   await mp.reLaunch('/pages/timeline/index');
   await sleep(1500);
 
   // 会话对齐：看到行程页不等于会话有效 —— 页面上可能还挂着上一次的旧数据
-  const sessionReady = await ensureSession(mp, { base: LOCAL_BASE, name: '我', hint: '副本库，随便建成员' });
-  check('会话已对齐到本机后端', sessionReady, sessionReady ? '快照 200' : '30 秒内没对齐');
+  let sessionReady = await ensureSession(mp, { base: LOCAL_BASE, name: '我', hint: '副本库，随便建成员' });
+  if (!sessionReady) {
+    // 自愈：脏存储（旧 base/旧 token/半截快照）会让对齐一直失败，清一次再试一轮
+    console.log('  · 30 秒没对齐：清一次小程序存储、重设 base 后再试一轮');
+    await evalInApp(mp, (base) => {
+      wx.clearStorageSync();
+      wx.setStorageSync('travel.base', base);
+    }, LOCAL_BASE);
+    await mp.reLaunch('/pages/timeline/index');
+    await sleep(1500);
+    sessionReady = await ensureSession(mp, { base: LOCAL_BASE, name: '我', hint: '副本库，随便建成员' });
+  }
+  check('会话已对齐到本机后端', sessionReady, sessionReady ? '快照 200' : '清存储重试后仍未对齐');
 
   // 对齐后再刷一次，确保页面数据也来自本机库（旧数据可能是上一次会话的）
   await nudgeRefresh(mp);
@@ -1178,6 +1514,86 @@ async function runLocalFlow(mp) {
     check('准备卡：节点删掉后卡片消失', !dGone.prep, dGone.prep ? '卡片还在' : 'ok');
   }
 
+  // —— 坐标链路：编辑页「在地图上选点」存下来的 lat/lng（只测数据层，地图交互留给真机） ——
+  console.log('\n== 坐标链路（数据层） ==');
+  {
+    const coordDate = '2026-10-01'; // 行程内已有的一天：别为这两条临时卡新开一天
+    const withCoord = await createNodeInApp(mp, LOCAL_BASE, {
+      date: coordDate,
+      title: '坐标检查·有坐标',
+      type: 'other',
+      lat: 26.671391,
+      lng: 100.246441,
+    });
+    const coordId = withCoord?.data?.id || null;
+    check(
+      '坐标：带坐标建卡后响应一致',
+      withCoord.status === 201 && withCoord?.data?.lat === 26.671391 && withCoord?.data?.lng === 100.246441,
+      `status=${withCoord.status} lat=${withCoord?.data?.lat} lng=${withCoord?.data?.lng}`
+    );
+
+    const noCoord = await createNodeInApp(mp, LOCAL_BASE, { date: coordDate, title: '坐标检查·无坐标', type: 'other' });
+    const noId = noCoord?.data?.id || null;
+    check(
+      '坐标：不带坐标时读回 null',
+      noCoord.status === 201 && noCoord?.data?.lat === null && noCoord?.data?.lng === null,
+      `status=${noCoord.status} lat=${noCoord?.data?.lat} lng=${noCoord?.data?.lng}`
+    );
+
+    const snapCoord = await snapshotInApp(mp, LOCAL_BASE);
+    const rowCoord = (snapCoord.data?.nodes || []).find((n) => n.id === coordId);
+    const rowNo = (snapCoord.data?.nodes || []).find((n) => n.id === noId);
+    check(
+      '坐标：快照里经纬度读回一致',
+      rowCoord?.lat === 26.671391 && rowCoord?.lng === 100.246441 && rowNo?.lat === null && rowNo?.lng === null,
+      `有坐标 lat=${rowCoord?.lat} lng=${rowCoord?.lng} / 无坐标 lat=${rowNo?.lat} lng=${rowNo?.lng}`
+    );
+
+    const patched = await patchNodeInApp(mp, LOCAL_BASE, coordId, { lat: 25, lng: 102 });
+    const bad = await patchNodeInApp(mp, LOCAL_BASE, coordId, { lat: 999, lng: 999 });
+    check(
+      '坐标：PATCH 能改坐标，越界值不落库',
+      patched?.data?.lat === 25 && patched?.data?.lng === 102 && bad?.data?.lat === 25 && bad?.data?.lng === 102,
+      `改后 lat=${patched?.data?.lat} lng=${patched?.data?.lng} / 越界后 lat=${bad?.data?.lat} lng=${bad?.data?.lng}`
+    );
+
+    // 「坐标为 0 一律无效」是**有意取舍**（别当 bug 改回去）：
+    // (0,0) 是地名解析失败 / 地图未就绪最常见的退化值；服务端还踩过 `Number(loc && loc.lat)`
+    // 在 loc=false 时变成 0 的陷阱。逐轴规则：赤道 lat=0 / 格林尼治 lng=0 的合法点会被一起拒，本行程用不到。
+    const zeroBoth = await createNodeInApp(mp, LOCAL_BASE, {
+      date: coordDate,
+      title: '坐标检查·(0,0)',
+      type: 'other',
+      lat: 0,
+      lng: 0,
+    });
+    const zeroBothId = zeroBoth?.data?.id || null;
+    const zeroOne = await createNodeInApp(mp, LOCAL_BASE, {
+      date: coordDate,
+      title: '坐标检查·单轴 0',
+      type: 'other',
+      lat: 0,
+      lng: 100.246441,
+    });
+    const zeroOneId = zeroOne?.data?.id || null;
+    check(
+      '坐标：(0,0) 不落库（有意取舍：退化解一律无效）',
+      zeroBoth.status === 201 && zeroBoth?.data?.lat === null && zeroBoth?.data?.lng === null,
+      `status=${zeroBoth.status} lat=${zeroBoth?.data?.lat} lng=${zeroBoth?.data?.lng}`
+    );
+    check(
+      '坐标：单轴 0 也判无效（逐轴规则，有意取舍）',
+      zeroOne.status === 201 && zeroOne?.data?.lat === null && zeroOne?.data?.lng === 100.246441,
+      `status=${zeroOne.status} lat=${zeroOne?.data?.lat} lng=${zeroOne?.data?.lng}`
+    );
+
+    for (const id of [coordId, noId, zeroBothId, zeroOneId]) {
+      if (!id) continue;
+      const del = await deleteNodeInApp(mp, LOCAL_BASE, id);
+      check('坐标：清掉造出来的节点', del.status === 200, `status=${del.status}`);
+    }
+  }
+
   console.log('\n== 照片链路（数据层） ==');
   const before = await snapshotInApp(mp, LOCAL_BASE);
   check('快照可拉取', before.status === 200 && !!before.data?.trip, `status=${before.status}`);
@@ -1424,10 +1840,16 @@ async function runLocalFlow(mp) {
         check('当前挂靠项打勾', !!onRow, onRow ? 'ok' : '没有 .pick-row.on');
         const noneBtn = pickPage ? await pickPage.$('.pick-none') : null;
         if (noneBtn) await noneBtn.tap();
-        const backPage = (await waitPage(mp, 'pages/expense/index')) || editPage;
-        const backField = await backPage.$('.node-field');
+        // 退回编辑页实测要 ~10s（2026-10-12 探针：9.7s / 10.3s，IDE 自动化里 navigateBack 延迟生效），
+        // 所以给足 20s；等不到就如实失败 —— 不能拿旧句柄兜底，旧句柄的视图数据是旧的，只会读出空文本。
+        const backPage = await waitPage(mp, 'pages/expense/index', 40, 500);
+        const backField = backPage ? await backPage.$('.node-field-text') : null;
         const fieldText = backField ? (await backField.text()).trim() : '';
-        check('选「不指定」后回填', fieldText.includes('不指定'), `text=${fieldText}`);
+        check(
+          '选「不指定」后回填',
+          fieldText.includes('不指定'),
+          `text=${fieldText}${backPage ? '' : '（20s 内没退回编辑页）'}`
+        );
       } else {
         check('节点选择页打开', false, '编辑页没有 .node-field');
         check('当前挂靠项打勾', false, '跳过');
@@ -1435,9 +1857,10 @@ async function runLocalFlow(mp) {
       }
 
       // 改金额 + 改时间（原生 picker 弹层自动化点不了，直接改页面数据）→ 保存
-      const editPage2 = (await waitPage(mp, 'pages/expense/index')) || editPage;
-      const editAmount2 = (await editPage2.$('.amount-input')) || editAmount;
-      if (editAmount2) {
+      // 同上：只用当前页的新句柄，不拿 editPage 兜底
+      const editPage2 = await waitPage(mp, 'pages/expense/index', 40, 500);
+      const editAmount2 = editPage2 ? (await editPage2.$('.amount-input')) || editAmount : null;
+      if (editPage2 && editAmount2) {
         await editAmount2.input('99');
         await sleep(300);
         await editPage2.setData({ time: '07:35' });
@@ -1683,9 +2106,21 @@ async function runLocalFlow(mp) {
     }
   }
 
+  // 收尾：自己写的测试文件用完即删，再报一次占用（跑后应回到跑前水平；照片缓存不归我们管，只记数）
+  const cleanedEnd = await cleanTestFilesInApp(mp);
+  const usageEnd = await userDataUsageInApp(mp);
+  console.log(
+    `用户目录：跑完清掉测试文件 ${cleanedEnd.removed?.length || 0} 个 / ${fmtKB(cleanedEnd.bytes)}` +
+      (cleanedEnd.removed?.length ? `（${cleanedEnd.removed.slice(0, 8).join(', ')}${cleanedEnd.removed.length > 8 ? ' …' : ''}）` : '')
+  );
+  console.log(
+    `用户目录：跑完 ${usageEnd.count ?? '?'} 个文件 / ${fmtKB(usageEnd.bytes)}（跑前 ${usageBefore.count ?? '?'} 个 / ${fmtKB(usageBefore.bytes)}）`
+  );
+  if (usageEnd.names?.length) console.log(`用户目录：跑完现存 ${usageEnd.names.join(', ')}`);
+
   // 收尾：把跑测试前的会话与 base 原样还回去（IDE 里重启小程序即可回到原会话）
   await restoreSessionInApp(mp, saved);
-  const restored = await mp.evaluate(() => ({
+  const restored = await evalInApp(mp, () => ({
     base: wx.getStorageSync('travel.base') || '',
     token: wx.getStorageSync('travel.token') || '',
   }));
@@ -1748,7 +2183,17 @@ async function main() {
       /* 断不干净也不影响退出码 */
     }
     if (server) await shutdownLocalServer(server);
+    releaseLock(); // 兜底：中途炸了、没走到 shutdown 也要放锁
+    printBridgeStats(); // 最后一行：下次一眼看出重试到底有没有生效
   }
+}
+
+// 中断也要放锁；万一残留，下次起跑的前置检查会当陈旧锁清掉
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => {
+    releaseLock();
+    process.exit(sig === 'SIGINT' ? 130 : 143);
+  });
 }
 
 main().then((code) => process.exit(code));

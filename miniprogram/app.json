@@ -10,6 +10,9 @@
     "pages/settings/index",
     "pages/poster/index"
   ],
+  "subPackages": [
+    { "root": "agent", "independent": true, "pages": [] }
+  ],
   "window": {
     "navigationBarBackgroundColor": "@navBgColor",
     "navigationBarTitleText": "旅行助手",
@@ -21,5 +24,15 @@
   "themeLocation": "theme.json",
   "style": "v2",
   "sitemapLocation": "sitemap.json",
-  "lazyCodeLoading": "requiredComponents"
+  "lazyCodeLoading": "requiredComponents",
+  "agent": {
+    "skills": [
+      { "name": "tripItinerary", "description": "查询旅行行程：某天安排、搜索行程项、行程概览、未完成待办", "path": "agent/skills/itinerary" },
+      { "name": "tripPlan", "description": "编辑行程：新建行程项、修改时间地点标题、勾选待办、删除行程项", "path": "agent/skills/tripPlan" },
+      { "name": "tripCheckin", "description": "行程打卡：到达、出发/离开、完成", "path": "agent/skills/checkin" },
+      { "name": "tripMoney", "description": "记账与花费：记一笔、改一笔、删一笔、花费汇总、最近消费", "path": "agent/skills/money" }
+    ],
+    "instruction": "agent/AGENTS.md",
+    "pageMetadata": "agent/page-meta.json"
+  }
 }

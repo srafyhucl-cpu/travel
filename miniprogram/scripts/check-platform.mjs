@@ -46,6 +46,8 @@ globalThis.wx = {
 
   uploadFile: ({ fail }) => fail({ errMsg: 'uploadFile:fail mock offline' }),
 
+  login: ({ success }) => success?.({ code: 'mock_wx_code_test' }),
+
   showToast: ({ title }) => {
     lastToast = title;
   },
@@ -55,6 +57,7 @@ globalThis.wx = {
   offAppShow: () => {},
   vibrateShort: () => {},
   setClipboardData: ({ success } = {}) => success?.(),
+  getAccountInfoSync: () => ({ miniProgram: { envVersion: 'develop' } }),
 };
 
 /* ---------------- 断言 ---------------- */
@@ -74,8 +77,12 @@ const check = (name, cond, extra = '') => {
   console.log('\n== platform/wx 基础 ==');
   platform.session.setToken('t1');
   check('session 读写', platform.session.getToken() === 't1');
+  platform.session.setUser({ id: 'u1', nickname: '测试人' });
+  check('session user 读写', platform.session.getUser()?.nickname === '测试人');
+  const wxCode = await platform.session.getWxLoginCode();
+  check('session getWxLoginCode', !!wxCode);
   platform.session.clear();
-  check('session clear', platform.session.getToken() === null);
+  check('session clear', platform.session.getToken() === null && platform.session.getUser() === null);
 
   await platform.storage.saveSnapshot('trip-x', { hello: 'world' });
   check('快照写入/读回', (await platform.storage.loadSnapshot('trip-x'))?.hello === 'world');

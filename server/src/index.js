@@ -2,8 +2,9 @@ import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { DATA_DIR } from './db.js';
+import { DATA_DIR, db } from './db.js';
 import authRoutes from './routes/auth.js';
+import tripsRoutes from './routes/trips.js';
 import tripRoutes from './routes/trip.js';
 import nodeRoutes from './routes/nodes.js';
 import moneyRoutes from './routes/money.js';
@@ -15,7 +16,7 @@ import exportRoutes from './routes/exports.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIST = path.join(__dirname, '..', 'frontend', 'dist');
 
-const PORT = Number(process.env.PORT || 7020);
+const PORT = Number(process.env.PORT || 7052);
 const HOST = process.env.HOST || '127.0.0.1';
 
 const app = express();
@@ -46,6 +47,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/trips', tripsRoutes);
 app.use('/api/trip', tripRoutes);
 app.use('/api/nodes', nodeRoutes);
 app.use('/api/money', moneyRoutes);

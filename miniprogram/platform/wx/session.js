@@ -5,6 +5,7 @@
 const TOKEN_KEY = 'travel.token';
 const TRIP_KEY = 'travel.tripId';
 const NAME_KEY = 'travel.memberName';
+const USER_KEY = 'travel.user';
 
 const read = (key) => wx.getStorageSync(key) || null;
 
@@ -28,8 +29,37 @@ export const session = {
     if (!name || name === read(NAME_KEY)) return;
     wx.setStorageSync(NAME_KEY, name);
   },
+  getUser() {
+    const raw = read(USER_KEY);
+    if (!raw) return null;
+    if (typeof raw === 'object') return raw;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  },
+  setUser(user) {
+    if (user) wx.setStorageSync(USER_KEY, user);
+    else wx.removeStorageSync(USER_KEY);
+  },
+  getWxLoginCode() {
+    return new Promise((resolve, reject) => {
+      if (typeof wx.login !== 'function') {
+        return resolve('mock_code_' + Date.now());
+      }
+      wx.login({
+        success: (res) => {
+          if (res.code) resolve(res.code);
+          else reject(new Error(res.errMsg || 'wx.login failed without code'));
+        },
+        fail: reject,
+      });
+    });
+  },
   clear() {
     wx.removeStorageSync(TOKEN_KEY);
     wx.removeStorageSync(TRIP_KEY);
+    wx.removeStorageSync(USER_KEY);
   },
 };

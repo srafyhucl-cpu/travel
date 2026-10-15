@@ -18,9 +18,9 @@
           data-id="{{it.id}}"
           bindinput="onCheckText"
         />
-        <text class="check-del" data-id="{{it.id}}" bindtap="onCheckDel">✕</text>
+        <text class="check-del" hover-class="pill-press" data-id="{{it.id}}" bindtap="onCheckDel">✕</text>
       </view>
-      <view class="check-add" bindtap="onCheckAdd">＋ 加一条待办</view>
+      <view class="check-add" hover-class="pill-press" bindtap="onCheckAdd">＋ 加一条待办</view>
     </view>
 
     <view class="field">
@@ -45,16 +45,16 @@
       <view class="field">
         <text class="label">日期 <text class="req">必填</text></text>
         <picker mode="date" value="{{date}}" bindchange="onDate">
-          <view class="picker-trigger {{date ? '' : 'empty'}}">{{date || '选日期'}}</view>
+          <view class="picker-trigger {{date ? '' : 'empty'}}" hover-class="picker-press">{{date || '选日期'}}</view>
         </picker>
       </view>
       <view class="field">
         <text class="label">开始</text>
         <view class="time-row">
           <picker class="grow" mode="time" value="{{startTime || '09:00'}}" bindchange="onStart">
-            <view class="picker-trigger {{startTime ? '' : 'empty'}}">{{startTime || '不定'}}</view>
+            <view class="picker-trigger {{startTime ? '' : 'empty'}}" hover-class="picker-press">{{startTime || '不定'}}</view>
           </picker>
-          <text wx:if="{{startTime}}" class="clear" data-k="startTime" bindtap="onClearTime">✕</text>
+          <text wx:if="{{startTime}}" class="clear" hover-class="pill-press" data-k="startTime" bindtap="onClearTime">✕</text>
         </view>
       </view>
     </view>
@@ -64,9 +64,9 @@
         <text class="label">结束</text>
         <view class="time-row">
           <picker class="grow" mode="time" value="{{endTime || '18:00'}}" bindchange="onEnd">
-            <view class="picker-trigger {{endTime ? '' : 'empty'}}">{{endTime || '不定'}}</view>
+            <view class="picker-trigger {{endTime ? '' : 'empty'}}" hover-class="picker-press">{{endTime || '不定'}}</view>
           </picker>
-          <text wx:if="{{endTime}}" class="clear" data-k="endTime" bindtap="onClearTime">✕</text>
+          <text wx:if="{{endTime}}" class="clear" hover-class="pill-press" data-k="endTime" bindtap="onClearTime">✕</text>
         </view>
       </view>
       <view class="field">
@@ -78,7 +78,7 @@
     <view class="field">
       <view class="label-row">
         <text class="label">地点</text>
-        <text class="field-act {{showNav ? 'on' : ''}}" bindtap="onToggleNav">{{showNav ? '收起导航词' : '导航词'}}</text>
+        <text class="field-act {{showNav ? 'on' : ''}}" hover-class="pill-press" bindtap="onToggleNav">{{showNav ? '收起导航词' : '导航词'}}</text>
       </view>
       <input class="input" value="{{location}}" placeholder="例如：玉龙雪山景区" bindinput="onLocation" />
       <input
@@ -90,15 +90,54 @@
       />
     </view>
 
-    <button
-      class="btn-primary {{canSave ? '' : 'off'}}"
-      hover-class="{{canSave ? 'btn-press' : 'none'}}"
-      disabled="{{!canSave}}"
-      bindtap="onSave"
-    >{{editing ? '保存' : '添加'}}</button>
-    <view wx:if="{{missing}}" class="req-missing">还差：{{missing}}</view>
+    <!-- 导航坐标：拖地图把中心对准地点，比按地名解析准；不选也能用（走复制地名/解析回退） -->
+    <view class="field">
+      <view class="label-row">
+        <text class="label">导航坐标</text>
+        <text class="field-act {{showMap ? 'on' : ''}}" hover-class="pill-press" bindtap="onToggleMap">{{showMap ? '收起地图' : '在地图上选点'}}</text>
+      </view>
+      <text class="hint">{{hasCoord ? '已记住坐标：点「导航」会直接打开地图' : '没选坐标：点「导航」时按地名解析，失败就复制地名'}}</text>
+      <view wx:if="{{showMap}}" class="map-wrap">
+        <view class="map-stage">
+          <map
+            id="pickMap"
+            class="pick-map"
+            latitude="{{pickLat}}"
+            longitude="{{pickLng}}"
+            scale="14"
+            bindregionchange="onMapRegion"
+          ></map>
+          <view class="map-crosshair">
+            <view class="cross-h"></view>
+            <view class="cross-v"></view>
+            <view class="cross-dot"></view>
+          </view>
+        </view>
+        <text class="map-tip">拖动地图，把中心十字对准地点</text>
+        <view class="map-btns">
+          <view class="map-btn" hover-class="pill-press" bindtap="onMapUse">用中心点</view>
+          <view class="map-btn {{hasCoord ? '' : 'off'}}" hover-class="{{hasCoord ? 'pill-press' : 'none'}}" bindtap="onMapClear">清除坐标</view>
+        </view>
+      </view>
+    </view>
 
-    <button wx:if="{{editing}}" class="btn-danger" hover-class="btn-press" bindtap="onDelete">删除这一项</button>
+    <block wx:if="{{isReadOnly}}">
+      <view class="readonly-notice">
+        <text class="readonly-icon">👀</text>
+        <text class="readonly-text">当前为只读围观模式，无法保存或修改行程节点</text>
+      </view>
+    </block>
+    <block wx:else>
+      <button
+        class="btn-primary {{canSave ? '' : 'off'}}"
+        hover-class="{{canSave ? 'btn-press' : 'none'}}"
+        disabled="{{!canSave}}"
+        bindtap="onSave"
+      >{{editing ? '保存' : '添加'}}</button>
+      <view wx:if="{{missing}}" class="req-missing">还差：{{missing}}</view>
+
+      <button wx:if="{{editing}}" class="btn-danger" hover-class="btn-press" bindtap="onDelete">删除这一项</button>
+    </block>
   </view>
 
   <view wx:else class="loading">

@@ -1,10 +1,14 @@
 import express from 'express';
 import { db, nowISO, uid } from '../db.js';
-import { memberIdOf, requireAuth } from '../auth.js';
+import { memberIdOf, requireAuth, requireTripAccess } from '../auth.js';
 import { broadcast } from '../events.js';
 
 const router = express.Router();
 router.use(requireAuth);
+router.use((req, res, next) => {
+  const minRole = ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'viewer' : 'editor';
+  requireTripAccess(minRole)(req, res, next);
+});
 
 const ACTIONS = new Set(['arrived', 'departed', 'done']);
 

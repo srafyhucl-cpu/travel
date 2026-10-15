@@ -38,6 +38,7 @@
    $env:PASS = "你的口令"
    node scripts\check-devtools.mjs            # 只读：登录 → 行程页 → 无控制台报错
    node scripts\check-devtools.mjs --local    # 全链路：临时库上跑全功能闭环
+   node scripts\check-devtools.mjs --local --fresh-seed   # 本地库没有可用口令时：副本里预填测试行程再跑
    ```
 
    `--local` 覆盖：打卡、行程编辑（改/新建/删除/上移）、照片上传删除、HEIC 全链路、
@@ -126,10 +127,40 @@ mp.weixin.qq.com 后台手动做，每次发版就两次点击：
 导航接了腾讯位置服务后，还要把 `https://apis.map.qq.com` 加进 **request** 域名，
 并在腾讯位置服务后台给 key 开 WebServiceAPI、绑定本小程序 AppID（见 `config.js` 注释）。
 
+## 微信AI（agent/ 独立分包，beta）
+
+微信AI 开发模式（小微）的原子接口都在 `agent/` 独立分包里：4 个 SKILL（行程查询 / 行程编辑 / 打卡 / 记账），
+结构见 `agent/AGENTS.md` 与各 `skills/*/SKILL.md`。编辑纪律：
+
+- 独立分包**不能 require 主包**：`agent/lib/` 是手写薄封装；`agent/lib/core/` 由
+  `sync-shared.mjs` 从 `web/src/core` 转 CommonJS 生成（勿手改）。
+- 自动化检查（不开开发者工具）：
+
+  ```powershell
+  $env:PASS = "你的口令"
+  node scripts\check-agent.mjs            # 只读：注册、结构、错误分支、汇总与快照核对
+  node scripts\check-agent.mjs --local    # 全链路：临时库上跑 建项→改项→勾待办→打卡→记账→改账→删账→删项
+  ```
+
+- 整链调试要用**微信开发者工具 Nightly Electron Build**：「编译模式 → 小程序 AI 编译」，
+  基础库 3.16.2+；真机预览的「小程序 AI 开发模式」入口在小程序胶囊菜单里。
+- 本机 Nightly 装在 `D:\微信开发者工具-Nightly`（免安装解包版；与稳定版**互斥**——两套共用
+  单实例锁，同时只能开一个，换用时先退另一个）。agent 命令报 `INVALID_LOGIN, access_token expired`
+  即登录已过期，重新扫码登录即可。
+- 环境实测（2026-10）：稳定版工具的 `cli agent tool` 能完整驱动原子接口（读写都行）；
+  `cli agent chat` 的对话回环只有 Nightly 跑得通，且需要两个前置：`cli agent debug --enabled false`
+  （关单步确认）＋ 面板 Skill 多选中勾上要测的技能（默认只勾第一个 `tripItinerary`）。
+  2026-10-11 夜 4 技能对话级验收全通，详见 `HANDOVER.md` §5.5。
+- 安全习惯：Agent 运行时读的就是 IDE 里小程序的登录态（`travel.token`）——跑写测试前
+  先把会话切到测试行程；HTTP 层的全链路写测试用 `node scripts\check-agent.mjs --local`
+  （临时库，绝不碰线上）。
+- beta 红线：相关代码不要合入正式提审版本。评测集在 `agent/eval/`（用法见 `agent/eval/README.md`）。
+
 ## 规则
 
 - `core/`、`store/` 是同步生成物，**不要手改**；改 `web/src` 再跑同步脚本
 - `platform/wx/` 是手写的，接口形状对照 `web/src/platform/web/`
+- `agent/`（微信AI 开发模式）与 `platform/wx/` 一样是手写的；只有 `agent/lib/core/` 是 sync-shared 生成物
 - 页面（`pages/`）每端各写一套，逻辑尽量沉到 `core/` 和 `store/`
 - **Web 已冻结**（2026-10-08）：不再加新功能，只当小程序的参考实现与共享源。
   `core/`、`store/` 的**唯一源仍是 `web/src`**——改共享逻辑去那边改、跑同步脚本；

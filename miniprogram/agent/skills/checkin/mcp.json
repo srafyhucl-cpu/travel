@@ -1,0 +1,36 @@
+{
+  "apis": [
+    {
+      "name": "checkIn",
+      "description": "对行程项打卡（业务对象：行程项上的打卡记录）。用户说「我们到了 / 出发了 / 离开 XX 了 / XX 完成了」时调用。\n【执行顺序】nodeId 必须取自 getDaySchedule / findItems / getTodos 返回的 nodeId 原值，先查后打；禁止从用户语言推断或编造。\n【动作选择】到达 → arrived；出发、离开 → departed；完成、搞定 → done。拿不准时先用一句话问用户是「到了、离开还是完成」再调用。\n【重复打卡】已完成的项也可以照常打卡：用户点名「到了/离开」时必须调用（arrived/departed 可多次记录）；只有「完成」对已完成项会去重、返回 alreadyDone，如实转告即可。\n【范围】只做打卡，不改行程、不删打卡、不顺延时间；用户要这些请引导到 tripPlan 的能力或打开小程序操作。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "行程项唯一标识，必须来自 getDaySchedule / findItems / getTodos 返回的 nodeId 原值。【禁止编造】禁止从用户自然语言推断或使用示例值；上下文里没有 nodeId 时，先查询拿到再打卡。"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["arrived", "departed", "done"],
+            "description": "打卡动作。arrived=到达；departed=出发/离开；done=完成。按用户原话选择，不要默认成 done。"
+          }
+        },
+        "required": ["nodeId", "action"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": { "type": "string", "description": "被打卡的行程项 ID" },
+          "title": { "type": "string", "description": "行程项名称" },
+          "date": { "type": "string", "description": "行程项日期 YYYY-MM-DD" },
+          "action": { "type": "string", "description": "本次动作 arrived/departed/done" },
+          "actionText": { "type": "string", "description": "动作中文名：到达 / 出发/离开 / 完成" },
+          "at": { "type": "string", "description": "打卡时间（UTC ISO）" },
+          "alreadyDone": { "type": "boolean", "description": "重复报完成时为 true" }
+        }
+      },
+      "_meta": { "ui": { "pagePath": "/pages/timeline/index" } }
+    }
+  ]
+}

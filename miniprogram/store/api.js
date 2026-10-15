@@ -35,12 +35,19 @@ export function createApi(platform) {
 
   async function request(method, path, body, opts = {}) {
     let res;
+    const currentTripId =
+      opts.tripId || (typeof platform.session?.getTripId === 'function' ? platform.session.getTripId() : '');
     try {
-      res = await net.send({ method, path, body, isForm: opts.isForm });
+      res = await net.send({ method, path, body, isForm: opts.isForm, tripId: opts.tripId });
     } catch {
       // 网络层面失败：能排队就排队（上传文件不排队，见 uploadPhotos）
       if (method !== 'GET' && opts.queueable !== false) {
-        await queue.push({ method, path, body: body === undefined ? null : body });
+        await queue.push({
+          method,
+          path,
+          body: body === undefined ? null : body,
+          tripId: currentTripId,
+        });
       }
       throw new ApiError(0, { message: '网络不可用，已加入待同步队列', offline: true });
     }
@@ -64,13 +71,57 @@ export function createApi(platform) {
     }
   }
 
-  const get = (p) => request('GET', p);
+  const get = (p, o) => request('GET', p, undefined, o);
   const post = (p, b, o) => request('POST', p, b, o);
-  const patch = (p, b) => request('PATCH', p, b);
-  const del = (p) => request('DELETE', p);
+  const put = (p, b, o) => request('PUT', p, b, o);
+  const patch = (p, b, o) => request('PATCH', p, b, o);
+  const del = (p, o) => request('DELETE', p, undefined, o);
 
   const api = {
-    /* ---- 登录 ---- */
+    /* ---- 微信登录 & 资料 ---- */
+    wxLogin(code) {
+      return post('/api/auth/wx-login', { code });
+    },
+    updateProfile(payload) {
+      return put('/api/auth/profile', payload);
+    },
+
+    /* ---- 多时间线行程管理 ---- */
+    listTrips() {
+      return get('/api/trips');
+    },
+    createNewTrip(payload) {
+      return post('/api/trips', payload);
+    },
+    createDemoTrip() {
+      return post('/api/trips/demo', {});
+    },
+    cloneTrip(tripId, payload) {
+      return post(`/api/trips/${tripId}/clone`, payload);
+    },
+    patchTripMeta(tripId, payload) {
+      return patch(`/api/trips/${tripId}`, payload);
+    },
+    deleteOrLeaveTrip(tripId) {
+      return del(`/api/trips/${tripId}`);
+    },
+    joinPreview({ code = '', passphrase = '' }) {
+      const q = code
+        ? `code=${encodeURIComponent(code)}`
+        : `passphrase=${encodeURIComponent(passphrase)}`;
+      return get(`/api/trips/join-preview?${q}`);
+    },
+    joinTrip(payload) {
+      return post('/api/trips/join', payload);
+    },
+    addVirtualMember(payload) {
+      return post('/api/trip/members', payload);
+    },
+    removeMember(memberId) {
+      return del(`/api/trip/members/${memberId}`);
+    },
+
+    /* ---- 传统口令登录 ---- */
     login: (passphrase, name) => post('/api/auth/login', { passphrase, name }),
     createTrip: (payload) => post('/api/auth/trips', payload),
     changePassphrase: (payload) => post('/api/auth/passphrase', payload),
@@ -121,10 +172,10 @@ export function createApi(platform) {
      * net.upload 返回的是原始响应，这里必须像别处一样判状态、解析 JSON ——
      * 少这一步会把 400 当成功、把 undefined 当张数（真发生过）。
      */
-    uploadPhotos: async ({ files, fields }) => {
+    uploadPhotos: async ({ files, fields, tripId }) => {
       let res;
       try {
-        res = await net.upload({ path: '/api/photos', files, fields });
+        res = await net.upload({ path: '/api/photos', files, fields, tripId });
       } catch {
         throw new ApiError(0, { message: '网络不可用，照片要联网才能传' });
       }
@@ -148,12 +199,15 @@ export function createApi(platform) {
     let dropped = 0;
     for (const item of items) {
       try {
-        await request(item.method, item.path, item.body, { queueable: false });
+        await request(item.method, item.path, item.body, { queueable: false, tripId: item.tripId });
         await queue.remove(item.seq);
         done++;
       } catch (e) {
-        if (e instanceof ApiError && e.status === 401) break;
-        if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+        if (e instanceof ApiError && e.status === 401) {
+          authFailed?.();
+          break;
+        }
+        if (e instanceof ApiError && (e.status === 400 || e.status === 403 || e.status === 404 || e.status === 409 || (e.status >= 400 && e.status < 500))) {
           await queue.remove(item.seq);
           dropped++;
           continue;

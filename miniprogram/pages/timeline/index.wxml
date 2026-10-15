@@ -9,13 +9,36 @@
   <view class="nav" style="padding-top:{{nav.statusBarHeight}}px">
     <view class="nav-bar" style="height:{{nav.navBarHeight}}px">
       <view class="nav-left" hover-class="nav-press" bindtap="onSettings">我的</view>
-      <view class="nav-title" style="font-size:{{navTitleSize}}px;max-width:{{nav.navTitleMax}}px">{{tripName}}</view>
+      <view class="nav-title trip-switcher-bar" style="max-width:{{nav.navTitleMax}}px" bindtap="onToggleTripDrawer">
+        <text class="trip-switcher-title" style="font-size:{{navTitleSize}}px">{{tripName}}</text>
+        <text class="trip-role-badge" wx:if="{{isReadOnly}}">只读</text>
+        <text class="trip-switcher-arrow">{{tripDrawerOpen ? '▴' : '▾'}}</text>
+      </view>
     </view>
   </view>
 
   <block wx:if="{{ready}}">
+    <!-- 零时间线欢迎空状态（Empty State） -->
+    <view class="empty-welcome-wrap" wx:if="{{isEmptyState}}">
+      <view class="empty-welcome-card">
+        <view class="ew-icon-box">
+          <text class="ew-icon">✈️</text>
+        </view>
+        <view class="ew-title">开启你的下一段旅程</view>
+        <view class="ew-desc">制定每日时间线、与同行好友实时同步待办、轻松记录旅行账单与 AA 分摊，一键生成 Vlog 长图海报。</view>
+        <view class="ew-actions">
+          <button class="ew-btn ew-btn-primary" data-mode="new" bindtap="onOpenCreateModal">+ 创建我的第一条时间线</button>
+          <button class="ew-btn ew-btn-secondary" bindtap="openJoinWithCode">输入邀请码 / 口令加入同伴行程</button>
+        </view>
+        <view class="ew-demo-link" bindtap="onCreateDemoTrip">
+          {{busyModal ? '正在生成示例…' : '还不确定怎么排？一键生成「大理丽江 4 日游」示例 ›'}}
+        </view>
+      </view>
+    </view>
+
     <!-- 整页交给 scroll-view：拖动/确认面板时锁滚动，由页面自己控制 scrollTop（边缘自动滚动） -->
     <scroll-view
+      wx:else
       class="scroll"
       scroll-y="{{!dragging}}"
       scroll-top="{{scrollTop}}"
@@ -26,13 +49,29 @@
       bindscroll="onScroll"
     >
       <view class="scroll-inner">
+        <!-- ⓪ 只读围观模式顶部提示条 -->
+        <view class="readonly-banner" wx:if="{{isReadOnly}}">
+          <text class="readonly-text">当前为只读预览模式</text>
+          <view class="readonly-clone-btn" data-mode="clone" bindtap="onOpenCreateModal">复制为我的行程</view>
+        </view>
         <!-- ② 总结卡：状态 + 日期范围 + 大标题 + 总进度 + 三格统计（已花可点开明细） -->
-        <view class="sum-card">
+        <view class="sum-card hero-card">
           <view class="sum-top">
-            <text class="sum-status tone-{{summary.tone}}">{{summary.status}}</text>
-            <text wx:if="{{summary.range}}" class="sum-dates">{{summary.range}}</text>
-            <text wx:if="{{!online}}" class="flag off">离线中</text>
-            <text wx:elif="{{syncing}}" class="flag">同步中…</text>
+            <view class="sum-top-left">
+              <text class="sum-status tone-{{summary.tone}}">{{summary.status}}</text>
+              <text wx:if="{{summary.range}}" class="sum-dates">{{summary.range}}</text>
+              <text wx:if="{{!online}}" class="flag off">离线中</text>
+              <text wx:elif="{{syncing}}" class="flag">同步中…</text>
+            </view>
+            <view class="sum-top-right">
+              <view class="hero-avatar-stack" wx:if="{{members && members.length > 0}}">
+                <block wx:for="{{members}}" wx:key="id" wx:if="{{index < 4}}">
+                  <image wx:if="{{item.avatarUrl}}" class="stack-avatar img" src="{{item.avatarUrl}}" mode="aspectFill" style="z-index: {{4 - index}};" />
+                  <view wx:else class="stack-avatar txt" style="background: {{item.color || '#2F80ED'}}; z-index: {{4 - index}};">{{item.initial}}</view>
+                </block>
+              </view>
+              <button class="hero-invite-pill" open-type="share" data-mode="invite" wx:if="{{!isReadOnly}}">+ 邀请</button>
+            </view>
           </view>
 
           <view class="sum-title">{{now.title || tripName}}</view>
@@ -46,7 +85,7 @@
               <text class="ss-num">{{summary.done}}/{{summary.total}}</text>
               <text class="ss-label">完成</text>
             </view>
-            <view class="sum-stat {{budget.over ? 'over' : ''}} {{seg === 'money' ? 'on' : ''}}" data-seg="money" bindtap="onSeg">
+            <view class="sum-stat {{budget.over ? 'over' : ''}} {{seg === 'money' ? 'on' : ''}}" hover-class="stat-press" data-seg="money" bindtap="onSeg">
               <text class="ss-num {{budget.over ? 'danger' : ''}}">¥{{budget.actual}}</text>
               <text class="ss-label">{{budget.hasPlanned ? (budget.over ? '超支 ¥' + budget.remaining : '预算 ¥' + budget.planned) : '已花'}}</text>
             </view>
@@ -77,7 +116,7 @@
 
             <view class="panel-foot">
               <text class="foot-note {{budget.over ? 'danger' : ''}}">{{budget.hasPlanned ? (budget.over ? '超支 ¥' + budget.remaining : '还剩 ¥' + budget.remaining) : '还没设总预算'}}</text>
-              <text class="foot-btn" bindtap="onEditBudget">改预算</text>
+              <text class="foot-btn" hover-class="pill-press" bindtap="onEditBudget">改预算</text>
             </view>
           </view>
         </view>
@@ -85,7 +124,7 @@
         <!-- ②′ 出行准备（role=module）：不是行程里的一项，没时间也不占某一天。
              一条进度 + 展开清单；点头部展开/收起，尾部「编辑清单」进编辑页 -->
         <view wx:if="{{prep}}" class="prep-card {{prep.allDone ? 'alldone' : ''}}">
-          <view class="prep-head" bindtap="onPrepToggle">
+          <view class="prep-head" hover-class="prep-press" bindtap="onPrepToggle">
             <image class="prep-ic" src="{{prep.icon}}" mode="aspectFit" />
             <view class="prep-main">
               <view class="prep-title">{{prep.title}}</view>
@@ -100,6 +139,7 @@
               wx:for="{{prep.items}}"
               wx:key="id"
               class="check-row"
+              hover-class="check-press"
               data-node="{{prep.id}}"
               data-item="{{item.id}}"
               data-done="{{item.done}}"
@@ -111,7 +151,7 @@
             </view>
             <view class="prep-foot">
               <text class="prep-tip">出发前把这些勾完</text>
-              <text class="prep-edit" data-id="{{prep.id}}" bindtap="onEditNode">编辑清单</text>
+              <text class="prep-edit" hover-class="pill-press" data-id="{{prep.id}}" bindtap="onEditNode">编辑清单</text>
             </view>
           </view>
         </view>
@@ -123,7 +163,7 @@
             <text class="dm-count">{{item.done}}/{{item.total}}</text>
           </view>
 
-          <view wx:if="{{item.total === 0}}" class="day-empty" data-date="{{item.date}}" bindtap="onAddNode">这天还没安排 · 点一下加一项</view>
+          <view wx:if="{{item.total === 0}}" class="day-empty" hover-class="day-empty-press" data-date="{{item.date}}" bindtap="onAddNode">这天还没安排 · 点一下加一项</view>
 
           <!-- 长按卡片进拖动排序（照片自己长按出菜单，已用 catchlongpress 拦住）；
                拖动中：原位置留虚线占位，视觉由 fixed 的迷你卡跟手 -->
@@ -141,20 +181,22 @@
             <view wx:if="{{dragId === n.id}}" class="drag-ghost"></view>
             <view class="node-time {{n.tbd ? 'tbd' : ''}}">{{n.time}}</view>
             <view class="node-card" style="border-left-color:{{n.typeColor}}">
-              <view class="node-head" data-id="{{n.id}}" bindtap="onEditNode">
-                <view class="node-meta">
-                  <image class="type-icon" src="{{n.icon}}" mode="aspectFit" />
-                  <text class="type-name" style="color:{{n.typeColor}}">{{n.typeLabel}}</text>
+              <view class="node-main" data-id="{{n.id}}" hover-class="node-main-press" bindtap="onEditNode">
+                <view class="node-head">
+                  <view class="node-meta">
+                    <image class="type-icon" src="{{n.icon}}" mode="aspectFit" />
+                    <text class="type-name" style="color:{{n.typeColor}}">{{n.typeLabel}}</text>
+                  </view>
+                  <view class="node-right">
+                    <!-- ④ 完成不再划线：类型行右侧一个绿色小徽章，有实际完成时间就带上 -->
+                    <text wx:if="{{n.done}}" class="done-badge">✓ 完成{{n.doneAt ? ' · ' + n.doneAt : ''}}</text>
+                    <text wx:if="{{n.range}}" class="node-range">{{n.range}}</text>
+                    <text wx:if="{{n.spend}}" class="node-spend">¥{{n.spend}}</text>
+                  </view>
                 </view>
-                <view class="node-right">
-                  <!-- ④ 完成不再划线：类型行右侧一个绿色小徽章，有实际完成时间就带上 -->
-                  <text wx:if="{{n.done}}" class="done-badge">✓ 完成{{n.doneAt ? ' · ' + n.doneAt : ''}}</text>
-                  <text wx:if="{{n.range}}" class="node-range">{{n.range}}</text>
-                  <text wx:if="{{n.spend}}" class="node-spend">¥{{n.spend}}</text>
-                </view>
+                <view class="node-title">{{n.title}}</view>
+                <view wx:if="{{n.location}}" class="node-loc">{{n.location}}</view>
               </view>
-              <view class="node-title">{{n.title}}</view>
-              <view wx:if="{{n.location}}" class="node-loc">{{n.location}}</view>
 
               <!-- 这趟节点下的照片：缩略图路径由页面逐张回填，src 为空时就是一块占位底色 -->
               <view wx:if="{{n.photos.length}}" class="shots">
@@ -178,6 +220,7 @@
                   wx:for-item="c"
                   wx:key="id"
                   class="check-row"
+                  hover-class="check-press"
                   data-node="{{n.id}}"
                   data-item="{{c.id}}"
                   data-done="{{c.done}}"
@@ -196,6 +239,7 @@
                   wx:for-item="m"
                   wx:key="id"
                   class="mrow"
+                  hover-class="mrow-press"
                   data-id="{{m.id}}"
                   bindtap="onEditExpense"
                 >
@@ -211,17 +255,17 @@
                   <image class="drive-ic" src="{{carIcon}}" mode="aspectFit" />
                   <text>约 {{n.driveMinutes}} 分钟车程</text>
                 </view>
-                <view wx:if="{{!n.done && !n.started}}" class="act-btn on-accent" data-id="{{n.id}}" data-action="departed" bindtap="onCheckin">出发</view>
-                <view wx:elif="{{!n.done}}" class="act-btn on-ok" data-id="{{n.id}}" data-action="done" bindtap="onCheckin">✓ 完成</view>
+                <view wx:if="{{!n.done && !n.started}}" class="act-btn on-accent" hover-class="act-press" data-id="{{n.id}}" data-action="departed" bindtap="onCheckin">出发</view>
+                <view wx:elif="{{!n.done}}" class="act-btn on-ok" hover-class="act-press" data-id="{{n.id}}" data-action="done" bindtap="onCheckin">✓ 完成</view>
                 <view wx:else class="act-btn done-chip">✓ {{n.doneAt || '已完成'}}</view>
-                <view class="act-btn" data-id="{{n.id}}" bindtap="onAddPhoto"><image class="act-ic" src="{{cameraIcon}}" mode="aspectFit" />照片</view>
-                <view class="act-btn" data-id="{{n.id}}" bindtap="onAddExpense"><image class="act-ic" src="{{walletIcon}}" mode="aspectFit" />记一笔</view>
-                <view wx:if="{{n.navKeyword}}" class="act-btn" data-kw="{{n.navKeyword}}" bindtap="onNav">导航</view>
+                <view class="act-btn" hover-class="act-press" data-id="{{n.id}}" bindtap="onAddPhoto"><image class="act-ic" src="{{cameraIcon}}" mode="aspectFit" />照片</view>
+                <view class="act-btn" hover-class="act-press" data-id="{{n.id}}" bindtap="onAddExpense"><image class="act-ic" src="{{walletIcon}}" mode="aspectFit" />记一笔</view>
+                <view wx:if="{{n.navKeyword || n.lat}}" class="act-btn" hover-class="act-press" data-kw="{{n.navKeyword}}" data-lat="{{n.lat}}" data-lng="{{n.lng}}" bindtap="onNav">导航</view>
               </view>
             </view>
           </view>
 
-          <view wx:if="{{item.total > 0}}" class="day-add" data-date="{{item.date}}" bindtap="onAddNode">＋ 加一项</view>
+          <view wx:if="{{item.total > 0}}" class="day-add" hover-class="day-add-press" data-date="{{item.date}}" bindtap="onAddNode">＋ 加一项</view>
         </view>
 
         <!-- 不属于任何节点的散账与散照片（随手记），收在时间线末尾 -->
@@ -233,6 +277,7 @@
               wx:for-item="m"
               wx:key="id"
               class="mrow"
+              hover-class="mrow-press"
               data-id="{{m.id}}"
               bindtap="onEditExpense"
             >
@@ -295,8 +340,168 @@
       </view>
     </view>
 
-    <!-- 右下角快捷入口：传照片（不指定进随手记）/ 加一项 -->
-    <view class="fab" hover-class="fab-press" bindtap="onQuickAdd">＋</view>
+    <!-- 右下角快捷入口：胶囊样式 + 记行程，语义清晰 -->
+    <view wx:if="{{!isReadOnly && !isEmptyState}}" class="fab-pill" hover-class="fab-press" bindtap="onQuickAdd">＋ 记行程</view>
+
+    <!-- ⑧ 多时间线工作台半屏抽屉 -->
+    <view class="drawer-mask" wx:if="{{tripDrawerOpen}}" bindtap="onToggleTripDrawer">
+      <view class="drawer-sheet" catchtap="noop">
+        <view class="drawer-header">
+          <text class="drawer-title">我的旅行时间线 ({{trips.length}})</text>
+          <text class="drawer-close" bindtap="onToggleTripDrawer">✕</text>
+        </view>
+
+        <!-- 抽屉分段 Tab（进行/筹备中 vs 已归档） -->
+        <view class="drawer-tabs">
+          <view class="drawer-tab {{tripFilterTab === 'active' ? 'is-active' : ''}}" data-tab="active" bindtap="onSwitchTripTab">进行/筹备中</view>
+          <view class="drawer-tab {{tripFilterTab === 'archived' ? 'is-active' : ''}}" data-tab="archived" bindtap="onSwitchTripTab">已归档</view>
+        </view>
+
+        <scroll-view scroll-y class="drawer-trip-list">
+          <block wx:for="{{trips}}" wx:key="id">
+            <view
+              wx:if="{{(tripFilterTab === 'active' && item.status !== 'archived') || (tripFilterTab === 'archived' && item.status === 'archived')}}"
+              class="drawer-trip-card {{item.id === activeTripId ? 'is-active' : ''}}"
+              data-id="{{item.id}}"
+              bindtap="onSelectTrip"
+            >
+              <view class="drawer-trip-main">
+                <view class="drawer-trip-name-row">
+                  <text class="drawer-trip-name">{{item.name}}</text>
+                  <text class="drawer-trip-badge">{{item.role === 'owner' ? '创建者' : (item.role === 'viewer' ? '只读' : '协作')}}</text>
+                </view>
+                <text class="drawer-trip-meta">{{item.destination || '未设目的地'}} · {{item.startDate}} 至 {{item.endDate}}</text>
+              </view>
+              <view class="drawer-trip-side">
+                <view
+                  class="drawer-trip-clone-btn"
+                  wx:if="{{item.id === activeTripId && item.role !== 'viewer'}}"
+                  catchtap="onOpenCreateModal"
+                  data-mode="clone"
+                >衍生 Plan B</view>
+                <text class="drawer-trip-check" wx:if="{{item.id === activeTripId}}">当前</text>
+              </view>
+            </view>
+          </block>
+        </scroll-view>
+
+        <!-- 抽屉底栏：横向并排双按钮 -->
+        <view class="drawer-actions-row">
+          <button class="drawer-btn btn-primary btn-flex-main" data-mode="new" bindtap="onOpenCreateModal">+ 新建时间线</button>
+          <button class="drawer-btn btn-outline btn-flex-sub" bindtap="openJoinWithCode">口令/邀请码加入</button>
+        </view>
+      </view>
+    </view>
+
+    <!-- ⑨ 新建/克隆行程弹窗 -->
+    <view class="drawer-mask modal-mask" wx:if="{{createModalOpen}}" bindtap="onCloseCreateModal">
+      <view class="modal-card" catchtap="noop">
+        <view class="modal-header">
+          <text class="modal-title">{{createMode === 'clone' ? '衍生备选分支 (Plan B)' : '新建时间线'}}</text>
+          <text class="drawer-close" bindtap="onCloseCreateModal">✕</text>
+        </view>
+        <view class="form-body">
+          <view class="form-item">
+            <text class="form-label">行程名称</text>
+            <input
+              class="form-input"
+              placeholder="如：川西自驾小环线"
+              value="{{tripForm.name}}"
+              data-field="name"
+              bindinput="onTripFormInput"
+            />
+          </view>
+          <view class="form-item" wx:if="{{createMode === 'new'}}">
+            <text class="form-label">目的地</text>
+            <input
+              class="form-input"
+              placeholder="如：成都 · 稻城亚丁"
+              value="{{tripForm.destination}}"
+              data-field="destination"
+              bindinput="onTripFormInput"
+            />
+          </view>
+          <view class="form-item">
+            <text class="form-label">出发日期 (YYYY-MM-DD)</text>
+            <input
+              class="form-input"
+              placeholder="2026-10-01"
+              value="{{tripForm.startDate}}"
+              data-field="startDate"
+              bindinput="onTripFormInput"
+            />
+          </view>
+          <view class="form-item" wx:if="{{createMode === 'new'}}">
+            <text class="form-label">结束日期 (YYYY-MM-DD)</text>
+            <input
+              class="form-input"
+              placeholder="2026-10-04"
+              value="{{tripForm.endDate}}"
+              data-field="endDate"
+              bindinput="onTripFormInput"
+            />
+          </view>
+          <button class="drawer-btn btn-primary" loading="{{busyModal}}" bindtap="onSubmitCreateTrip">
+            {{createMode === 'clone' ? '确认生成分支' : '确认创建'}}
+          </button>
+        </view>
+      </view>
+    </view>
+
+    <!-- ⑩ 加入行程与历史/虚拟成员认领弹窗 -->
+    <view class="drawer-mask modal-mask" wx:if="{{joinModalOpen}}" bindtap="onCloseJoinModal">
+      <view class="modal-card" catchtap="noop">
+        <view class="modal-header">
+          <text class="modal-title">加入或认领行程</text>
+          <text class="drawer-close" bindtap="onCloseJoinModal">✕</text>
+        </view>
+        <view class="form-body">
+          <view class="form-row">
+            <input
+              class="form-input flex-1"
+              placeholder="8位邀请码或历史口令"
+              value="{{joinCodeInput}}"
+              bindinput="onJoinCodeInput"
+            />
+            <button class="btn-sm btn-secondary" loading="{{busyModal}}" bindtap="onQueryJoinPreview">查询</button>
+          </view>
+
+          <block wx:if="{{joinPreview}}">
+            <view class="preview-box">
+              <view class="preview-title">{{joinPreview.trip.name}}</view>
+              <view class="preview-meta">
+                <text class="preview-role-tag">{{joinPreview.mode === 'viewer' ? '只读围观' : '协作编辑'}}</text>
+                <text>{{joinPreview.trip.startDate}} ~ {{joinPreview.trip.endDate}}</text>
+              </view>
+
+              <block wx:if="{{joinPreview.mode === 'editor' && joinPreview.claimableMembers.length > 0}}">
+                <view class="preview-subtitle">检测到该行程有待认领同伴，选择你的身份接管账单：</view>
+                <view class="claim-list">
+                  <view
+                    wx:for="{{joinPreview.claimableMembers}}"
+                    wx:key="id"
+                    class="claim-chip {{selectedClaimId === item.id ? 'is-selected' : ''}}"
+                    data-id="{{item.id}}"
+                    bindtap="onSelectClaimMember"
+                  >
+                    我是「{{item.name}}」
+                  </view>
+                  <view
+                    class="claim-chip {{selectedClaimId === '' ? 'is-selected' : ''}}"
+                    data-id=""
+                    bindtap="onSelectClaimMember"
+                  >
+                    作为新成员加入
+                  </view>
+                </view>
+              </block>
+
+              <button class="drawer-btn btn-primary" loading="{{busyModal}}" bindtap="onConfirmJoinTrip">进入此行程</button>
+            </view>
+          </block>
+        </view>
+      </view>
+    </view>
   </block>
 
   <view wx:else class="loading">

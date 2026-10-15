@@ -7,6 +7,7 @@
 const TOKEN_KEY = 'travel.token';
 const TRIP_KEY = 'travel.tripId';
 const NAME_KEY = 'travel.memberName';
+const USER_KEY = 'travel.user';
 
 export const session = {
   getToken() {
@@ -29,8 +30,25 @@ export const session = {
     if (!name || name === this.getMemberName()) return;
     localStorage.setItem(NAME_KEY, name);
   },
+  getUser() {
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  },
+  setUser(user) {
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    else localStorage.removeItem(USER_KEY);
+  },
+  async getWxLoginCode() {
+    return null;
+  },
   clear() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(TRIP_KEY);
+    localStorage.removeItem(USER_KEY);
   },
 };

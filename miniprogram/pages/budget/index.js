@@ -11,6 +11,7 @@ Page({
     over: false,
     hasPlanned: false,
     canSave: true,
+    isReadOnly: false,
   },
 
   onLoad() {
@@ -29,6 +30,10 @@ Page({
   },
 
   async onSave() {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '只读模式无法修改预算', icon: 'none' });
+      return;
+    }
     if (this.busy || !this.data.canSave) return;
     const value = Number(this.data.amount || 0);
     if (!Number.isFinite(value) || value < 0) {
@@ -58,8 +63,11 @@ Page({
       return;
     }
     const b = computeBudget({ budgets: s.data.budgets, expenses: s.data.expenses });
+    const myRole = s.data.me?.role || s.data.trip?.role || (s.trips?.find((t) => t.id === s.activeTripId)?.role) || 'editor';
+    const isReadOnly = myRole === 'viewer';
     const patch = {
       ready: true,
+      isReadOnly,
       actual: formatMoney(b.actualTotal),
       remaining: formatMoney(Math.abs(b.remaining)),
       over: b.over,

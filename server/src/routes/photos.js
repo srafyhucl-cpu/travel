@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { db, nowISO, uid, PHOTO_DIR } from '../db.js';
-import { memberIdOf, requireAuth } from '../auth.js';
+import { memberIdOf, requireAuth, requireTripAccess } from '../auth.js';
 import { broadcast } from '../events.js';
 import { ensureDerivative, isVariant, removeDerivatives, warmPhoto } from '../derivatives.js';
 
@@ -71,6 +71,10 @@ function dropFiles(files) {
 }
 
 router.use(requireAuth);
+router.use((req, res, next) => {
+  const minRole = ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'viewer' : 'editor';
+  requireTripAccess(minRole)(req, res, next);
+});
 
 router.get('/', (req, res) => {
   res.json(

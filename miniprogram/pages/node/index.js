@@ -30,12 +30,20 @@ Page({
     location: '',
     navKeyword: '',
     showNav: false,
+    // 导航坐标（GCJ-02）：地图选点存下来的；pickLat/pickLng 是地图当前中心
+    lat: null,
+    lng: null,
+    hasCoord: false,
+    showMap: false,
+    pickLat: 26.8721, // 默认落在丽江（本行程）；用户拖一下就换
+    pickLng: 100.2299,
     transportMinutes: '',
     checklist: [],
     types: [],
     missing: '',
     canSave: false,
     focusId: '',
+    isReadOnly: false,
   },
 
   // query.id = 编辑；query.date = 给某天新建（都为空就是「加一项」，日期默认行程第一天）
@@ -83,6 +91,62 @@ Page({
     this.setData({ showNav: !this.data.showNav });
   },
 
+  /* ------------------------------ 地图选点 ------------------------------ */
+  // 拖地图把中心对准地点 → 「用中心点」记住坐标。比按地名解析准，也不吃地理编码配额。
+  // 取中心点优先用 regionchange（end 阶段带 centerLocation，基础库 2.3.0 起），
+  // 没拖过地图时退到 MapContext.getCenterLocation（老基础库没有就提示再拖一下）。
+
+  onToggleMap() {
+    const showMap = !this.data.showMap;
+    const hasLat = typeof this.data.lat === 'number' && Number.isFinite(this.data.lat);
+    const hasLng = typeof this.data.lng === 'number' && Number.isFinite(this.data.lng);
+    this.setData({
+      showMap,
+      pickLat: hasLat ? this.data.lat : this.data.pickLat,
+      pickLng: hasLng ? this.data.lng : this.data.pickLng,
+    });
+  },
+
+  onMapRegion(e) {
+    const c = e?.detail?.centerLocation;
+    // 0 视为「地图还没就绪」的退化值，不记；否则会在空白底图上存出一个 (0,0)
+    if (c && Number.isFinite(c.latitude) && Number.isFinite(c.longitude) && c.latitude !== 0 && c.longitude !== 0) {
+      this.mapCenter = { latitude: c.latitude, longitude: c.longitude };
+    }
+  },
+
+  onMapUse() {
+    const take = (latitude, longitude) => {
+      const lat = Number(Number(latitude).toFixed(6));
+      const lng = Number(Number(longitude).toFixed(6));
+      // 拿不到有效中心点（NaN / 0 / 退化到 0）就明确提示，不落库
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 || lng === 0) {
+        wx.showToast({ title: '没取到有效中心点，拖一下地图再试', icon: 'none' });
+        return;
+      }
+      this.setData({ lat, lng, hasCoord: true });
+      wx.showToast({ title: '坐标已记住', icon: 'success' });
+    };
+    if (this.mapCenter) {
+      take(this.mapCenter.latitude, this.mapCenter.longitude);
+      return;
+    }
+    const ctx = wx.createMapContext('pickMap', this);
+    if (typeof ctx?.getCenterLocation === 'function') {
+      ctx.getCenterLocation({
+        success: (r) => take(r.latitude, r.longitude),
+        fail: () => wx.showToast({ title: '没取到中心点，再拖一下地图', icon: 'none' }),
+      });
+      return;
+    }
+    wx.showToast({ title: '这个基础库取不到中心点，拖一下地图再试', icon: 'none' });
+  },
+
+  onMapClear() {
+    this.setData({ lat: null, lng: null, hasCoord: false });
+    wx.showToast({ title: '坐标已清除', icon: 'none' });
+  },
+
   onTransport(e) {
     this.setData({ transportMinutes: e.detail.value });
   },
@@ -120,6 +184,10 @@ Page({
   /* ------------------------------ 删除 ------------------------------ */
 
   onDelete() {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '只读模式无法删除', icon: 'none' });
+      return;
+    }
     wx.showModal({
       title: `删掉「${this.data.title || '这一项'}」？`,
       content: '删了就找不回来了',
@@ -139,6 +207,10 @@ Page({
   /* ------------------------------ 保存 ------------------------------ */
 
   async onSave() {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '只读模式无法修改', icon: 'none' });
+      return;
+    }
     if (this.busy) return;
     const title = this.data.title.trim();
     if (!title || !this.data.date) return;
@@ -154,6 +226,8 @@ Page({
       endTime: this.data.endTime || null,
       location: this.data.location.trim() || null,
       navKeyword: this.data.navKeyword.trim() || this.data.location.trim() || null,
+      lat: this.data.hasCoord ? this.data.lat : null,
+      lng: this.data.hasCoord ? this.data.lng : null,
       transportMinutes: this.data.transportMinutes === '' ? null : Number(this.data.transportMinutes),
       checklist,
     };
@@ -198,6 +272,8 @@ Page({
       return;
     }
     const data = s.data;
+    const myRole = data.me?.role || data.trip?.role || (s.trips?.find((t) => t.id === s.activeTripId)?.role) || 'editor';
+    const isReadOnly = myRole === 'viewer';
 
     // 编辑模式只预填一次，别让 20 秒一轮的同步把正在输入的内容冲掉
     if (this.nodeId && !this.prefilled) {
@@ -206,10 +282,11 @@ Page({
         this.prefilled = true;
         const date = n.date || '';
         const title = n.title || '';
-        wx.setNavigationBarTitle({ title: '编辑行程' });
+        wx.setNavigationBarTitle({ title: isReadOnly ? '查看行程' : '编辑行程' });
         this.setData({
           ready: true,
           editing: true,
+          isReadOnly,
           title,
           type: n.type || 'spot',
           date,
@@ -217,6 +294,11 @@ Page({
           endTime: n.end_time || '',
           location: n.location || '',
           navKeyword: n.nav_keyword || '',
+          lat: Number.isFinite(n.lat) ? n.lat : null,
+          lng: Number.isFinite(n.lng) ? n.lng : null,
+          hasCoord: Number.isFinite(n.lat) && Number.isFinite(n.lng),
+          pickLat: Number.isFinite(n.lat) ? n.lat : 26.8721,
+          pickLng: Number.isFinite(n.lng) ? n.lng : 100.2299,
           transportMinutes: n.transport_minutes ?? '',
           checklist: normalizeItems(n.checklist),
           types: toTypePills(data.vocab, n.type || 'spot'),
@@ -239,6 +321,7 @@ Page({
       wx.setNavigationBarTitle({ title: '新增行程' });
       this.setData({
         ready: true,
+        isReadOnly,
         date,
         types: toTypePills(data.vocab, this.data.type),
         ...this.gate(this.data.title, date),
@@ -248,6 +331,7 @@ Page({
 
     // 已预填：只保持类型胶囊和校验状态跟着最新数据走
     this.setData({
+      isReadOnly,
       types: toTypePills(data.vocab, this.data.type),
       ...this.gate(this.data.title, this.data.date),
     });

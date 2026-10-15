@@ -2,7 +2,13 @@ import { actions, getState } from '../../store/store.js';
 import { platform } from '../../platform/index.js';
 
 Page({
-  data: { passphrase: '', name: '', busy: false },
+  data: {
+    passphrase: '',
+    name: '',
+    busy: false,
+    wxBusy: false,
+    canWxLogin: typeof platform.session?.getWxLoginCode === 'function',
+  },
 
   onLoad() {
     const s = getState();
@@ -22,8 +28,26 @@ Page({
     this.setData({ name: e.detail.value });
   },
 
+  async onWxLogin() {
+    if (this.data.wxBusy || this.data.busy) return;
+    this.setData({ wxBusy: true });
+    try {
+      const code = await platform.session.getWxLoginCode();
+      if (!code) {
+        wx.showToast({ title: '获取微信登录凭证失败', icon: 'none' });
+        return;
+      }
+      await actions.wxLogin(code);
+      wx.reLaunch({ url: '/pages/timeline/index' });
+    } catch (err) {
+      wx.showToast({ title: err?.message || '微信登录失败，请尝试口令登录', icon: 'none' });
+    } finally {
+      this.setData({ wxBusy: false });
+    }
+  },
+
   async submit() {
-    if (this.data.busy) return;
+    if (this.data.busy || this.data.wxBusy) return;
     const passphrase = this.data.passphrase.trim();
     const name = this.data.name.trim() || '我';
     if (passphrase.length < 4) {

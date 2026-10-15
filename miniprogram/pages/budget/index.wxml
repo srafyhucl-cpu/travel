@@ -23,7 +23,14 @@
       <text wx:else> · 还没设总预算</text>
     </view>
 
+    <block wx:if="{{isReadOnly}}">
+      <view class="readonly-notice">
+        <text class="readonly-icon">👀</text>
+        <text class="readonly-text">当前为只读围观模式，无法调整总预算</text>
+      </view>
+    </block>
     <button
+      wx:else
       class="btn-primary {{canSave ? '' : 'off'}}"
       hover-class="{{canSave ? 'btn-press' : 'none'}}"
       disabled="{{!canSave}}"

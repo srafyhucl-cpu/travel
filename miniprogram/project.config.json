@@ -33,7 +33,8 @@
   "simulatorPluginLibVersion": {},
   "packOptions": {
     "ignore": [
-      { "type": "folder", "value": "scripts" }
+      { "type": "folder", "value": "scripts" },
+      { "type": "glob", "value": "scripts/**" }
     ],
     "include": []
   },

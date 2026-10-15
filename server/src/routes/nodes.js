@@ -1,16 +1,33 @@
 import express from 'express';
 import { db, nowISO, uid } from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireTripAccess } from '../auth.js';
 import { broadcast } from '../events.js';
 import { parseChecklist, sanitizeChecklist } from '../checklist.js';
 
 const router = express.Router();
 router.use(requireAuth);
+router.use((req, res, next) => {
+  const minRole = ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'viewer' : 'editor';
+  requireTripAccess(minRole)(req, res, next);
+});
 
 // 类型不是写死的枚举：只要是安全的标识符就接受，展示信息去 vocab 表里查。
 function sanitizeKey(v) {
 const s = String(v ?? '').trim().slice(0, 40);
 return /^[\w一-龥-]+$/.test(s) ? s : null;
+}
+
+/**
+ * 经纬度（GCJ-02，地图选点存的）：空值 → null；非有限数、0 或超范围 → null。
+ * 宁可存 null（前端走复制地名回退）也不落一个坏坐标，不然点「导航」会打开一个错地方。
+ * 0 一律当无效：退化坐标（尤其 (0,0)）会让人打开一片海面。
+ * 与客户端同一取舍 —— 赤道/格林尼治这类恰好为 0 的合法点会被一起拒掉，本行程用不到。
+ */
+function coord(v, limit) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n === 0 || Math.abs(n) > limit) return null;
+  return n;
 }
 const STATUSES = new Set(['planned', 'done', 'skipped']);
 
@@ -178,6 +195,8 @@ type: sanitizeKey(b.type) || 'other',
     end_time: b.endTime && /^\d{1,2}:\d{2}$/.test(b.endTime) ? b.endTime : null,
     location: b.location ? String(b.location).slice(0, 120) : null,
     nav_keyword: b.navKeyword ? String(b.navKeyword).slice(0, 120) : null,
+    lat: coord(b.lat, 90),
+    lng: coord(b.lng, 180),
     notes: b.notes ? String(b.notes).slice(0, 2000) : null,
     checklist: Array.isArray(b.checklist) ? sanitizeChecklist(b.checklist) : null,
     role: b.role === 'module' ? 'module' : null,
@@ -192,10 +211,10 @@ type: sanitizeKey(b.type) || 'other',
 
   db.prepare(
     `INSERT INTO nodes (id, trip_id, day_index, date, type, title, start_time, end_time, location, nav_keyword,
-                        notes, checklist, role, transport_minutes, sort_order, status, actual_start, actual_end,
+                        lat, lng, notes, checklist, role, transport_minutes, sort_order, status, actual_start, actual_end,
                         created_at, updated_at)
      VALUES (@id, @trip_id, @day_index, @date, @type, @title, @start_time, @end_time, @location, @nav_keyword,
-             @notes, @checklist, @role, @transport_minutes, @sort_order, @status, @actual_start, @actual_end,
+             @lat, @lng, @notes, @checklist, @role, @transport_minutes, @sort_order, @status, @actual_start, @actual_end,
              @created_at, @updated_at)`
   ).run(node);
   if (node.role === 'module') clearOtherModules(tripId, node.id);
@@ -212,6 +231,8 @@ type: (v) => sanitizeKey(v),
   endTime: (v) => (v === null || v === '' ? null : /^\d{1,2}:\d{2}$/.test(v) ? v : null),
   location: (v) => (v ? String(v).slice(0, 120) : null),
   navKeyword: (v) => (v ? String(v).slice(0, 120) : null),
+  lat: (v) => coord(v, 90),
+  lng: (v) => coord(v, 180),
   notes: (v) => (v ? String(v).slice(0, 2000) : null),
   role: (v) => (v === 'module' ? 'module' : null),
   transportMinutes: (v) => (Number.isFinite(+v) ? Math.max(0, Math.min(600, Math.round(+v))) : null),
@@ -227,6 +248,8 @@ const COLUMN = {
   endTime: 'end_time',
   location: 'location',
   navKeyword: 'nav_keyword',
+  lat: 'lat',
+  lng: 'lng',
   notes: 'notes',
   role: 'role',
   transportMinutes: 'transport_minutes',

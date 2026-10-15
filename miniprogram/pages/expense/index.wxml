@@ -57,10 +57,10 @@
       <text class="label">时间</text>
       <view class="time-row">
         <picker class="time-date" mode="date" value="{{date}}" bindchange="onDate">
-          <view class="picker-trigger">{{date}}</view>
+          <view class="picker-trigger" hover-class="picker-press">{{date}}</view>
         </picker>
         <picker class="time-time" mode="time" value="{{time}}" bindchange="onTime">
-          <view class="picker-trigger">{{time}}</view>
+          <view class="picker-trigger" hover-class="picker-press">{{time}}</view>
         </picker>
       </view>
     </view>
@@ -84,14 +84,22 @@
       />
     </view>
 
-    <button
-      class="btn-primary {{canSave ? '' : 'off'}}"
-      hover-class="{{canSave ? 'btn-press' : 'none'}}"
-      disabled="{{!canSave}}"
-      bindtap="onSave"
-    >{{editing ? '保存' : '记下'}}</button>
+    <block wx:if="{{isReadOnly}}">
+      <view class="readonly-notice">
+        <text class="readonly-icon">👀</text>
+        <text class="readonly-text">当前为只读围观模式，无法记账或修改花销</text>
+      </view>
+    </block>
+    <block wx:else>
+      <button
+        class="btn-primary {{canSave ? '' : 'off'}}"
+        hover-class="{{canSave ? 'btn-press' : 'none'}}"
+        disabled="{{!canSave}}"
+        bindtap="onSave"
+      >{{editing ? '保存' : '记下'}}</button>
 
-    <button wx:if="{{editing}}" class="btn-danger" hover-class="btn-press" bindtap="onDelete">删掉</button>
+      <button wx:if="{{editing}}" class="btn-danger" hover-class="btn-press" bindtap="onDelete">删掉</button>
+    </block>
   </view>
 
   <view wx:else class="loading">

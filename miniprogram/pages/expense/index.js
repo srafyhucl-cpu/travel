@@ -71,6 +71,7 @@ Page({
     payers: [],
     nodeTitle: '',
     canSave: false,
+    isReadOnly: false,
   },
 
   // query.nodeId 可空：从某个行程卡进来时会带上，新增时预填挂靠、保存放进 payload。
@@ -140,6 +141,10 @@ Page({
    * 少发 occurredAt 会被重置成「现在」、少发 nodeId 会被清成 null。
    */
   async onSave() {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '只读模式无法修改', icon: 'none' });
+      return;
+    }
     if (this.busy) return;
     const amount = Number(this.data.amount);
     if (!(amount > 0)) return;
@@ -169,6 +174,10 @@ Page({
 
   /** 删掉这笔：二次确认后走 store；离线入队时不弹「已删除」（照片删除同款处理） */
   onDelete() {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '只读模式无法删除', icon: 'none' });
+      return;
+    }
     if (this.busy) return;
     wx.showModal({
       title: '删掉这笔？',
@@ -206,6 +215,8 @@ Page({
 
     const data = s.data;
     const members = data.members || [];
+    const myRole = data.me?.role || data.trip?.role || (s.trips?.find((t) => t.id === s.activeTripId)?.role) || 'editor';
+    const isReadOnly = myRole === 'viewer';
 
     /*
      * 编辑模式只预填一次：sync 每 20 秒跟着 store 刷新跑一轮，
@@ -222,6 +233,7 @@ Page({
         this.setData({
           ready: true,
           editing: true,
+          isReadOnly,
           amount: String(exp.amount ?? ''),
           note: exp.note || '',
           category,
@@ -271,6 +283,7 @@ Page({
 
     this.setData({
       ready: true,
+      isReadOnly,
       category,
       payer,
       categories: toCategoryPills(data.vocab, category),

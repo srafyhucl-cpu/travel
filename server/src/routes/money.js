@@ -1,10 +1,14 @@
 import express from 'express';
 import { db, nowISO, uid } from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireTripAccess } from '../auth.js';
 import { broadcast } from '../events.js';
 
 const router = express.Router();
 router.use(requireAuth);
+router.use((req, res, next) => {
+  const minRole = ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'viewer' : 'editor';
+  requireTripAccess(minRole)(req, res, next);
+});
 
 // 预算行映射到哪个消费类别（vocab key）。不填就只当一条独立额度，不会被消费冲抵。
 function cleanVocabKey(v) {

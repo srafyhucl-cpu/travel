@@ -27,6 +27,36 @@ const EDGE_TICK_MS = 40;
 /** 迷你拖拽卡相对手指上抬的高度（px）：卡片小一条，别压在手指底下 */
 const DRAG_LIFT = 56;
 
+/* 卡片底部中性小图标（照片/记一笔/车程）的烙色：与 app.wxss 的 --ink-2 浅深两档对齐。
+   SVG data URI 的颜色烙在图形里，WXSS 变量救不了它，切换主题只能整套重算。 */
+const ICON_COLORS = { light: '#6b7280', dark: '#a0a6b0' };
+
+/** 当前深浅色：优先 getAppBaseInfo().theme，老基础库回退 getSystemInfoSync()，再没有按浅色 */
+function themeOf() {
+  try {
+    const a = wx.getAppBaseInfo ? wx.getAppBaseInfo() : null;
+    if (a && a.theme) return a.theme;
+  } catch {
+    /* 继续 */
+  }
+  try {
+    const s = wx.getSystemInfoSync ? wx.getSystemInfoSync() : null;
+    if (s && s.theme) return s.theme;
+  } catch {
+    /* 继续 */
+  }
+  return 'light';
+}
+
+/** 三个中性图标整套重烙一次色（onLoad 与 onThemeChange 共用） */
+function iconSetFor(color) {
+  return {
+    cameraIcon: iconDataUri('camera', color),
+    walletIcon: iconDataUri('wallet', color),
+    carIcon: iconDataUri('car', color, 26),
+  };
+}
+
 /** 从触摸列表里挑出指定手指（多指时别被第二根手指把拖动拽跑；没给 identifier 就取第一根） */
 function pickTouch(list, identifier) {
   if (!list || !list.length) return null;
@@ -101,6 +131,8 @@ function toCard(n, vocab, currentId, expRows, hasPrev) {
     icon: iconDataUri(meta.icon, meta.color),
     location: n.location || '',
     navKeyword: n.nav_keyword || '',
+    lat: Number.isFinite(n.lat) ? n.lat : null,
+    lng: Number.isFinite(n.lng) ? n.lng : null,
     done: n.isDone ? 1 : 0,
     started: n.isStarted && !n.isDone ? 1 : 0,
     doneAt: n.isDone ? hhmm(n.actual_end) : '',
@@ -358,16 +390,42 @@ Page({
     dropSheet: null, // { dayLabel, rows: [{id,icon,time,title,on,timeMoved}], note, busy }
     scrollTop: 0,
     refreshing: false,
+    // 多时间线与微信权限相关
+    isEmptyState: false,
+    members: [],
+    tripDrawerOpen: false,
+    tripFilterTab: 'active',
+    createModalOpen: false,
+    createMode: 'new',
+    tripForm: { name: '', destination: '', startDate: '', endDate: '' },
+    joinModalOpen: false,
+    joinCodeInput: '',
+    joinPreview: null,
+    selectedClaimId: '',
+    busyModal: false,
+    trips: [],
+    activeTripId: '',
+    myRole: 'editor',
+    isReadOnly: false,
+    switchingTrip: false,
+    user: null,
   },
 
-  onLoad() {
+  onLoad(query) {
+    if (query && (query.inviteCode || query.viewCode)) {
+      this._pendingShareCode = query.inviteCode || query.viewCode;
+    }
     // 图标只算一次：data URI 生成要遍历字形，别放进每轮 buildView
-    this.setData({
-      cameraIcon: iconDataUri('camera', '#6b7280'),
-      walletIcon: iconDataUri('wallet', '#6b7280'),
-      carIcon: iconDataUri('car', '#9ca3af', 26),
-      nav: readNav(),
-    });
+    this.setData({ ...iconSetFor(ICON_COLORS[themeOf() === 'dark' ? 'dark' : 'light']), nav: readNav() });
+    // 深浅色切换跟随系统：切的时候把这三个 data URI 重新烙色（老基础库没有 API 就跳过）
+    if (wx.onThemeChange) {
+      this.themeHandler = () => this.setData(iconSetFor(ICON_COLORS[themeOf() === 'dark' ? 'dark' : 'light']));
+      wx.onThemeChange(this.themeHandler);
+    }
+    // 微信AI 接力：?date=YYYY-MM-DD 时，数据就绪后滚到当天第一张卡（见 flushScrollTo）
+    if (query && typeof query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) {
+      this.pendingDate = query.date;
+    }
     // scroll-view 的实时位置：拖动落点判定要按它平移（不跟 data，避免每滚一下都 setData）
     this.scrollTop = 0;
     this.syncPending = false; // 拖动期间收到 store 刷新，结束后补一次
@@ -413,6 +471,7 @@ Page({
     this.unloaded = true;
     this.syncPending = false;
     this.unsub?.();
+    if (wx.offThemeChange && this.themeHandler) wx.offThemeChange(this.themeHandler);
     this.cancelHold();
     if (this.dragStarting) this.dragCanceled = true;
     if (this.drag) this.stopAutoScroll(this.drag);
@@ -446,6 +505,23 @@ Page({
       wx.redirectTo({ url: '/pages/login/index' });
       return;
     }
+    const allTrips = s.trips || [];
+    if (s.phase === 'ready' && (!s.activeTripId || !s.data) && allTrips.length === 0) {
+      this.lastViewData = undefined;
+      this.lastViewClock = null;
+      this.setData({
+        ready: true,
+        isEmptyState: true,
+        trips: [],
+        activeTripId: '',
+        syncing: false,
+        tripName: '旅行助手',
+        user: s.user || null,
+        myRole: 'owner',
+        isReadOnly: false,
+      });
+      return;
+    }
     if (!s.data) {
       this.lastViewData = undefined;
       this.lastViewClock = null;
@@ -461,7 +537,27 @@ Page({
     this.groups = groups;
     this.lastViewData = s.data;
     this.lastViewClock = clock;
-    const patch = { ready: true, ...view };
+    const myRole = s.data?.me?.role || s.data?.trip?.role || (s.trips?.find((t) => t.id === s.activeTripId)?.role) || 'editor';
+    const isReadOnly = myRole === 'viewer';
+    const members = (s.data?.members || []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      avatarUrl: m.avatar_url || m.avatarUrl || '',
+      color: m.color || '#2F80ED',
+      initial: (m.name || '?').trim().slice(0, 1),
+    }));
+    const patch = {
+      ready: true,
+      isEmptyState: false,
+      ...view,
+      members,
+      trips: allTrips,
+      activeTripId: s.activeTripId || s.data?.trip?.id || '',
+      myRole,
+      isReadOnly,
+      switchingTrip: !!s.switchingTrip,
+      user: s.user || null,
+    };
     if (view.tripName !== this.lastTripName) {
       this.lastTripName = view.tripName;
       patch.navTitleSize = titleFontPx(view.tripName);
@@ -474,6 +570,11 @@ Page({
     this.setData(patch, () => {
       this.fillThumbs();
       this.flushScrollTo();
+      if (this._pendingShareCode && s.phase === 'ready') {
+        const codeToOpen = this._pendingShareCode;
+        this._pendingShareCode = '';
+        this.openJoinWithCode(codeToOpen);
+      }
     });
   },
 
@@ -495,6 +596,13 @@ Page({
   /* ------------------------- ⑦ 新建后滚到新卡 ------------------------- */
 
   flushScrollTo() {
+    // AI 接力按日期来：先换算成当天第一张卡，走下面同一套滚动
+    if (!this.pendingScrollTo && this.pendingDate) {
+      const date = this.pendingDate;
+      this.pendingDate = '';
+      const day = (this.data.days || []).find((d) => d.date === date);
+      this.pendingScrollTo = (day && day.nodes && day.nodes[0] && day.nodes[0].id) || '';
+    }
     const id = this.pendingScrollTo;
     if (!id || !this.data.ready || this.drag || this.data.dropSheet) return;
     this.pendingScrollTo = '';
@@ -1180,19 +1288,6 @@ Page({
     this.pickAndUpload(nodeId);
   },
 
-  /** 右下角「＋」：传照片（不指定就进随手记）/ 加一项 —— 对应 Web 的快捷面板 */
-  onQuickAdd() {
-    if (this.uploading) return;
-    wx.showActionSheet({
-      itemList: ['传照片', '加一项'],
-      success: (res) => {
-        if (res.tapIndex === 0) this.pickAndUpload('');
-        else if (res.tapIndex === 1) wx.navigateTo({ url: '/pages/node/index' });
-      },
-      fail: () => {},
-    });
-  },
-
   pickAndUpload(nodeId) {
     this.uploading = true;
     wx.chooseMedia({
@@ -1243,14 +1338,50 @@ Page({
     wx.navigateTo({ url: `/pages/node/index?id=${encodeURIComponent(id)}` });
   },
 
+  /** 加照片：选完直接传，nodeId 带上就把照片挂在这张卡下 */
+  onAddPhoto(e) {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
+    if (this.uploading) return; // 上传中拒绝重入：连点会开两次选图、重复上传
+    const nodeId = e.currentTarget.dataset.id || '';
+    this.pickAndUpload(nodeId);
+  },
+
+  /** 右下角「＋」：传照片（不指定就进随手记）/ 加一项 —— 对应 Web 的快捷面板 */
+  onQuickAdd() {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
+    if (this.uploading) return;
+    wx.showActionSheet({
+      itemList: ['传照片', '加一项'],
+      success: (res) => {
+        if (res.tapIndex === 0) this.pickAndUpload('');
+        else if (res.tapIndex === 1) wx.navigateTo({ url: '/pages/node/index' });
+      },
+      fail: () => {},
+    });
+  },
+
   /** 每天末尾「加一项」：带日期进新建页 */
   onAddNode(e) {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
     const date = e.currentTarget.dataset.date || '';
     wx.navigateTo({ url: `/pages/node/index${date ? `?date=${encodeURIComponent(date)}` : ''}` });
   },
 
   /** 打卡：出发 / 完成（走真实接口，和 Web 的 chip 同一套动作） */
   onCheckin(e) {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
     const { id, action } = e.currentTarget.dataset;
     if (!id || !action) return;
     actions.checkin(id, action).catch(() => {});
@@ -1266,14 +1397,194 @@ Page({
     wx.navigateTo({ url: '/pages/budget/index' });
   },
 
-  /** 导航：复制地名（见 platform/wx/services.js 的说明） */
+  /** 导航：有坐标直接开地图；没坐标按地名解析，失败回退复制（见 platform/wx/services.js） */
   onNav(e) {
-    openMap(e.currentTarget.dataset.kw || '');
+    const d = e.currentTarget.dataset;
+    openMap(d.kw || '', { lat: d.lat, lng: d.lng });
   },
 
   /** 勾选待办：走真实写接口 —— 这条路径验证了鉴权、请求、刷新整条链路 */
   onToggle(e) {
+    if (this.data.isReadOnly) {
+      wx.showToast({ title: '当前为只读预览模式', icon: 'none' });
+      return;
+    }
     const { node, item, done, text } = e.currentTarget.dataset;
     actions.setChecklistItem(node, item, !Number(done), text).catch(() => {});
+  },
+
+  /* ------------------------- 多时间线交互逻辑 ------------------------- */
+
+  noop() {},
+
+  onToggleTripDrawer() {
+    const next = !this.data.tripDrawerOpen;
+    this.setData({ tripDrawerOpen: next });
+    if (next) actions.refreshTrips().catch(() => {});
+  },
+
+  onSwitchTripTab(e) {
+    const tab = e?.currentTarget?.dataset?.tab;
+    if (tab && tab !== this.data.tripFilterTab) {
+      this.setData({ tripFilterTab: tab });
+    }
+  },
+
+  async onCreateDemoTrip() {
+    if (this.data.busyModal) return;
+    this.setData({ busyModal: true });
+    try {
+      await actions.createDemoTrip();
+    } catch (e) {
+      wx.showToast({ title: e?.message || '生成失败', icon: 'none' });
+    } finally {
+      this.setData({ busyModal: false });
+    }
+  },
+
+  async onSelectTrip(e) {
+    const id = e.currentTarget.dataset.id;
+    if (!id || id === this.data.activeTripId) {
+      this.setData({ tripDrawerOpen: false });
+      return;
+    }
+    this.setData({ tripDrawerOpen: false });
+    await actions.switchTrip(id);
+  },
+
+  onOpenCreateModal(e) {
+    const mode = e?.currentTarget?.dataset?.mode || 'new'; // 'new' | 'clone'
+    const curTrip = getState().data?.trip;
+    const today = new Date().toISOString().slice(0, 10);
+    this.setData({
+      tripDrawerOpen: false,
+      createModalOpen: true,
+      createMode: mode,
+      tripForm: {
+        name: mode === 'clone' ? `${curTrip?.name || '行程'} (Plan B)` : '',
+        destination: curTrip?.destination || '',
+        startDate: curTrip?.start_date || today,
+        endDate: curTrip?.end_date || today,
+      },
+    });
+  },
+
+  onCloseCreateModal() {
+    this.setData({ createModalOpen: false });
+  },
+
+  onTripFormInput(e) {
+    const { field } = e.currentTarget.dataset;
+    const val = e.detail.value;
+    this.setData({
+      [`tripForm.${field}`]: val,
+    });
+  },
+
+  async onSubmitCreateTrip() {
+    if (this.data.busyModal) return;
+    const { name, destination, startDate, endDate } = this.data.tripForm;
+    if (!name.trim()) {
+      wx.showToast({ title: '请输入行程名称', icon: 'none' });
+      return;
+    }
+    this.setData({ busyModal: true });
+    try {
+      if (this.data.createMode === 'clone') {
+        await actions.cloneCurrentTrip({ name: name.trim(), startDate });
+      } else {
+        await actions.createTrip({
+          name: name.trim(),
+          destination: destination.trim(),
+          startDate,
+          endDate,
+        });
+      }
+      this.setData({ createModalOpen: false });
+    } finally {
+      this.setData({ busyModal: false });
+    }
+  },
+
+  openJoinWithCode(eOrCode = '') {
+    const code = typeof eOrCode === 'string' ? eOrCode : (eOrCode?.currentTarget?.dataset?.code || '');
+    this.setData({
+      tripDrawerOpen: false,
+      joinModalOpen: true,
+      joinCodeInput: code,
+      joinPreview: null,
+      selectedClaimId: '',
+    });
+    if (code) this.onQueryJoinPreview();
+  },
+
+  onCloseJoinModal() {
+    this.setData({ joinModalOpen: false, joinPreview: null });
+  },
+
+  onJoinCodeInput(e) {
+    this.setData({ joinCodeInput: e.detail.value });
+  },
+
+  onSelectClaimMember(e) {
+    const id = e.currentTarget.dataset.id ?? '';
+    this.setData({ selectedClaimId: id });
+  },
+
+  async onQueryJoinPreview() {
+    const raw = (this.data.joinCodeInput || '').trim();
+    if (!raw) {
+      wx.showToast({ title: '请输入8位邀请码或口令', icon: 'none' });
+      return;
+    }
+    this.setData({ busyModal: true });
+    try {
+      const isShareCode = /^[A-Z0-9]{8}$/.test(raw.toUpperCase());
+      const preview = await actions.previewJoin(
+        isShareCode ? { code: raw.toUpperCase() } : { passphrase: raw }
+      );
+      this.setData({
+        joinPreview: preview,
+        selectedClaimId: preview.claimableMembers?.[0]?.id || '',
+      });
+    } catch (err) {
+      wx.showToast({ title: err?.message || '未找到该行程', icon: 'none' });
+    } finally {
+      this.setData({ busyModal: false });
+    }
+  },
+
+  async onConfirmJoinTrip() {
+    if (this.data.busyModal || !this.data.joinPreview) return;
+    const raw = (this.data.joinCodeInput || '').trim();
+    const isShareCode = /^[A-Z0-9]{8}$/.test(raw.toUpperCase());
+    this.setData({ busyModal: true });
+    try {
+      await actions.confirmJoin({
+        code: isShareCode ? raw.toUpperCase() : '',
+        passphrase: isShareCode ? '' : raw,
+        claimMemberId: this.data.selectedClaimId,
+      });
+      this.setData({ joinModalOpen: false, joinPreview: null, joinCodeInput: '' });
+    } catch (err) {
+      wx.showToast({ title: err?.message || '加入失败', icon: 'none' });
+    } finally {
+      this.setData({ busyModal: false });
+    }
+  },
+
+  onShareAppMessage(res) {
+    const trip = getState().data?.trip || {};
+    const mode = res?.target?.dataset?.mode || 'view';
+    if (mode === 'invite' && trip.invite_code && !this.data.isReadOnly) {
+      return {
+        title: `邀请你共同编辑「${trip.name || '我们的旅行'}」行程与记账`,
+        path: `/pages/timeline/index?inviteCode=${trip.invite_code}`,
+      };
+    }
+    return {
+      title: `分享「${trip.name || '旅行助手'}」行程时间线给你`,
+      path: `/pages/timeline/index?viewCode=${trip.view_code || ''}`,
+    };
   },
 });
